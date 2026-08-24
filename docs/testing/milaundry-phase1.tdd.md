@@ -21,6 +21,9 @@
   - GREEN: `npx jest credentials` → `5 passed`. Committed.
 - **Final full run**: `npm run test:coverage` → `Test Suites: 5 passed, Tests: 39 passed`.
 
+- **Cycle 3 (phone-email auth mapping)**: RED (missing module) → GREEN `npx jest phone-email` 4/4. Auth now uses synthetic emails because Supabase phone sign-ups require an SMS provider.
+- **Cycle 4 (auth error mapping)**: RED (missing module) → GREEN `npx jest auth-error` 4/4. Auth errors show the mobile number, never the synthetic email.
+
 ## Test Specification
 
 | # | What is guaranteed | Test file | Test type | Result | Evidence |
