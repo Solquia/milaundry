@@ -7,6 +7,7 @@ import React, {
   useState,
 } from 'react';
 
+import { phoneToAuthEmail } from './domain/phone-email';
 import { supabase } from './supabase';
 import type { Profile } from './types';
 
@@ -57,17 +58,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => sub.subscription.unsubscribe();
   }, [loadProfile]);
 
+  // Phone sign-ups need a paid SMS provider on Supabase, so auth runs on a
+  // synthetic email derived from the phone; the phone stays the user identity.
   const signIn = useCallback(async (phone: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ phone, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: phoneToAuthEmail(phone),
+      password,
+    });
     if (error) throw new Error(error.message);
   }, []);
 
   const signUp = useCallback(
     async (phone: string, password: string, fullName: string) => {
       const { error } = await supabase.auth.signUp({
-        phone,
+        email: phoneToAuthEmail(phone),
         password,
-        options: { data: { full_name: fullName } },
+        options: { data: { full_name: fullName, phone } },
       });
       if (error) throw new Error(error.message);
     },
