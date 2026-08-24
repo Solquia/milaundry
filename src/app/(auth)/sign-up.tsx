@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 
 import { Button, Card, ErrorText, Field, Screen, Subtle, Title } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
+import { friendlyAuthError } from '@/lib/domain/auth-error';
 import { validateCredentials } from '@/lib/domain/credentials';
 
 export default function SignUp() {
@@ -30,7 +31,11 @@ export default function SignUp() {
       await signUp(validated.phone, password, fullName.trim());
       router.replace('/');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Sign up failed');
+      setError(
+        err instanceof Error
+          ? friendlyAuthError(err.message, validated.phone)
+          : 'Sign up failed'
+      );
     } finally {
       setIsSubmitting(false);
     }
