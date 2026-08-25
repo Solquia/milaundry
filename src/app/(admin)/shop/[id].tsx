@@ -11,6 +11,7 @@ import {
   ErrorText,
   Field,
   Loading,
+  PasswordField,
   PhoneField,
   Screen,
   Subtle,
@@ -23,12 +24,17 @@ import {
   adminListShopMembers,
   adminRemoveShopMember,
   adminSetShopActive,
+  adminUpdateShop,
   getAllShops,
 } from '@/lib/api';
 import { friendlyAdminError } from '@/lib/domain/admin-error';
+import type { CredentialsHandoff } from '@/lib/domain/credentials-handoff';
+import { credentialsHandoff } from '@/lib/domain/credentials-handoff';
+import { formatPhoneInput } from '@/lib/domain/phone-input';
 import { buildShopQr } from '@/lib/domain/qr';
 import type { ShopAccountRole } from '@/lib/domain/shop-account';
 import { SHOP_ACCOUNT_ROLES, validateShopAccountForm } from '@/lib/domain/shop-account';
+import { validateShopForm } from '@/lib/domain/shop-form';
 import { canRemoveMember, describeMemberRole } from '@/lib/domain/shop-member';
 import { generateTempPassword } from '@/lib/domain/temp-password';
 import { useViewAsShop } from '@/lib/view-as-shop-context';
@@ -47,6 +53,7 @@ export default function AdminShopDetail() {
   const [existingPhone, setExistingPhone] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [handoff, setHandoff] = useState<CredentialsHandoff | null>(null);
 
   const { data: shops, isLoading } = useQuery({
     queryKey: ['admin-shops'],
@@ -73,18 +80,38 @@ export default function AdminShopDetail() {
     mutationFn: () => {
       const result = validateShopAccountForm({ fullName, phoneInput: phone, password, role });
       if (!result.ok) return Promise.reject(new Error(result.message));
-      return adminCreateShopAccount(shopId, result.account);
+      return adminCreateShopAccount(shopId, result.account).then(() => result.account);
     },
-    onSuccess: () => {
+    onSuccess: (account) => {
       setError('');
-      setMessage(
-        `Account created for ${fullName.trim()}. Give them the mobile number and temporary password above — they can sign in now.`
+      setMessage('');
+      setHandoff(
+        credentialsHandoff({
+          fullName: account.fullName,
+          phone: account.phone,
+          password: account.password,
+        })
       );
       setFullName('');
       setPhone('');
+      setPassword(generateTempPassword());
       refresh();
     },
     onError: (err: Error) => report(err, phone),
+  });
+
+  const updateShop = useMutation({
+    mutationFn: (values: { name: string; address: string; phoneInput: string }) => {
+      const result = validateShopForm(values);
+      if (!result.ok) return Promise.reject(new Error(result.message));
+      return adminUpdateShop(shopId, result.values);
+    },
+    onSuccess: () => {
+      setError('');
+      setMessage('Shop details saved.');
+      refresh();
+    },
+    onError: (err: Error) => report(err, ''),
   });
 
   const assignExisting = useMutation({
@@ -140,6 +167,22 @@ export default function AdminShopDetail() {
 
       <ErrorText>{error}</ErrorText>
       {message ? <Subtle>{message}</Subtle> : null}
+
+      {/* ── credentials handoff ──────────────────────────────────────── */}
+      {handoff && (
+        <Card>
+          <Text style={{ fontWeight: '600', fontSize: 16, color: colors.success }}>
+            {handoff.title}
+          </Text>
+          {handoff.lines.map((line) => (
+            <Text key={line} selectable style={{ fontSize: 15, color: colors.text }}>
+              {line}
+            </Text>
+          ))}
+          <Subtle>{handoff.note}</Subtle>
+          <Subtle onPress={() => setHandoff(null)}>Dismiss</Subtle>
+        </Card>
+      )}
 
       {/* ── open as merchant ─────────────────────────────────────────── */}
       <Card>
@@ -211,12 +254,10 @@ export default function AdminShopDetail() {
         />
         <PhoneField value={phone} onChangeText={setPhone} />
 
-        <Field
+        <PasswordField
           label="Temporary password"
           value={password}
           onChangeText={setPassword}
-          autoCapitalize="none"
-          autoCorrect={false}
         />
         <Subtle onPress={() => setPassword(generateTempPassword())}>
           Generate a new temporary password
@@ -250,6 +291,14 @@ export default function AdminShopDetail() {
         />
       </Card>
 
+      {/* ── edit shop details ────────────────────────────────────────── */}
+      <EditShopCard
+        key={`${shop.id}-${shop.name}-${shop.address}-${shop.phone}`}
+        shop={shop}
+        isSaving={updateShop.isPending}
+        onSave={(values) => updateShop.mutate(values)}
+      />
+
       {/* ── QR ───────────────────────────────────────────────────────── */}
       <Card>
         <Text style={{ fontWeight: '600' }}>Shop registration QR</Text>
@@ -279,6 +328,39 @@ export default function AdminShopDetail() {
         />
       </Card>
     </Screen>
+  );
+}
+
+function EditShopCard({
+  shop,
+  isSaving,
+  onSave,
+}: {
+  shop: { name: string; address: string; phone: string };
+  isSaving: boolean;
+  onSave: (values: { name: string; address: string; phoneInput: string }) => void;
+}) {
+  const [name, setName] = useState(shop.name);
+  const [address, setAddress] = useState(shop.address);
+  const [phoneInput, setPhoneInput] = useState(formatPhoneInput(shop.phone));
+
+  return (
+    <Card>
+      <Text style={{ fontWeight: '600', fontSize: 16 }}>Edit shop details</Text>
+      <Field label="Name" value={name} onChangeText={setName} />
+      <Field label="Address" value={address} onChangeText={setAddress} />
+      <PhoneField
+        label="Contact number (optional)"
+        value={phoneInput}
+        onChangeText={setPhoneInput}
+      />
+      <Button
+        title={isSaving ? 'Saving…' : 'Save changes'}
+        onPress={() => onSave({ name, address, phoneInput })}
+        disabled={isSaving}
+        variant="outline"
+      />
+    </Card>
   );
 }
 
