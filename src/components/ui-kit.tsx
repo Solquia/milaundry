@@ -48,9 +48,7 @@ export const STATUS_LABELS: Record<OrderStatus, string> = {
   cancelled: 'Cancelled',
 };
 
-export function formatMoney(amount: number): string {
-  return `₱${amount.toFixed(2)}`;
-}
+export { formatMoney } from '@/lib/domain/money';
 
 export function formatDate(iso: string): string {
   return new Date(iso).toLocaleString();

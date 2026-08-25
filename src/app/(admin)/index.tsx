@@ -101,7 +101,10 @@ export default function AdminOverview() {
             <Link key={shop.id} href={`/(admin)/shop/${shop.id}`} asChild>
               <Pressable
                 accessibilityRole="button"
-                style={[styles.recentRow, index > 0 && styles.recentRowBorder]}
+                style={StyleSheet.flatten([
+                  styles.recentRow,
+                  index > 0 && styles.recentRowBorder,
+                ])}
               >
                 <ShopLogo name={shop.name} logoUrl={shop.logo_url} size={44} />
                 <View style={{ flex: 1 }}>

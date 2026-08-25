@@ -14,6 +14,11 @@ import {
   formatMoney,
 } from '@/components/ui-kit';
 import { getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
+import {
+  PAYMENT_LABELS,
+  paymentSummaryLine,
+  paymentToggleLabel,
+} from '@/lib/domain/payment-summary';
 import { estimateOrderTotal } from '@/lib/domain/pricing';
 import {
   PAYMENT_METHODS,
@@ -23,14 +28,6 @@ import {
   type WalkInErrors,
 } from '@/lib/domain/walk-in-order';
 import type { OrderRow } from '@/lib/types';
-
-const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  cash: 'Cash',
-  gcash: 'GCash',
-  maya: 'Maya',
-  card: 'Card',
-  other: 'Other',
-};
 
 type Props = {
   shopId: string;
@@ -166,24 +163,6 @@ export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuc
               <ErrorText>{fieldErrors.deliveryAddress}</ErrorText>
             </>
           )}
-
-          <Text style={{ fontWeight: '600', marginTop: 4 }}>Payment</Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-            {PAYMENT_METHODS.map((method) => (
-              <View key={method} style={{ minWidth: 90, flexGrow: 1 }}>
-                <Button
-                  title={PAYMENT_LABELS[method]}
-                  variant={paymentMethod === method ? 'primary' : 'outline'}
-                  onPress={() => setPaymentMethod(method)}
-                />
-              </View>
-            ))}
-          </View>
-          <Button
-            title={isPaid ? 'Paid now ✓' : 'Pay later (collect on pickup)'}
-            variant={isPaid ? 'primary' : 'outline'}
-            onPress={() => setIsPaid((paid) => !paid)}
-          />
         </Card>
       )}
 
@@ -226,6 +205,40 @@ export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuc
           <Subtle>Final price is confirmed by the shop after weighing.</Subtle>
         </Card>
       )}
+
+      {/* Payment sits right above Save so the owner confirms who paid at the
+          moment they close the order, without scrolling back to the top. */}
+      {mode === 'walk_in' && (
+        <Card>
+          <Text style={{ fontWeight: '600', fontSize: 16 }}>Payment</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {PAYMENT_METHODS.map((method) => (
+              <View key={method} style={{ minWidth: 90, flexGrow: 1 }}>
+                <Button
+                  title={PAYMENT_LABELS[method]}
+                  variant={paymentMethod === method ? 'primary' : 'outline'}
+                  onPress={() => setPaymentMethod(method)}
+                />
+              </View>
+            ))}
+          </View>
+          <ErrorText>{fieldErrors.paymentMethod}</ErrorText>
+          <Button
+            title={paymentToggleLabel(isPaid, fulfillment)}
+            variant={isPaid ? 'primary' : 'outline'}
+            onPress={() => setIsPaid((paid) => !paid)}
+          />
+          <Subtle>
+            {paymentSummaryLine({
+              paymentMethod,
+              isPaid,
+              fulfillment,
+              total: estimate?.total ?? 0,
+            })}
+          </Subtle>
+        </Card>
+      )}
+
       <ErrorText>{error}</ErrorText>
       <Button
         title={mutation.isPending ? 'Submitting…' : submitLabel}
