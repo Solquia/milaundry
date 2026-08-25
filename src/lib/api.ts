@@ -1,5 +1,7 @@
 import type { OrderStatus } from './domain/order-status';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
+import type { StarterService } from './domain/service-catalog';
+import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import type { ShopFormValues } from './domain/shop-form';
 import { supabase } from './supabase';
 import type {
@@ -101,16 +103,45 @@ export interface PlaceOrderItem {
   quantity: number;
 }
 
+export interface PlaceOrderOptions {
+  customerId?: string;
+  notes?: string;
+  fulfillment?: Fulfillment;
+  deliveryAddress?: string;
+  /** Walk-in details jotted down at the POS. */
+  customerName?: string;
+  customerPhone?: string;
+  paymentMethod?: PaymentMethod;
+  isPaid?: boolean;
+}
+
 export async function placeOrder(
   shopId: string,
   items: PlaceOrderItem[],
-  options: { customerId?: string; notes?: string } = {}
+  options: PlaceOrderOptions = {}
 ): Promise<OrderRow> {
   const result = await supabase.rpc('place_order', {
     p_shop_id: shopId,
     p_items: items,
     p_customer_id: options.customerId ?? null,
     p_notes: options.notes ?? '',
+    p_fulfillment: options.fulfillment ?? 'pickup',
+    p_delivery_address: options.deliveryAddress ?? '',
+    p_customer_name: options.customerName ?? '',
+    p_customer_phone: options.customerPhone ?? '',
+    p_payment_method: options.paymentMethod ?? 'cash',
+    p_is_paid: options.isPaid ?? false,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+export async function markOrderPaid(
+  orderId: string,
+  method?: PaymentMethod
+): Promise<OrderRow> {
+  const result = await supabase.rpc('mark_order_paid', {
+    p_order_id: orderId,
+    p_method: method ?? null,
   });
   return unwrap(result) as OrderRow;
 }
@@ -160,6 +191,43 @@ export async function upsertService(
 ): Promise<ServiceRow> {
   const result = await supabase.from('services').upsert(service).select().single();
   return unwrap(result) as ServiceRow;
+}
+
+export async function updateService(
+  serviceId: string,
+  patch: Partial<
+    Pick<
+      ServiceRow,
+      'name' | 'unit' | 'price' | 'category' | 'min_quantity' | 'description' | 'is_active'
+    >
+  >
+): Promise<ServiceRow> {
+  const result = await supabase
+    .from('services')
+    .update(patch)
+    .eq('id', serviceId)
+    .select()
+    .single();
+  return unwrap(result) as ServiceRow;
+}
+
+/** Seeds the starter price list for a shop with no services yet. */
+export async function seedStarterServices(
+  shopId: string,
+  starters: readonly StarterService[]
+): Promise<void> {
+  const rows = starters.map((starter, index) => ({
+    shop_id: shopId,
+    name: starter.name,
+    unit: starter.unit,
+    price: starter.price,
+    category: starter.category,
+    min_quantity: starter.min_quantity,
+    description: starter.description,
+    sort_order: index,
+  }));
+  const { error } = await supabase.from('services').insert(rows);
+  if (error) throw new Error(error.message);
 }
 
 // ── superadmin: shops ────────────────────────────────────────────────────

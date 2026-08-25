@@ -29,7 +29,9 @@ export const colors = {
 const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#D97706',
   received: '#2563EB',
-  in_progress: '#7C3AED',
+  washing: '#7C3AED',
+  drying: '#9333EA',
+  folded: '#0891B2',
   ready: '#16A34A',
   completed: '#475569',
   cancelled: '#DC2626',
@@ -38,9 +40,11 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Pending',
   received: 'Received',
-  in_progress: 'In progress',
+  washing: 'Washing',
+  drying: 'Drying',
+  folded: 'Folded',
   ready: 'Ready for pickup',
-  completed: 'Completed',
+  completed: 'Delivered / picked up',
   cancelled: 'Cancelled',
 };
 
@@ -213,6 +217,21 @@ export function Button({ title, onPress, disabled, variant = 'primary' }: Button
   );
 }
 
+/** Small neutral tag for order badges like Walk-in / Delivery / Unpaid. */
+export function Tag({ label }: { label: string }) {
+  const isAlert = label === 'Unpaid';
+  return (
+    <View
+      style={[
+        styles.tag,
+        { backgroundColor: isAlert ? '#FEF3C7' : '#EEF2F7' },
+      ]}
+    >
+      <Text style={[styles.tagText, isAlert && { color: '#B45309' }]}>{label}</Text>
+    </View>
+  );
+}
+
 export function StatusBadge({ status }: { status: OrderStatus }) {
   return (
     <View style={[styles.badge, { backgroundColor: STATUS_COLORS[status] }]}>
@@ -316,6 +335,13 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
   },
   badgeText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  tag: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  tagText: { fontSize: 12, fontWeight: '600', color: colors.subtle },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', padding: 32 },
 });

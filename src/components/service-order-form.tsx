@@ -7,23 +7,51 @@ import {
   Card,
   EmptyState,
   ErrorText,
+  Field,
   Loading,
+  PhoneField,
   Subtle,
   formatMoney,
 } from '@/components/ui-kit';
-import { getServices, placeOrder } from '@/lib/api';
+import { getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
 import { estimateOrderTotal } from '@/lib/domain/pricing';
+import {
+  PAYMENT_METHODS,
+  validateWalkIn,
+  type Fulfillment,
+  type PaymentMethod,
+  type WalkInErrors,
+} from '@/lib/domain/walk-in-order';
 import type { OrderRow } from '@/lib/types';
+
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  cash: 'Cash',
+  gcash: 'GCash',
+  maya: 'Maya',
+  card: 'Card',
+  other: 'Other',
+};
 
 type Props = {
   shopId: string;
   submitLabel: string;
+  /** 'walk_in' adds POS intake fields (name, phone, fulfillment, payment). */
+  mode?: 'customer' | 'walk_in';
   onSuccess: (order: OrderRow) => void;
 };
 
-export function ServiceOrderForm({ shopId, submitLabel, onSuccess }: Props) {
+export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuccess }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [error, setError] = useState('');
+
+  // Walk-in intake state (only rendered in walk_in mode).
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [fulfillment, setFulfillment] = useState<Fulfillment>('pickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+  const [isPaid, setIsPaid] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<WalkInErrors>({});
 
   const { data: services, isLoading } = useQuery({
     queryKey: ['services', shopId],
@@ -48,14 +76,44 @@ export function ServiceOrderForm({ shopId, submitLabel, onSuccess }: Props) {
   }, [services, selectedItems]);
 
   const mutation = useMutation({
-    mutationFn: () =>
+    mutationFn: (options: PlaceOrderOptions) =>
       placeOrder(
         shopId,
-        selectedItems.map((item) => ({ service_id: item.serviceId, quantity: item.quantity }))
+        selectedItems.map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
+        options
       ),
     onSuccess,
     onError: (err: Error) => setError(err.message),
   });
+
+  const handleSubmit = () => {
+    setError('');
+    setFieldErrors({});
+    if (mode === 'customer') {
+      mutation.mutate({});
+      return;
+    }
+    const result = validateWalkIn({
+      customerName,
+      customerPhone,
+      fulfillment,
+      deliveryAddress,
+      paymentMethod,
+      isPaid,
+    });
+    if (!result.ok) {
+      setFieldErrors(result.errors);
+      return;
+    }
+    mutation.mutate({
+      fulfillment: result.value.fulfillment,
+      deliveryAddress: result.value.deliveryAddress,
+      customerName: result.value.customerName,
+      customerPhone: result.value.customerPhone,
+      paymentMethod: result.value.paymentMethod,
+      isPaid: result.value.isPaid,
+    });
+  };
 
   const adjust = (serviceId: string, step: number) => {
     setQuantities((prev) => ({
@@ -68,6 +126,67 @@ export function ServiceOrderForm({ shopId, submitLabel, onSuccess }: Props) {
 
   return (
     <>
+      {mode === 'walk_in' && (
+        <Card>
+          <Text style={{ fontWeight: '600', fontSize: 16 }}>Customer</Text>
+          <Field
+            label="Name"
+            value={customerName}
+            onChangeText={setCustomerName}
+            placeholder="Maria Santos"
+          />
+          <ErrorText>{fieldErrors.customerName}</ErrorText>
+          <PhoneField
+            label="Mobile number (optional)"
+            value={customerPhone}
+            onChangeText={setCustomerPhone}
+          />
+          <ErrorText>{fieldErrors.customerPhone}</ErrorText>
+
+          <Text style={{ fontWeight: '600', marginTop: 4 }}>Pickup or delivery?</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {(['pickup', 'delivery'] as const).map((option) => (
+              <View key={option} style={{ flex: 1 }}>
+                <Button
+                  title={option === 'pickup' ? 'Pickup' : 'Deliver'}
+                  variant={fulfillment === option ? 'primary' : 'outline'}
+                  onPress={() => setFulfillment(option)}
+                />
+              </View>
+            ))}
+          </View>
+          {fulfillment === 'delivery' && (
+            <>
+              <Field
+                label="Delivery address"
+                value={deliveryAddress}
+                onChangeText={setDeliveryAddress}
+                placeholder="12 Mabini St, Quezon City"
+              />
+              <ErrorText>{fieldErrors.deliveryAddress}</ErrorText>
+            </>
+          )}
+
+          <Text style={{ fontWeight: '600', marginTop: 4 }}>Payment</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {PAYMENT_METHODS.map((method) => (
+              <View key={method} style={{ minWidth: 90, flexGrow: 1 }}>
+                <Button
+                  title={PAYMENT_LABELS[method]}
+                  variant={paymentMethod === method ? 'primary' : 'outline'}
+                  onPress={() => setPaymentMethod(method)}
+                />
+              </View>
+            ))}
+          </View>
+          <Button
+            title={isPaid ? 'Paid now ✓' : 'Pay later (collect on pickup)'}
+            variant={isPaid ? 'primary' : 'outline'}
+            onPress={() => setIsPaid((paid) => !paid)}
+          />
+        </Card>
+      )}
+
       {services?.length === 0 && (
         <EmptyState message="This shop has no services listed yet." />
       )}
@@ -82,6 +201,7 @@ export function ServiceOrderForm({ shopId, submitLabel, onSuccess }: Props) {
             <Subtle>
               {formatMoney(service.price)}
               {unitLabel}
+              {service.min_quantity > 0 ? ` · minimum ${service.min_quantity} kg applies` : ''}
             </Subtle>
             <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
@@ -109,7 +229,7 @@ export function ServiceOrderForm({ shopId, submitLabel, onSuccess }: Props) {
       <ErrorText>{error}</ErrorText>
       <Button
         title={mutation.isPending ? 'Submitting…' : submitLabel}
-        onPress={() => mutation.mutate()}
+        onPress={handleSubmit}
         disabled={selectedItems.length === 0 || mutation.isPending}
       />
     </>

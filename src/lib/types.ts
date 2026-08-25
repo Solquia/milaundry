@@ -1,6 +1,9 @@
 import type { OrderStatus } from './domain/order-status';
+import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
+import type { ServiceCategory } from './domain/service-catalog';
 import type { ShopAccountRole } from './domain/shop-account';
+import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 
 export type Role = 'customer' | 'merchant' | 'superadmin';
 
@@ -44,6 +47,11 @@ export interface ServiceRow {
   name: string;
   unit: PricingUnit;
   price: number;
+  category: ServiceCategory;
+  /** Minimum billable quantity for per-kg services; 0 = no minimum. */
+  min_quantity: number;
+  description: string;
+  sort_order: number;
   is_active: boolean;
   created_at: string;
 }
@@ -54,6 +62,15 @@ export interface OrderRow {
   customer_id: string | null;
   created_by: string;
   status: OrderStatus;
+  order_type: OrderType;
+  fulfillment: Fulfillment;
+  delivery_address: string;
+  /** Jotted-down walk-in customer details (no account required). */
+  customer_name: string;
+  customer_phone: string;
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  paid_at: string | null;
   estimated_total: number;
   final_total: number | null;
   claim_token: string;
