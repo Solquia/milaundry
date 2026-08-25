@@ -163,26 +163,52 @@ export async function upsertService(
 }
 
 // ── superadmin: shops ────────────────────────────────────────────────────
-export async function adminCreateShop(values: ShopFormValues): Promise<Shop> {
+export async function adminCreateShop(
+  values: ShopFormValues,
+  options: { slug?: string; logoUrl?: string } = {}
+): Promise<Shop> {
   const result = await supabase.rpc('admin_create_shop', {
     p_name: values.name,
     p_address: values.address,
     p_phone: values.phone,
+    p_slug: options.slug ?? null,
+    p_logo_url: options.logoUrl ?? '',
   });
   return unwrap(result) as Shop;
 }
 
 export async function adminUpdateShop(
   shopId: string,
-  values: ShopFormValues
+  values: ShopFormValues,
+  options: { logoUrl?: string } = {}
 ): Promise<Shop> {
   const result = await supabase.rpc('admin_update_shop', {
     p_shop_id: shopId,
     p_name: values.name,
     p_address: values.address,
     p_phone: values.phone,
+    p_logo_url: options.logoUrl ?? null,
   });
   return unwrap(result) as Shop;
+}
+
+/**
+ * Uploads a picked logo image into the public shop-logos bucket and returns
+ * its public URL. Superadmin-only by storage policy (0008_shop_branding.sql).
+ */
+export async function uploadShopLogo(slug: string, localUri: string): Promise<string> {
+  const response = await fetch(localUri);
+  const body = await response.arrayBuffer();
+  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const path = `${slug}-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage.from('shop-logos').upload(path, body, {
+    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw new Error(error.message);
+
+  return supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl;
 }
 
 export async function adminSetShopActive(
@@ -194,6 +220,15 @@ export async function adminSetShopActive(
     p_is_active: isActive,
   });
   return unwrap(result) as Shop;
+}
+
+/** Total shop logins across the platform, for the console overview. */
+export async function adminCountShopAccounts(): Promise<number> {
+  const { count, error } = await supabase
+    .from('shop_members')
+    .select('*', { count: 'exact', head: true });
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 }
 
 // ── superadmin: shop accounts ────────────────────────────────────────────
@@ -240,6 +275,33 @@ async function readFunctionError(error: unknown): Promise<string | null> {
     return typeof body?.error === 'string' ? body.error : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Provisions the branded owner login generated with a new shop: username +
+ * password derived from the shop name, no phone required.
+ */
+export async function adminCreateBrandedOwner(
+  shopId: string,
+  account: { fullName: string; username: string; password: string }
+): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('admin-create-shop-account', {
+    body: {
+      shop_id: shopId,
+      full_name: account.fullName,
+      username: account.username,
+      password: account.password,
+      role: 'owner',
+    },
+  });
+
+  if (error) {
+    const detail = await readFunctionError(error);
+    throw new Error(detail ?? error.message);
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error));
   }
 }
 

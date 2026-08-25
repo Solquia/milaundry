@@ -9,12 +9,17 @@ export interface Profile {
   role: Role;
   full_name: string;
   phone: string;
+  /** Branded login for shop accounts; null for phone-based sign-ups. */
+  username: string | null;
   created_at: string;
 }
 
 export interface Shop {
   id: string;
   name: string;
+  /** URL-ish identity shown as /sparkle-wash; also brands the login. */
+  slug: string;
+  logo_url: string;
   address: string;
   phone: string;
   qr_token: string;
@@ -28,6 +33,7 @@ export interface ShopMemberRow {
   profile_id: string;
   full_name: string;
   phone: string;
+  username: string | null;
   role: ShopAccountRole;
   created_at: string;
 }

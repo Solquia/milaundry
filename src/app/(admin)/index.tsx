@@ -1,115 +1,171 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'expo-router';
-import React, { useState } from 'react';
-import { Text, View } from 'react-native';
+import React from 'react';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorText,
-  Field,
-  Loading,
-  PhoneField,
-  Screen,
-  Subtle,
-  colors,
-} from '@/components/ui-kit';
-import { adminCreateShop, getAllShops } from '@/lib/api';
-import { useAuth } from '@/lib/auth';
-import { friendlyAdminError } from '@/lib/domain/admin-error';
-import { validateShopForm } from '@/lib/domain/shop-form';
+  AdminHero,
+  ShopLogo,
+  StatTile,
+  adminColors,
+} from '@/components/admin-ui';
+import { Loading } from '@/components/ui-kit';
+import { adminCountShopAccounts, getAllShops } from '@/lib/api';
 
-export default function AdminShops() {
-  const { signOut } = useAuth();
-  const queryClient = useQueryClient();
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
-  const [error, setError] = useState('');
-
+export default function AdminOverview() {
   const { data: shops, isLoading } = useQuery({
     queryKey: ['admin-shops'],
     queryFn: getAllShops,
   });
-
-  const mutation = useMutation({
-    mutationFn: adminCreateShop,
-    onSuccess: () => {
-      setName('');
-      setAddress('');
-      setPhone('');
-      setError('');
-      queryClient.invalidateQueries({ queryKey: ['admin-shops'] });
-    },
-    onError: (err: Error) => setError(friendlyAdminError(err.message, phone)),
+  const { data: accountCount } = useQuery({
+    queryKey: ['admin-account-count'],
+    queryFn: adminCountShopAccounts,
   });
 
-  const handleCreate = () => {
-    const result = validateShopForm({ name, address, phoneInput: phone });
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-    setError('');
-    mutation.mutate(result.values);
-  };
+  if (isLoading || !shops) return <Loading />;
 
-  if (isLoading) return <Loading />;
+  const activeCount = shops.filter((shop) => shop.is_active).length;
+  const inactiveCount = shops.length - activeCount;
+  const activeShare = shops.length ? activeCount / shops.length : 0;
+  const recentShops = shops.slice(0, 5);
 
   return (
-    <Screen>
-      {shops?.length === 0 && (
-        <EmptyState message="No shops yet. Create the first one below." />
-      )}
-      {shops?.map((shop) => (
-        <Link key={shop.id} href={`/(admin)/shop/${shop.id}`} asChild>
+    <View style={styles.screen}>
+      <AdminHero
+        title="Overview"
+        subtitle={`${shops.length} laundry ${shops.length === 1 ? 'shop' : 'shops'} on MiLaundry`}
+      >
+        <View style={styles.heroStatRow}>
           <View>
-            <Card>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontWeight: '600', fontSize: 16, flex: 1 }}>
-                  {shop.name}
-                </Text>
-                {!shop.is_active && (
-                  <View
-                    style={{
-                      backgroundColor: colors.subtle,
-                      borderRadius: 999,
-                      paddingHorizontal: 10,
-                      paddingVertical: 3,
-                    }}
-                  >
-                    <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '600' }}>
-                      Inactive
-                    </Text>
-                  </View>
-                )}
-              </View>
-              <Subtle>{shop.address || 'No address on file'}</Subtle>
-            </Card>
+            <Text style={styles.heroBigNumber}>{activeCount}</Text>
+            <Text style={styles.heroBigLabel}>Live right now</Text>
           </View>
-        </Link>
-      ))}
+          <View style={styles.heroProgressColumn}>
+            <View style={styles.heroProgressTrack}>
+              <View
+                style={[styles.heroProgressFill, { flex: Math.max(activeShare, 0.02) }]}
+              />
+              <View style={{ flex: 1 - Math.max(activeShare, 0.02) }} />
+            </View>
+            <Text style={styles.heroProgressLabel}>
+              {Math.round(activeShare * 100)}% of all shops
+            </Text>
+          </View>
+        </View>
+      </AdminHero>
 
-      <Card>
-        <Text style={{ fontWeight: '600', fontSize: 16 }}>Add laundry shop</Text>
-        <Field label="Name" value={name} onChangeText={setName} placeholder="Sparkle Wash" />
-        <Field
-          label="Address"
-          value={address}
-          onChangeText={setAddress}
-          placeholder="123 Rizal Ave"
-        />
-        <PhoneField label="Contact number (optional)" value={phone} onChangeText={setPhone} />
-        <ErrorText>{error}</ErrorText>
-        <Button
-          title={mutation.isPending ? 'Creating…' : 'Create shop'}
-          onPress={handleCreate}
-          disabled={mutation.isPending}
-        />
-      </Card>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.tileGrid}>
+          <StatTile
+            label="Shops"
+            value={shops.length}
+            hint={`${inactiveCount} inactive`}
+            dotColor={adminColors.accent}
+          />
+          <StatTile
+            label="Active"
+            value={activeCount}
+            hint="Accepting customers"
+            dotColor={adminColors.success}
+          />
+          <StatTile
+            label="Accounts"
+            value={accountCount ?? '—'}
+            hint="Shop logins"
+            dotColor="#B08CF3"
+          />
+          <StatTile
+            label="Inactive"
+            value={inactiveCount}
+            hint="Not accepting customers"
+            dotColor={adminColors.subtle}
+          />
+        </View>
 
-      <Subtle onPress={() => signOut()}>Sign out</Subtle>
-    </Screen>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Recently added</Text>
+          <Link href="/(admin)/shops" asChild>
+            <Pressable accessibilityRole="link" hitSlop={8}>
+              <Text style={styles.sectionLink}>See all ›</Text>
+            </Pressable>
+          </Link>
+        </View>
+
+        <View style={styles.recentCard}>
+          {recentShops.length === 0 && (
+            <Text style={styles.emptyText}>
+              No shops yet — add the first one from the Shops tab.
+            </Text>
+          )}
+          {recentShops.map((shop, index) => (
+            <Link key={shop.id} href={`/(admin)/shop/${shop.id}`} asChild>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.recentRow, index > 0 && styles.recentRowBorder]}
+              >
+                <ShopLogo name={shop.name} logoUrl={shop.logo_url} size={44} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.recentName} numberOfLines={1}>
+                    {shop.name}
+                  </Text>
+                  <Text style={styles.recentSlug}>/{shop.slug}</Text>
+                </View>
+                <Text style={styles.chevron}>›</Text>
+              </Pressable>
+            </Link>
+          ))}
+        </View>
+      </ScrollView>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: adminColors.paper },
+  content: { padding: 16, gap: 16, paddingBottom: 32 },
+  heroStatRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 16,
+    marginTop: 16,
+  },
+  heroBigNumber: { color: '#FFFFFF', fontSize: 52, fontWeight: '800', lineHeight: 54 },
+  heroBigLabel: { color: '#AAB4C0', fontSize: 13 },
+  heroProgressColumn: { flex: 1, gap: 6, paddingBottom: 8 },
+  heroProgressTrack: {
+    flexDirection: 'row',
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: adminColors.inkSoft,
+    overflow: 'hidden',
+  },
+  heroProgressFill: { backgroundColor: adminColors.accent, borderRadius: 999 },
+  heroProgressLabel: { color: '#AAB4C0', fontSize: 12 },
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 4,
+  },
+  sectionTitle: { fontSize: 20, fontWeight: '800', color: adminColors.text },
+  sectionLink: { fontSize: 14, fontWeight: '700', color: adminColors.accent },
+  recentCard: {
+    backgroundColor: adminColors.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: adminColors.border,
+    paddingHorizontal: 14,
+  },
+  recentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 12,
+  },
+  recentRowBorder: { borderTopWidth: 1, borderTopColor: adminColors.border },
+  recentName: { fontSize: 16, fontWeight: '700', color: adminColors.text },
+  recentSlug: { fontSize: 13, color: adminColors.subtle },
+  chevron: { fontSize: 22, color: adminColors.subtle },
+  emptyText: { padding: 16, color: adminColors.subtle },
+});
