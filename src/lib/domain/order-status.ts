@@ -1,7 +1,9 @@
 export const ORDER_STATUSES = [
   'pending',
   'received',
-  'in_progress',
+  'washing',
+  'drying',
+  'folded',
   'ready',
   'completed',
   'cancelled',
@@ -13,8 +15,10 @@ export const TERMINAL_STATUSES: readonly OrderStatus[] = ['completed', 'cancelle
 
 const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ['received', 'cancelled'],
-  received: ['in_progress', 'cancelled'],
-  in_progress: ['ready', 'cancelled'],
+  received: ['washing', 'cancelled'],
+  washing: ['drying', 'cancelled'],
+  drying: ['folded', 'cancelled'],
+  folded: ['ready', 'cancelled'],
   ready: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],

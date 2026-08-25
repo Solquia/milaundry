@@ -5,6 +5,8 @@ export interface Service {
   name: string;
   unit: PricingUnit;
   price: number;
+  /** Minimum billable quantity (e.g. 5 kg minimum). 0/absent = no minimum. */
+  min_quantity?: number;
 }
 
 export interface OrderItemInput {
@@ -32,7 +34,8 @@ export function estimateLineTotal(service: Service, quantity: number): number {
   if (service.unit === 'flat') {
     return roundMoney(service.price);
   }
-  return roundMoney(service.price * quantity);
+  const billableQuantity = Math.max(quantity, service.min_quantity ?? 0);
+  return roundMoney(service.price * billableQuantity);
 }
 
 export function estimateOrderTotal(
