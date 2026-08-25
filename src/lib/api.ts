@@ -1,4 +1,6 @@
 import type { OrderStatus } from './domain/order-status';
+import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
+import type { ShopFormValues } from './domain/shop-form';
 import { supabase } from './supabase';
 import type {
   OrderItemRow,
@@ -7,6 +9,7 @@ import type {
   Shop,
   ShopAnalytics,
   ShopCustomer,
+  ShopMemberRow,
   StatusHistoryRow,
 } from './types';
 
@@ -159,24 +162,108 @@ export async function upsertService(
   return unwrap(result) as ServiceRow;
 }
 
-// ── superadmin ───────────────────────────────────────────────────────────
-export async function adminCreateShop(
-  name: string,
-  address: string,
-  phone: string
-): Promise<Shop> {
+// ── superadmin: shops ────────────────────────────────────────────────────
+export async function adminCreateShop(values: ShopFormValues): Promise<Shop> {
   const result = await supabase.rpc('admin_create_shop', {
-    p_name: name,
-    p_address: address,
-    p_phone: phone,
+    p_name: values.name,
+    p_address: values.address,
+    p_phone: values.phone,
   });
   return unwrap(result) as Shop;
 }
 
-export async function adminAssignMerchant(shopId: string, phone: string): Promise<void> {
+export async function adminUpdateShop(
+  shopId: string,
+  values: ShopFormValues
+): Promise<Shop> {
+  const result = await supabase.rpc('admin_update_shop', {
+    p_shop_id: shopId,
+    p_name: values.name,
+    p_address: values.address,
+    p_phone: values.phone,
+  });
+  return unwrap(result) as Shop;
+}
+
+export async function adminSetShopActive(
+  shopId: string,
+  isActive: boolean
+): Promise<Shop> {
+  const result = await supabase.rpc('admin_set_shop_active', {
+    p_shop_id: shopId,
+    p_is_active: isActive,
+  });
+  return unwrap(result) as Shop;
+}
+
+// ── superadmin: shop accounts ────────────────────────────────────────────
+export async function adminListShopMembers(shopId: string): Promise<ShopMemberRow[]> {
+  const result = await supabase.rpc('admin_list_shop_members', { p_shop_id: shopId });
+  return unwrap(result) as ShopMemberRow[];
+}
+
+/**
+ * Provisions a brand-new login for a shop. Account creation needs the
+ * service_role key, so it runs in the admin-create-shop-account Edge Function
+ * rather than here; see supabase/functions/admin-create-shop-account.
+ */
+export async function adminCreateShopAccount(
+  shopId: string,
+  account: NewShopAccount
+): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('admin-create-shop-account', {
+    body: {
+      shop_id: shopId,
+      full_name: account.fullName,
+      phone: account.phone,
+      password: account.password,
+      role: account.role,
+    },
+  });
+
+  // functions.invoke surfaces non-2xx as FunctionsHttpError, whose message is
+  // generic — the useful reason is in the JSON body, so prefer that.
+  if (error) {
+    const detail = await readFunctionError(error);
+    throw new Error(detail ?? error.message);
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error));
+  }
+}
+
+async function readFunctionError(error: unknown): Promise<string | null> {
+  const response = (error as { context?: Response }).context;
+  if (!response || typeof response.json !== 'function') return null;
+  try {
+    const body = await response.json();
+    return typeof body?.error === 'string' ? body.error : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Assign an account that already exists, looked up by mobile number. */
+export async function adminAssignMerchant(
+  shopId: string,
+  phone: string,
+  role: ShopAccountRole = 'owner'
+): Promise<void> {
   const { error } = await supabase.rpc('admin_assign_merchant', {
     p_shop_id: shopId,
     p_phone: phone,
+    p_role: role,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function adminRemoveShopMember(
+  shopId: string,
+  profileId: string
+): Promise<void> {
+  const { error } = await supabase.rpc('admin_remove_shop_member', {
+    p_shop_id: shopId,
+    p_profile_id: profileId,
   });
   if (error) throw new Error(error.message);
 }

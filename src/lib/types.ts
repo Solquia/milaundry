@@ -1,5 +1,6 @@
 import type { OrderStatus } from './domain/order-status';
 import type { PricingUnit } from './domain/pricing';
+import type { ShopAccountRole } from './domain/shop-account';
 
 export type Role = 'customer' | 'merchant' | 'superadmin';
 
@@ -19,6 +20,15 @@ export interface Shop {
   qr_token: string;
   is_active: boolean;
   created_by: string | null;
+  created_at: string;
+}
+
+/** A login account attached to a shop, as returned by admin_list_shop_members. */
+export interface ShopMemberRow {
+  profile_id: string;
+  full_name: string;
+  phone: string;
+  role: ShopAccountRole;
   created_at: string;
 }
 
