@@ -5,6 +5,9 @@
 // (superadmin only), and the user is only created once that check passes, so a
 // rejected request can never leave an orphaned auth user behind.
 //
+// Accounts sign in with either a branded username (auto-generated with the
+// shop, e.g. sparklewash) or an E.164 mobile number; at least one is required.
+//
 // Deploy:  supabase functions deploy admin-create-shop-account
 // Secrets: SUPABASE_URL, SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY are
 //          injected by the platform. AUTH_EMAIL_DOMAIN is optional and must
@@ -18,9 +21,10 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-// Mirrors src/lib/domain/phone-email.ts and src/lib/domain/credentials.ts.
+// Mirrors src/lib/domain/{phone-email,login-id,credentials}.ts.
 // Duplicated deliberately: this runs on Deno and must not trust the client.
 const E164_RE = /^\+[1-9]\d{7,14}$/;
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,29}$/;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SHOP_ROLES = ['owner', 'staff'];
 const MIN_PASSWORD_LENGTH = 8;
@@ -30,6 +34,7 @@ interface CreateShopAccountBody {
   shop_id?: unknown;
   full_name?: unknown;
   phone?: unknown;
+  username?: unknown;
   password?: unknown;
   role?: unknown;
 }
@@ -38,6 +43,7 @@ interface ValidBody {
   shopId: string;
   fullName: string;
   phone: string;
+  username: string;
   password: string;
   role: string;
 }
@@ -52,19 +58,24 @@ function json(body: unknown, status: number): Response {
 function validate(body: CreateShopAccountBody): ValidBody | string {
   const shopId = String(body.shop_id ?? '');
   const fullName = String(body.full_name ?? '').trim();
-  const phone = String(body.phone ?? '');
+  const phone = String(body.phone ?? '').trim();
+  const username = String(body.username ?? '').trim().toLowerCase();
   const password = String(body.password ?? '');
   const role = String(body.role ?? '');
 
   if (!UUID_RE.test(shopId)) return 'shop_id must be a shop UUID';
   if (fullName.length < 2) return 'full_name is required';
-  if (!E164_RE.test(phone)) return 'phone must be an E.164 mobile number';
+  if (!phone && !username) return 'a username or phone is required';
+  if (phone && !E164_RE.test(phone)) return 'phone must be an E.164 mobile number';
+  if (username && (!USERNAME_RE.test(username) || !/[a-z]/.test(username))) {
+    return 'username must be 3-30 characters (letters, numbers, . _ -) with at least one letter';
+  }
   if (password.length < MIN_PASSWORD_LENGTH) {
     return `password must be at least ${MIN_PASSWORD_LENGTH} characters`;
   }
   if (!SHOP_ROLES.includes(role)) return 'role must be owner or staff';
 
-  return { shopId, fullName, phone, password, role };
+  return { shopId, fullName, phone, username, password, role };
 }
 
 Deno.serve(async (request: Request) => {
@@ -119,11 +130,18 @@ Deno.serve(async (request: Request) => {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // Usernames are the branded identity; phones remain supported for staff
+  // added by mobile number. The synthetic email mirrors src/lib/domain.
+  const localPart = valid.username || valid.phone.slice(1);
   const { data: created, error: createError } = await asService.auth.admin.createUser({
-    email: `${valid.phone.slice(1)}@${AUTH_EMAIL_DOMAIN}`,
+    email: `${localPart}@${AUTH_EMAIL_DOMAIN}`,
     password: valid.password,
     email_confirm: true,
-    user_metadata: { full_name: valid.fullName, phone: valid.phone },
+    user_metadata: {
+      full_name: valid.fullName,
+      phone: valid.phone,
+      username: valid.username,
+    },
   });
 
   if (createError || !created?.user) {
@@ -149,6 +167,7 @@ Deno.serve(async (request: Request) => {
       profile_id: created.user.id,
       full_name: valid.fullName,
       phone: valid.phone,
+      username: valid.username,
       role: valid.role,
     },
     200
