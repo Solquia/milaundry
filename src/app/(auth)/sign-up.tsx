@@ -1,7 +1,17 @@
 import { Link, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 
-import { Button, Card, ErrorText, Field, Screen, Subtle, Title } from '@/components/ui-kit';
+import {
+  Button,
+  Card,
+  ErrorText,
+  Field,
+  PasswordField,
+  PhoneField,
+  Screen,
+  Subtle,
+  Title,
+} from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
 import { friendlyAuthError } from '@/lib/domain/auth-error';
 import { validateCredentials } from '@/lib/domain/credentials';
@@ -47,19 +57,10 @@ export default function SignUp() {
       <Subtle>Track your laundry with your favorite shops</Subtle>
       <Card>
         <Field label="Full name" value={fullName} onChangeText={setFullName} placeholder="Juan Dela Cruz" />
-        <Field
-          label="Mobile number"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-          placeholder="0917 123 4567"
-          autoCapitalize="none"
-        />
-        <Field
-          label="Password"
+        <PhoneField value={phone} onChangeText={setPhone} />
+        <PasswordField
           value={password}
           onChangeText={setPassword}
-          secureTextEntry
           placeholder="At least 8 characters"
         />
         <ErrorText>{error}</ErrorText>

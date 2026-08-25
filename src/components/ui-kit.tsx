@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { OrderStatus } from '@/lib/domain/order-status';
+import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
 
 export const colors = {
   primary: '#208AEF',
@@ -107,6 +108,83 @@ export function Field({ label, ...inputProps }: FieldProps) {
   );
 }
 
+type PasswordFieldProps = Omit<TextInputProps, 'secureTextEntry'> & {
+  label?: string;
+};
+
+/**
+ * Password field with a Show/Hide toggle. Mobile numbers are easy to retype,
+ * passwords are not — letting people check what they typed prevents most
+ * sign-in failures on a phone keyboard.
+ */
+export function PasswordField({ label = 'Password', ...inputProps }: PasswordFieldProps) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.inputRow}>
+        <TextInput
+          style={styles.rowInput}
+          placeholderTextColor={colors.subtle}
+          secureTextEntry={!isVisible}
+          autoCapitalize="none"
+          autoCorrect={false}
+          {...inputProps}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isVisible ? 'Hide password' : 'Show password'}
+          accessibilityState={{ selected: isVisible }}
+          onPress={() => setIsVisible((visible) => !visible)}
+          hitSlop={8}
+          style={styles.revealButton}
+        >
+          <Text style={styles.revealText}>{isVisible ? 'Hide' : 'Show'}</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+type PhoneFieldProps = {
+  label?: string;
+  value: string;
+  onChangeText: (value: string) => void;
+};
+
+/**
+ * Mobile number field with a fixed +63 country code. The user types only the
+ * national part; input is re-formatted as `917 123 4567` on every keystroke.
+ */
+export function PhoneField({
+  label = 'Mobile number',
+  value,
+  onChangeText,
+}: PhoneFieldProps) {
+  return (
+    <View style={styles.field}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <View style={styles.phoneRow}>
+        <Text style={styles.phonePrefix}>{PH_DIAL_CODE}</Text>
+        <TextInput
+          style={styles.phoneInput}
+          placeholderTextColor={colors.subtle}
+          value={value}
+          onChangeText={(next) => onChangeText(formatPhoneInput(next))}
+          keyboardType="phone-pad"
+          textContentType="telephoneNumber"
+          autoComplete="tel"
+          autoCapitalize="none"
+          maxLength={12}
+          placeholder="917 123 4567"
+          accessibilityLabel={`${label}, country code ${PH_DIAL_CODE}`}
+        />
+      </View>
+    </View>
+  );
+}
+
 type ButtonProps = {
   title: string;
   onPress: () => void;
@@ -181,6 +259,45 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: 8,
     paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingLeft: 12,
+  },
+  rowInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: colors.text,
+  },
+  revealButton: { paddingHorizontal: 12, paddingVertical: 10 },
+  revealText: { fontSize: 14, fontWeight: '600', color: colors.primary },
+  phoneRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingLeft: 12,
+  },
+  phonePrefix: {
+    fontSize: 16,
+    color: colors.subtle,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+  phoneInput: {
+    flex: 1,
+    paddingRight: 12,
     paddingVertical: 10,
     fontSize: 16,
     color: colors.text,
