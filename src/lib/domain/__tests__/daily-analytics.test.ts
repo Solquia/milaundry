@@ -89,6 +89,23 @@ describe('daily money analytics', () => {
     expect(result.ordersToday).toBe(2);
   });
 
+  it('excludes cancelled orders from collected money even if they were paid', () => {
+    const result = computeDailyMoney(
+      [
+        order({ payment_status: 'paid', paid_at: '2026-08-25T10:00:00', estimated_total: 150 }),
+        order({
+          status: 'cancelled',
+          payment_status: 'paid',
+          paid_at: '2026-08-25T11:00:00',
+          estimated_total: 999,
+        }),
+      ],
+      NOW
+    );
+    expect(result.collectedToday).toBe(150);
+    expect(result.projectedToday).toBe(150);
+  });
+
   it('rounds money to two decimals', () => {
     const result = computeDailyMoney(
       [

@@ -50,7 +50,8 @@ export function computeDailyMoney(
     const isCancelled = order.status === 'cancelled';
     const isPaid = order.payment_status === 'paid';
 
-    if (isPaid && isSameLocalDay(order.paid_at, now)) {
+    // Cancelled orders never count as collected, even if paid before voiding.
+    if (!isCancelled && isPaid && isSameLocalDay(order.paid_at, now)) {
       collectedToday += orderValue(order);
     }
     if (!isCancelled && !isPaid) {
