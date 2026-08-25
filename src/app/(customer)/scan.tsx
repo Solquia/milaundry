@@ -33,7 +33,8 @@ export default function ScanQr() {
       if (payload.type === 'shop') {
         await registerWithShop(payload.id, payload.token);
         await queryClient.invalidateQueries({ queryKey: ['registered-shops'] });
-        router.replace('/(customer)/shops');
+        // Land on the shop's home page so its services are one tap away.
+        router.replace(`/(customer)/shop/${payload.id}` as never);
       } else {
         await claimOrder(payload.id, payload.token);
         await queryClient.invalidateQueries({ queryKey: ['my-orders'] });
