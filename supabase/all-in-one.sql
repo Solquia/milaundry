@@ -600,3 +600,452 @@ begin
   return new;
 end;
 $$;
+
+-- ═══ 0005_shop_accounts.sql ═══════════════════════════════════════════════
+-- Superadmin management of laundry shops and the accounts attached to them.
+--
+-- Adds an owner/staff distinction to shop_members, and the security-definer
+-- RPCs the superadmin console calls. Every RPC re-checks the caller's role in
+-- the database; the client-side route gate is convenience, not security.
+
+-- ── shop_members.role ───────────────────────────────────────────────────────
+-- Added with default 'owner' so pre-existing memberships (created by the old
+-- admin_assign_merchant, which only ever made shop owners) backfill correctly,
+-- then switched to 'staff' for anything created from here on.
+alter table public.shop_members
+  add column if not exists role text not null default 'owner';
+
+alter table public.shop_members
+  alter column role set default 'staff';
+
+alter table public.shop_members
+  drop constraint if exists shop_members_role_check;
+
+alter table public.shop_members
+  add constraint shop_members_role_check check (role in ('owner', 'staff'));
+
+-- ── helpers ─────────────────────────────────────────────────────────────────
+create or replace function public.assert_superadmin()
+returns void
+language plpgsql
+stable
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+  if public.my_role() <> 'superadmin' then
+    raise exception 'not allowed';
+  end if;
+end;
+$$;
+
+-- ── shops ───────────────────────────────────────────────────────────────────
+create or replace function public.admin_update_shop(
+  p_shop_id uuid,
+  p_name text,
+  p_address text default '',
+  p_phone text default ''
+)
+returns public.shops
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_shop public.shops;
+begin
+  perform public.assert_superadmin();
+
+  if coalesce(btrim(p_name), '') = '' then
+    raise exception 'shop name is required';
+  end if;
+
+  update public.shops
+  set name = btrim(p_name),
+      address = coalesce(p_address, ''),
+      phone = coalesce(p_phone, '')
+  where id = p_shop_id
+  returning * into v_shop;
+
+  if v_shop.id is null then
+    raise exception 'shop not found';
+  end if;
+
+  return v_shop;
+end;
+$$;
+
+-- Deactivating a shop hides it from new customer registrations (see
+-- register_with_shop, which requires is_active) without deleting history.
+create or replace function public.admin_set_shop_active(
+  p_shop_id uuid,
+  p_is_active boolean
+)
+returns public.shops
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_shop public.shops;
+begin
+  perform public.assert_superadmin();
+
+  update public.shops
+  set is_active = p_is_active
+  where id = p_shop_id
+  returning * into v_shop;
+
+  if v_shop.id is null then
+    raise exception 'shop not found';
+  end if;
+
+  return v_shop;
+end;
+$$;
+
+-- ── shop accounts ───────────────────────────────────────────────────────────
+create or replace function public.admin_list_shop_members(p_shop_id uuid)
+returns table (
+  profile_id uuid,
+  full_name text,
+  phone text,
+  role text,
+  created_at timestamptz
+)
+language plpgsql
+stable
+security definer set search_path = public
+as $$
+begin
+  perform public.assert_superadmin();
+
+  return query
+    select sm.profile_id, p.full_name, p.phone, sm.role, sm.created_at
+    from public.shop_members sm
+    join public.profiles p on p.id = sm.profile_id
+    where sm.shop_id = p_shop_id
+    order by (sm.role = 'owner') desc, p.full_name;
+end;
+$$;
+
+-- Attach an existing profile to a shop with the given role, promoting it out
+-- of 'customer'. Called directly by the console, and by the
+-- admin-create-shop-account Edge Function once it has created the auth user.
+create or replace function public.admin_attach_shop_account(
+  p_shop_id uuid,
+  p_profile_id uuid,
+  p_role text default 'staff'
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  perform public.assert_superadmin();
+
+  if p_role not in ('owner', 'staff') then
+    raise exception 'invalid shop role %', p_role;
+  end if;
+  if not exists (select 1 from public.shops where id = p_shop_id) then
+    raise exception 'shop not found';
+  end if;
+  if not exists (select 1 from public.profiles where id = p_profile_id) then
+    raise exception 'account not found';
+  end if;
+
+  -- Never demote a superadmin who is also helping run a shop.
+  update public.profiles
+  set role = 'merchant'
+  where id = p_profile_id and role = 'customer';
+
+  insert into public.shop_members (shop_id, profile_id, role)
+  values (p_shop_id, p_profile_id, p_role)
+  on conflict (shop_id, profile_id) do update set role = excluded.role;
+end;
+$$;
+
+-- Replaces the 2-argument version from 0003 (dropped to avoid an ambiguous
+-- overload). Assigns by mobile number, defaulting to owner, matching how the
+-- console's "assign an existing account" action is used.
+drop function if exists public.admin_assign_merchant(uuid, text);
+
+create or replace function public.admin_assign_merchant(
+  p_shop_id uuid,
+  p_phone text,
+  p_role text default 'owner'
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_profile_id uuid;
+begin
+  perform public.assert_superadmin();
+
+  select id into v_profile_id from public.profiles where phone = p_phone;
+  if v_profile_id is null then
+    raise exception 'no account with mobile number %', p_phone;
+  end if;
+
+  perform public.admin_attach_shop_account(p_shop_id, v_profile_id, p_role);
+end;
+$$;
+
+-- Mirrors canRemoveMember() in src/lib/domain/shop-member.ts: a shop must keep
+-- at least one owner, or nobody can run its dashboard.
+create or replace function public.admin_remove_shop_member(
+  p_shop_id uuid,
+  p_profile_id uuid
+)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_role text;
+  v_owner_count int;
+begin
+  perform public.assert_superadmin();
+
+  select role into v_role
+  from public.shop_members
+  where shop_id = p_shop_id and profile_id = p_profile_id;
+
+  if v_role is null then
+    raise exception 'that account is not a member of this shop';
+  end if;
+
+  if v_role = 'owner' then
+    select count(*) into v_owner_count
+    from public.shop_members
+    where shop_id = p_shop_id and role = 'owner';
+
+    if v_owner_count <= 1 then
+      raise exception 'cannot remove the shop''s only owner';
+    end if;
+  end if;
+
+  delete from public.shop_members
+  where shop_id = p_shop_id and profile_id = p_profile_id;
+
+  -- An account with no remaining shops has no merchant dashboard to visit.
+  update public.profiles
+  set role = 'customer'
+  where id = p_profile_id
+    and role = 'merchant'
+    and not exists (
+      select 1 from public.shop_members where profile_id = p_profile_id
+    );
+end;
+$$;
+
+-- ═══ 0007_superadmin_view_as.sql ══════════════════════════════════════════
+-- Superadmin "open as merchant": the console can open any shop's merchant
+-- dashboard using the superadmin's own session (no impersonation, no minted
+-- merchant sessions). Permissive policies OR together, so these are additive
+-- grants next to the member-scoped ones in 0002_rls.sql.
+
+-- ── helpers ─────────────────────────────────────────────────────────────────
+-- Membership-or-superadmin, the operating rule for every merchant surface.
+create or replace function public.can_operate_shop(p_shop_id uuid)
+returns boolean
+language sql stable
+security definer set search_path = public
+as $$
+  select public.is_shop_member(p_shop_id) or public.my_role() = 'superadmin';
+$$;
+
+-- ── read access to merchant data ────────────────────────────────────────────
+create policy "superadmin reads all orders" on public.orders
+  for select using (public.my_role() = 'superadmin');
+
+create policy "superadmin reads all order items" on public.order_items
+  for select using (public.my_role() = 'superadmin');
+
+create policy "superadmin reads all order history" on public.order_status_history
+  for select using (public.my_role() = 'superadmin');
+
+create policy "superadmin reads all shop registrations" on public.customer_shops
+  for select using (public.my_role() = 'superadmin');
+
+-- Services stay manageable so the console can fix a price while checking.
+create policy "superadmin manages services" on public.services
+  for all using (public.my_role() = 'superadmin')
+  with check (public.my_role() = 'superadmin');
+
+-- ── RPCs: treat superadmin like a shop member ───────────────────────────────
+-- place_order: same body as 0003, with v_is_member widened to can_operate_shop.
+create or replace function public.place_order(
+  p_shop_id uuid,
+  p_items jsonb,
+  p_customer_id uuid default null,
+  p_notes text default ''
+)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_is_member boolean := public.can_operate_shop(p_shop_id);
+  v_order public.orders;
+  v_item record;
+  v_service public.services;
+  v_line numeric(10, 2);
+  v_total numeric(10, 2) := 0;
+  v_status text;
+  v_customer uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+  if p_items is null or jsonb_array_length(p_items) = 0 then
+    raise exception 'order must contain at least one item';
+  end if;
+
+  if v_is_member then
+    v_status := 'received';
+    v_customer := p_customer_id; -- may be null (walk-in, claimable via QR)
+  else
+    -- customer flow: must be registered with the shop
+    if not exists (
+      select 1 from public.customer_shops
+      where customer_id = auth.uid() and shop_id = p_shop_id
+    ) then
+      raise exception 'not registered with this shop';
+    end if;
+    v_status := 'pending';
+    v_customer := auth.uid();
+  end if;
+
+  insert into public.orders (shop_id, customer_id, created_by, status, notes)
+  values (p_shop_id, v_customer, auth.uid(), v_status, coalesce(p_notes, ''))
+  returning * into v_order;
+
+  for v_item in
+    select (e ->> 'service_id')::uuid as service_id,
+           (e ->> 'quantity')::numeric as quantity
+    from jsonb_array_elements(p_items) e
+  loop
+    select * into v_service
+    from public.services
+    where id = v_item.service_id and shop_id = p_shop_id and is_active;
+
+    if v_service.id is null then
+      raise exception 'unknown service %', v_item.service_id;
+    end if;
+    if v_item.quantity is null or v_item.quantity <= 0 then
+      raise exception 'invalid quantity for service %', v_item.service_id;
+    end if;
+
+    v_line := case
+      when v_service.unit = 'flat' then v_service.price
+      else round(v_service.price * v_item.quantity, 2)
+    end;
+    v_total := v_total + v_line;
+
+    insert into public.order_items
+      (order_id, service_id, service_name, unit, unit_price, quantity, subtotal)
+    values
+      (v_order.id, v_service.id, v_service.name, v_service.unit,
+       v_service.price, v_item.quantity, v_line);
+  end loop;
+
+  update public.orders
+  set estimated_total = v_total
+  where id = v_order.id
+  returning * into v_order;
+
+  insert into public.order_status_history (order_id, from_status, to_status, changed_by)
+  values (v_order.id, null, v_status, auth.uid());
+
+  return v_order;
+end;
+$$;
+
+-- update_order_status: superadmin may perform the same transitions as members.
+create or replace function public.update_order_status(p_order_id uuid, p_to text)
+returns public.orders
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_order public.orders;
+  v_from text;
+  v_allowed boolean;
+begin
+  select * into v_order from public.orders where id = p_order_id;
+  if v_order.id is null then
+    raise exception 'order not found';
+  end if;
+  v_from := v_order.status;
+
+  if public.can_operate_shop(v_order.shop_id) then
+    null; -- members and superadmin may attempt any transition (validated below)
+  elsif v_order.customer_id = auth.uid()
+        and v_from = 'pending' and p_to = 'cancelled' then
+    null; -- customer cancelling own pending order
+  else
+    raise exception 'not allowed';
+  end if;
+
+  v_allowed := case v_from
+    when 'pending' then p_to in ('received', 'cancelled')
+    when 'received' then p_to in ('in_progress', 'cancelled')
+    when 'in_progress' then p_to in ('ready', 'cancelled')
+    when 'ready' then p_to in ('completed', 'cancelled')
+    else false
+  end;
+
+  if not v_allowed then
+    raise exception 'invalid transition % -> %', v_from, p_to;
+  end if;
+
+  update public.orders
+  set status = p_to,
+      final_total = case when p_to = 'completed'
+                         then coalesce(final_total, estimated_total)
+                         else final_total end
+  where id = p_order_id
+  returning * into v_order;
+
+  insert into public.order_status_history (order_id, from_status, to_status, changed_by)
+  values (p_order_id, v_from, p_to, auth.uid());
+
+  return v_order;
+end;
+$$;
+
+-- get_shop_customers: same query as 0003 with the membership gate widened.
+create or replace function public.get_shop_customers(p_shop_id uuid)
+returns table (
+  customer_id uuid,
+  full_name text,
+  phone text,
+  registered_at timestamptz,
+  order_count bigint,
+  total_spend numeric,
+  last_order_at timestamptz
+)
+language sql
+stable
+security definer set search_path = public
+as $$
+  select
+    cs.customer_id,
+    p.full_name,
+    p.phone,
+    cs.created_at as registered_at,
+    count(o.id) as order_count,
+    coalesce(sum(coalesce(o.final_total, o.estimated_total))
+      filter (where o.status = 'completed'), 0) as total_spend,
+    max(o.created_at) as last_order_at
+  from public.customer_shops cs
+  join public.profiles p on p.id = cs.customer_id
+  left join public.orders o
+    on o.customer_id = cs.customer_id and o.shop_id = cs.shop_id
+  where cs.shop_id = p_shop_id
+    and public.can_operate_shop(p_shop_id)
+  group by cs.customer_id, p.full_name, p.phone, cs.created_at;
+$$;
