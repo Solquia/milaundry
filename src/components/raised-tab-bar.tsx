@@ -11,7 +11,9 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 // Derived from the installed expo-router rather than importing
 // @react-navigation/bottom-tabs, which this project does not depend on directly.
-type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
+export type TabBarProps = Parameters<
+  NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>
+>[0];
 
 const BAR_HEIGHT = 62;
 /** How far the center button pokes above the bar. */
@@ -33,9 +35,11 @@ export function RaisedTabBar({ state, navigation, tabs }: Props) {
     <View style={[styles.container, { height: BAR_HEIGHT + LIFT + insets.bottom }]}>
       <View
         style={[styles.surface, { height: BAR_HEIGHT + insets.bottom }]}
-        pointerEvents="none"
       />
-      <View style={[styles.row, { paddingBottom: insets.bottom }]}>
+      <View
+        accessibilityRole="tablist"
+        style={[styles.row, { paddingBottom: insets.bottom }]}
+      >
         {tabs.map((tab) => {
           const route = state.routes.find((candidate) => candidate.name === tab.name);
           if (!route) return null;
@@ -48,7 +52,7 @@ export function RaisedTabBar({ state, navigation, tabs }: Props) {
               canPreventDefault: true,
             });
             if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name);
+              navigation.navigate(route.name, route.params);
             }
           };
 
@@ -98,6 +102,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    pointerEvents: 'none',
     backgroundColor: colors.card,
     borderTopWidth: 1,
     borderTopColor: colors.border,

@@ -1,10 +1,15 @@
 import { Redirect, Tabs } from 'expo-router';
 import React from 'react';
 
-import { RaisedTabBar } from '@/components/raised-tab-bar';
+import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
 import { CUSTOMER_TABS } from '@/lib/domain/tab-config';
+
+// Defined once so the tab bar isn't remounted on every auth state change.
+const renderTabBar = (props: TabBarProps) => (
+  <RaisedTabBar {...props} tabs={CUSTOMER_TABS} />
+);
 
 export default function CustomerLayout() {
   const { session, profile, isLoading } = useAuth();
@@ -16,7 +21,7 @@ export default function CustomerLayout() {
   return (
     <Tabs
       screenOptions={{ headerShown: true }}
-      tabBar={(props) => <RaisedTabBar {...props} tabs={CUSTOMER_TABS} />}
+      tabBar={renderTabBar}
     >
       {CUSTOMER_TABS.map((tab) => (
         <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />

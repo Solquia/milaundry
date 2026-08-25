@@ -15,10 +15,11 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   // Tab bars render Ionicons glyphs; without preloading, the first paint shows
-  // empty boxes until the icon font arrives.
-  const [areIconsLoaded] = useFonts(Ionicons.font);
+  // empty boxes until the icon font arrives. Never block the app on a failure
+  // though — missing icons must not cost the user their way to sign in.
+  const [areIconsLoaded, iconFontError] = useFonts(Ionicons.font);
 
-  if (!areIconsLoaded) return <Loading />;
+  if (!areIconsLoaded && !iconFontError) return <Loading />;
 
   return (
     <QueryClientProvider client={queryClient}>

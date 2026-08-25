@@ -3,7 +3,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { RaisedTabBar } from '@/components/raised-tab-bar';
+import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading, colors } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
 import { MERCHANT_TABS } from '@/lib/domain/tab-config';
@@ -12,6 +12,12 @@ import {
   viewAsBannerText,
 } from '@/lib/domain/view-as-shop';
 import { useViewAsShop } from '@/lib/view-as-shop-context';
+
+// Defined once: a fresh function identity here would remount the tab bar on
+// every auth/view-as state change.
+const renderTabBar = (props: TabBarProps) => (
+  <RaisedTabBar {...props} tabs={MERCHANT_TABS} />
+);
 
 export default function MerchantLayout() {
   const { session, profile, isLoading } = useAuth();
@@ -52,7 +58,7 @@ export default function MerchantLayout() {
       )}
       <Tabs
         screenOptions={{ headerShown: true }}
-        tabBar={(props) => <RaisedTabBar {...props} tabs={MERCHANT_TABS} />}
+        tabBar={renderTabBar}
       >
         {MERCHANT_TABS.map((tab) => (
           <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
