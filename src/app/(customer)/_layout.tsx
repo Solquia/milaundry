@@ -27,6 +27,8 @@ export default function CustomerLayout() {
         <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
       ))}
       <Tabs.Screen name="new-order" options={{ href: null, title: 'New Order' }} />
+      <Tabs.Screen name="shop/[id]" options={{ href: null, title: 'Shop' }} />
+      <Tabs.Screen name="book/[serviceId]" options={{ href: null, title: 'Book service' }} />
       <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order' }} />
     </Tabs>
   );

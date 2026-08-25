@@ -44,6 +44,26 @@ export function groupServicesByCategory<T extends CategorizedService>(
   })).filter((group) => group.services.length > 0);
 }
 
+export interface RemovableService {
+  is_active: boolean;
+}
+
+/**
+ * Splits a shop's price list into what customers can order and what the owner
+ * has taken off the list. Removed services are kept so a mistaken removal can
+ * be undone rather than forcing the owner to retype the service.
+ */
+export function splitServicesByStatus<T extends RemovableService>(
+  services: readonly T[]
+): { active: T[]; removed: T[] } {
+  const active: T[] = [];
+  const removed: T[] = [];
+  for (const service of services) {
+    (service.is_active ? active : removed).push(service);
+  }
+  return { active, removed };
+}
+
 export interface StarterService {
   name: string;
   category: ServiceCategory;

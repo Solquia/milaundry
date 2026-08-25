@@ -34,8 +34,8 @@ export default function CustomerShops() {
           <Text style={{ fontWeight: '600', fontSize: 16 }}>{shop.name}</Text>
           <Subtle>{shop.address}</Subtle>
           <Button
-            title="New order"
-            onPress={() => router.push(`/(customer)/new-order?shopId=${shop.id}`)}
+            title="View shop"
+            onPress={() => router.push(`/(customer)/shop/${shop.id}` as never)}
           />
         </Card>
       ))}

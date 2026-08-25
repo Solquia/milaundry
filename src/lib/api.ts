@@ -50,6 +50,11 @@ export async function getAllShops(): Promise<Shop[]> {
   return unwrap(result) as Shop[];
 }
 
+export async function getShop(shopId: string): Promise<Shop> {
+  const result = await supabase.from('shops').select('*').eq('id', shopId).single();
+  return unwrap(result) as Shop;
+}
+
 export async function getServices(shopId: string): Promise<ServiceRow[]> {
   const result = await supabase
     .from('services')
