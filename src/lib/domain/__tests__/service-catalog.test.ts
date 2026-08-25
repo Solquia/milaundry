@@ -3,6 +3,7 @@ import {
   CATEGORY_ORDER,
   STARTER_SERVICES,
   groupServicesByCategory,
+  splitServicesByStatus,
   type ServiceCategory,
 } from '../service-catalog';
 
@@ -39,6 +40,31 @@ describe('service categories', () => {
     expect(groups).toEqual([
       { category: 'other', services: [{ id: '1', name: 'Legacy', category: 'bogus' }] },
     ]);
+  });
+});
+
+describe('active vs removed services', () => {
+  const wash = { id: '1', name: 'Wash & Fold', is_active: true };
+  const mistake = { id: '2', name: 'WASH AND FOLD', is_active: false };
+  const iron = { id: '3', name: 'Ironing', is_active: true };
+
+  it('separates services still on the price list from removed ones', () => {
+    const { active, removed } = splitServicesByStatus([wash, mistake, iron]);
+    expect(active).toEqual([wash, iron]);
+    expect(removed).toEqual([mistake]);
+  });
+
+  it('keeps the original order within each group', () => {
+    const { active } = splitServicesByStatus([iron, wash]);
+    expect(active.map((service) => service.id)).toEqual(['3', '1']);
+  });
+
+  it('returns empty groups for an empty list', () => {
+    expect(splitServicesByStatus([])).toEqual({ active: [], removed: [] });
+  });
+
+  it('reports nothing removed when every service is active', () => {
+    expect(splitServicesByStatus([wash, iron]).removed).toEqual([]);
   });
 });
 
