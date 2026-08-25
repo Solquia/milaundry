@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -31,11 +31,14 @@ import type { ShopAccountRole } from '@/lib/domain/shop-account';
 import { SHOP_ACCOUNT_ROLES, validateShopAccountForm } from '@/lib/domain/shop-account';
 import { canRemoveMember, describeMemberRole } from '@/lib/domain/shop-member';
 import { generateTempPassword } from '@/lib/domain/temp-password';
+import { useViewAsShop } from '@/lib/view-as-shop-context';
 
 export default function AdminShopDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const shopId = id!;
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { openShopAsMerchant } = useViewAsShop();
 
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
@@ -137,6 +140,22 @@ export default function AdminShopDetail() {
 
       <ErrorText>{error}</ErrorText>
       {message ? <Subtle>{message}</Subtle> : null}
+
+      {/* ── open as merchant ─────────────────────────────────────────── */}
+      <Card>
+        <Text style={{ fontWeight: '600', fontSize: 16 }}>Merchant dashboard</Text>
+        <Subtle>
+          Open this shop&apos;s orders, POS, customers and analytics without
+          signing in to their account.
+        </Subtle>
+        <Button
+          title="Open merchant dashboard"
+          onPress={() => {
+            openShopAsMerchant(shop);
+            router.push('/(merchant)/orders');
+          }}
+        />
+      </Card>
 
       {/* ── accounts ─────────────────────────────────────────────────── */}
       <Card>
