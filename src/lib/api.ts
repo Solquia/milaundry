@@ -51,6 +51,25 @@ export async function getAllShops(): Promise<Shop[]> {
   return unwrap(result) as Shop[];
 }
 
+/**
+ * Every shop a signed-in customer is allowed to see, joined or not. Backs the
+ * Shops tab directory so a customer can find a laundry without scanning its
+ * QR code first.
+ */
+export async function getVisibleShops(): Promise<Shop[]> {
+  const result = await supabase
+    .from('shops')
+    .select('*')
+    .order('name', { ascending: true });
+  return unwrap(result) as Shop[];
+}
+
+/** Registers the signed-in customer with a shop picked from the directory. */
+export async function joinShop(shopId: string): Promise<void> {
+  const shop = await getShop(shopId);
+  await registerWithShop(shop.id, shop.qr_token);
+}
+
 export async function getShop(shopId: string): Promise<Shop> {
   const result = await supabase.from('shops').select('*').eq('id', shopId).single();
   return unwrap(result) as Shop;

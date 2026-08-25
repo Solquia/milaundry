@@ -1,10 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  Button,
   Card,
   EmptyState,
   ErrorText,
@@ -13,7 +14,13 @@ import {
   Subtle,
   colors,
 } from '@/components/ui-kit';
-import { getServices, getShop, getShopReviews } from '@/lib/api';
+import {
+  getRegisteredShops,
+  getServices,
+  getShop,
+  getShopReviews,
+  joinShop,
+} from '@/lib/api';
 import { categoryIcon } from '@/lib/domain/shop-home';
 
 function Stars({ rating }: { rating: number }) {
@@ -42,6 +49,8 @@ const TILE_TINTS = [
 export default function CustomerShopHome() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const [joinError, setJoinError] = useState('');
 
   const { data: shop, isLoading: isShopLoading, error: shopError } = useQuery({
     queryKey: ['shop', id],
@@ -61,6 +70,21 @@ export default function CustomerShopHome() {
     enabled: Boolean(id),
   });
 
+  const { data: registered } = useQuery({
+    queryKey: ['registered-shops'],
+    queryFn: getRegisteredShops,
+  });
+
+  // Orders are only accepted from customers registered with the shop, so the
+  // services grid stays locked behind a one-tap connect until then.
+  const isRegistered = (registered ?? []).some((row) => row.id === id);
+
+  const joinMutation = useMutation({
+    mutationFn: () => joinShop(id!),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registered-shops'] }),
+    onError: (err: Error) => setJoinError(err.message),
+  });
+
   if (isShopLoading || isServicesLoading) return <Loading />;
 
   return (
@@ -73,6 +97,25 @@ export default function CustomerShopHome() {
         <Text style={styles.heroName}>{shop?.name ?? 'Laundry shop'}</Text>
         {shop?.address ? <Text style={styles.heroAddress}>{shop.address}</Text> : null}
       </View>
+
+      {!isRegistered && (
+        <Card>
+          <Text style={styles.sectionTitle}>Connect to book</Text>
+          <Subtle>
+            Connect to {shop?.name ?? 'this shop'} to place orders and track your
+            laundry.
+          </Subtle>
+          <ErrorText>{joinError}</ErrorText>
+          <Button
+            title={joinMutation.isPending ? 'Connecting…' : 'Connect to this shop'}
+            disabled={joinMutation.isPending}
+            onPress={() => {
+              setJoinError('');
+              joinMutation.mutate();
+            }}
+          />
+        </Card>
+      )}
 
       {/* Services grid straight from the owner's dashboard price list. */}
       <Card>
@@ -89,11 +132,13 @@ export default function CustomerShopHome() {
                 accessibilityRole="button"
                 accessibilityLabel={`Book ${service.name}`}
                 style={({ pressed }) => [styles.tile, pressed && { opacity: 0.7 }]}
-                onPress={() =>
-                  router.push(
-                    `/(customer)/book/${service.id}?shopId=${id}` as never
-                  )
-                }
+                onPress={() => {
+                  if (!isRegistered) {
+                    setJoinError('Connect to this shop first to book a service.');
+                    return;
+                  }
+                  router.push(`/(customer)/book/${service.id}?shopId=${id}` as never);
+                }}
               >
                 <View style={[styles.tileIcon, { backgroundColor: tint.bg }]}>
                   <Ionicons
