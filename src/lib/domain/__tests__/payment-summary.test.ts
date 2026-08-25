@@ -1,8 +1,8 @@
 import { PAYMENT_METHODS } from '../walk-in-order';
 import {
   PAYMENT_LABELS,
+  paidUpfrontLabel,
   paymentSummaryLine,
-  paymentToggleLabel,
 } from '../payment-summary';
 
 describe('PAYMENT_LABELS', () => {
@@ -17,15 +17,13 @@ describe('PAYMENT_LABELS', () => {
   });
 });
 
-describe('paymentToggleLabel', () => {
-  it('confirms payment was already collected', () => {
-    expect(paymentToggleLabel(true, 'pickup')).toBe('Paid now ✓');
-    expect(paymentToggleLabel(true, 'delivery')).toBe('Paid now ✓');
+describe('paidUpfrontLabel', () => {
+  it('offers to record an upfront payment when nothing is paid yet', () => {
+    expect(paidUpfrontLabel(false)).toBe('Paid upfront');
   });
 
-  it('says where the money will be collected when unpaid', () => {
-    expect(paymentToggleLabel(false, 'pickup')).toBe('Pay later (collect on pickup)');
-    expect(paymentToggleLabel(false, 'delivery')).toBe('Pay later (collect on delivery)');
+  it('confirms the order is already settled once toggled on', () => {
+    expect(paidUpfrontLabel(true)).toBe('Paid upfront ✓');
   });
 });
 
