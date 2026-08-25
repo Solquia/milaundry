@@ -91,8 +91,15 @@ export function ErrorText({ children }: { children: React.ReactNode }) {
   return <Text style={styles.error}>{children}</Text>;
 }
 
-export function Card({ children }: { children: React.ReactNode }) {
-  return <View style={styles.card}>{children}</View>;
+/** `compact` tightens padding and gaps for dense lists like the orders feed. */
+export function Card({
+  children,
+  compact = false,
+}: {
+  children: React.ReactNode;
+  compact?: boolean;
+}) {
+  return <View style={[styles.card, compact && styles.cardCompact]}>{children}</View>;
 }
 
 type FieldProps = TextInputProps & { label: string };
@@ -268,6 +275,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  cardCompact: { padding: 12, gap: 6, borderRadius: 10 },
   field: { gap: 4 },
   fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.subtle },
   input: {

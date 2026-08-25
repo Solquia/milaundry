@@ -1,30 +1,24 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 
 import {
-  Button,
   Card,
   EmptyState,
   ErrorText,
   Loading,
-  STATUS_LABELS,
   Screen,
   StatusBadge,
   Subtle,
   Tag,
   colors,
-  formatDate,
   formatMoney,
 } from '@/components/ui-kit';
-import { getShopOrders, updateOrderStatus, type OrderWithDetails } from '@/lib/api';
+import { getShopOrders, type OrderWithDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import {
-  TERMINAL_STATUSES,
-  nextForwardStatus,
-  type OrderStatus,
-} from '@/lib/domain/order-status';
+import { formatOrderTime, shortOrderId } from '@/lib/domain/order-card';
+import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
 import { orderTags } from '@/lib/domain/order-tags';
 import { useActiveShop } from '@/lib/use-active-shop';
 
@@ -51,23 +45,16 @@ function applyFilter(orders: OrderWithDetails[], filter: Filter): OrderWithDetai
 export default function MerchantOrders() {
   const { signOut } = useAuth();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { shop, isLoading: isShopLoading } = useActiveShop();
   const [filter, setFilter] = useState<Filter>('Active');
+  // Captured once per render so every card dates itself against the same clock.
+  const now = new Date();
 
   const { data: orders, isLoading, error } = useQuery({
     queryKey: ['shop-orders', shop?.id],
     queryFn: () => getShopOrders(shop!.id),
     enabled: Boolean(shop),
     refetchInterval: 15_000,
-  });
-
-  // Advancing a stage from the list keeps the owner on the overview instead of
-  // making them open, tap, and come back for every load.
-  const advance = useMutation({
-    mutationFn: ({ orderId, to }: { orderId: string; to: OrderStatus }) =>
-      updateOrderStatus(orderId, to),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['shop-orders'] }),
   });
 
   const visibleOrders = useMemo(
@@ -121,9 +108,6 @@ export default function MerchantOrders() {
       )}
       {visibleOrders.map((order) => {
         const total = order.final_total ?? order.estimated_total;
-        const nextStage = nextForwardStatus(order.status);
-        const isAdvancing =
-          advance.isPending && advance.variables?.orderId === order.id;
         return (
           <Pressable
             key={order.id}
@@ -132,38 +116,34 @@ export default function MerchantOrders() {
             onPress={() => router.push(`/(merchant)/order/${order.id}`)}
             style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
           >
-            <Card>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={{ fontWeight: '600', fontSize: 16 }}>
+            <Card compact>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                }}
+              >
+                <Text style={{ fontWeight: '600', fontSize: 15, flexShrink: 1 }} numberOfLines={1}>
                   {order.customer_name || 'Walk-in customer'}
                 </Text>
-                <Text style={{ fontWeight: '700', fontSize: 16 }}>{formatMoney(total)}</Text>
+                <Text style={{ fontWeight: '700', fontSize: 15 }}>{formatMoney(total)}</Text>
               </View>
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4 }}>
                 <StatusBadge status={order.status} />
                 {orderTags(order).map((tag) => (
                   <Tag key={tag} label={tag} />
                 ))}
               </View>
-              <Subtle>
-                #{order.id.slice(0, 8)} · {formatDate(order.created_at)}
+              <Text style={{ fontSize: 12, color: colors.subtle }} numberOfLines={1}>
+                {shortOrderId(order.id)} · {formatOrderTime(order.created_at, now)}
                 {order.customer_phone ? ` · ${order.customer_phone}` : ''}
-              </Subtle>
-              {nextStage && (
-                <Button
-                  title={
-                    isAdvancing ? 'Updating…' : `Move to ${STATUS_LABELS[nextStage]}`
-                  }
-                  variant="outline"
-                  disabled={advance.isPending}
-                  onPress={() => advance.mutate({ orderId: order.id, to: nextStage })}
-                />
-              )}
+              </Text>
             </Card>
           </Pressable>
         );
       })}
-      {advance.error ? <ErrorText>{advance.error.message}</ErrorText> : null}
       <Subtle onPress={() => signOut()}>Sign out</Subtle>
     </Screen>
   );

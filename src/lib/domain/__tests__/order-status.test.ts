@@ -2,7 +2,6 @@ import {
   ORDER_STATUSES,
   TERMINAL_STATUSES,
   canTransition,
-  nextForwardStatus,
   nextStatuses,
   OrderStatus,
 } from '../order-status';
@@ -68,28 +67,5 @@ describe('order status machine (laundry stages)', () => {
     expect(nextStatuses('folded').sort()).toEqual(['cancelled', 'ready']);
     expect(nextStatuses('ready').sort()).toEqual(['cancelled', 'completed']);
     expect(nextStatuses('completed')).toEqual([]);
-  });
-});
-
-describe('nextForwardStatus (one-tap advance on an order card)', () => {
-  it('returns the next laundry stage, never cancellation', () => {
-    expect(nextForwardStatus('pending')).toBe('received');
-    expect(nextForwardStatus('received')).toBe('washing');
-    expect(nextForwardStatus('washing')).toBe('drying');
-    expect(nextForwardStatus('drying')).toBe('folded');
-    expect(nextForwardStatus('folded')).toBe('ready');
-    expect(nextForwardStatus('ready')).toBe('completed');
-  });
-
-  it('returns null for terminal statuses so no advance button is offered', () => {
-    expect(nextForwardStatus('completed')).toBeNull();
-    expect(nextForwardStatus('cancelled')).toBeNull();
-  });
-
-  it('only ever returns a status the state machine actually allows', () => {
-    ORDER_STATUSES.forEach((from) => {
-      const next = nextForwardStatus(from);
-      if (next !== null) expect(canTransition(from, next)).toBe(true);
-    });
   });
 });

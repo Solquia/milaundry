@@ -31,11 +31,3 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
 export function nextStatuses(from: OrderStatus): OrderStatus[] {
   return [...TRANSITIONS[from]];
 }
-
-/**
- * The single next laundry stage, excluding cancellation — powers the one-tap
- * advance button on an order card. Null once the order is finished.
- */
-export function nextForwardStatus(from: OrderStatus): OrderStatus | null {
-  return TRANSITIONS[from].find((to) => to !== 'cancelled') ?? null;
-}
