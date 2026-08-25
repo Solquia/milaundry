@@ -1,7 +1,22 @@
 import { normalizePhone } from './phone';
 
-export const PAYMENT_METHODS = ['cash', 'gcash', 'maya', 'card', 'other'] as const;
+export const PAYMENT_METHODS = [
+  'cash',
+  'gcash',
+  'maya',
+  'card',
+  'bank_transfer',
+  'other',
+] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+/** What an online-booking customer can choose from (cash = on delivery/pickup). */
+export const CUSTOMER_PAYMENT_METHODS = [
+  'cash',
+  'gcash',
+  'maya',
+  'bank_transfer',
+] as const satisfies readonly PaymentMethod[];
 
 export const FULFILLMENTS = ['pickup', 'delivery'] as const;
 export type Fulfillment = (typeof FULFILLMENTS)[number];
