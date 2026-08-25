@@ -3,8 +3,10 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { RaisedTabBar } from '@/components/raised-tab-bar';
 import { Loading, colors } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
+import { MERCHANT_TABS } from '@/lib/domain/tab-config';
 import {
   canEnterMerchantDashboard,
   viewAsBannerText,
@@ -48,12 +50,13 @@ export default function MerchantLayout() {
           </View>
         </SafeAreaView>
       )}
-      <Tabs screenOptions={{ headerShown: true }}>
-        <Tabs.Screen name="orders" options={{ title: 'Orders' }} />
-        <Tabs.Screen name="pos" options={{ title: 'POS' }} />
-        <Tabs.Screen name="customers" options={{ title: 'Customers' }} />
-        <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
-        <Tabs.Screen name="services" options={{ title: 'Services' }} />
+      <Tabs
+        screenOptions={{ headerShown: true }}
+        tabBar={(props) => <RaisedTabBar {...props} tabs={MERCHANT_TABS} />}
+      >
+        {MERCHANT_TABS.map((tab) => (
+          <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
+        ))}
         <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order' }} />
       </Tabs>
     </>
