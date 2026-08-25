@@ -1,5 +1,13 @@
-import React, { createContext, useCallback, useContext, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
 
+import { supabase } from './supabase';
 import type { Shop } from './types';
 
 // Which shop a superadmin is currently viewing as merchant. Session-only by
@@ -20,6 +28,15 @@ export function ViewAsShopProvider({ children }: { children: React.ReactNode }) 
 
   const openShopAsMerchant = useCallback((shop: Shop) => setViewAsShop(shop), []);
   const exitViewAs = useCallback(() => setViewAsShop(null), []);
+
+  // The view-as choice must not outlive the auth session that made it: signing
+  // out (from any screen) drops it, so the next sign-in starts at the console.
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') setViewAsShop(null);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
 
   const value = useMemo(
     () => ({ viewAsShop, openShopAsMerchant, exitViewAs }),
