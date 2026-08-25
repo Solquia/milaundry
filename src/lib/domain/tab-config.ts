@@ -20,7 +20,7 @@ export const MERCHANT_TABS: readonly TabConfig[] = [
 ];
 
 export const CUSTOMER_TABS: readonly TabConfig[] = [
-  { name: 'orders', title: 'My Laundry', icon: 'shirt-outline' },
+  { name: 'orders', title: 'MiLaundry', icon: 'shirt-outline' },
   { name: 'scan', title: 'Scan', icon: 'qr-code', isCenter: true },
   { name: 'shops', title: 'Shops', icon: 'storefront-outline' },
 ];
