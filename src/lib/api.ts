@@ -7,6 +7,7 @@ import { supabase } from './supabase';
 import type {
   OrderItemRow,
   OrderRow,
+  ReviewRow,
   ServiceRow,
   Shop,
   ShopAnalytics,
@@ -118,6 +119,9 @@ export interface PlaceOrderOptions {
   customerPhone?: string;
   paymentMethod?: PaymentMethod;
   isPaid?: boolean;
+  /** Rider pickup / delivery-back schedule for online bookings. */
+  pickupAt?: Date | null;
+  deliverBy?: Date | null;
 }
 
 export async function placeOrder(
@@ -136,6 +140,8 @@ export async function placeOrder(
     p_customer_phone: options.customerPhone ?? '',
     p_payment_method: options.paymentMethod ?? 'cash',
     p_is_paid: options.isPaid ?? false,
+    p_pickup_at: options.pickupAt?.toISOString() ?? null,
+    p_deliver_by: options.deliverBy?.toISOString() ?? null,
   });
   return unwrap(result) as OrderRow;
 }
@@ -147,6 +153,18 @@ export async function markOrderPaid(
   const result = await supabase.rpc('mark_order_paid', {
     p_order_id: orderId,
     p_method: method ?? null,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/** Customer picks how they'll pay once the shop confirms the actual price. */
+export async function choosePaymentMethod(
+  orderId: string,
+  method: PaymentMethod
+): Promise<OrderRow> {
+  const result = await supabase.rpc('choose_payment_method', {
+    p_order_id: orderId,
+    p_method: method,
   });
   return unwrap(result) as OrderRow;
 }
@@ -177,6 +195,34 @@ export async function claimOrder(orderId: string, token: string): Promise<OrderR
     p_token: token,
   });
   return unwrap(result) as OrderRow;
+}
+
+// ── reviews ──────────────────────────────────────────────────────────────
+export async function getShopReviews(shopId: string): Promise<ReviewRow[]> {
+  const result = await supabase
+    .from('reviews')
+    .select('*, reviewer:profiles(full_name)')
+    .eq('shop_id', shopId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+  return unwrap(result) as unknown as ReviewRow[];
+}
+
+export async function addReview(review: {
+  shopId: string;
+  orderId: string;
+  rating: number;
+  comment: string;
+}): Promise<void> {
+  const { data } = await supabase.auth.getUser();
+  const { error } = await supabase.from('reviews').insert({
+    shop_id: review.shopId,
+    order_id: review.orderId,
+    customer_id: data.user?.id,
+    rating: review.rating,
+    comment: review.comment.trim(),
+  });
+  if (error) throw new Error(error.message);
 }
 
 // ── merchant CRM & analytics ─────────────────────────────────────────────

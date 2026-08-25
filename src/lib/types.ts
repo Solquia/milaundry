@@ -71,6 +71,10 @@ export interface OrderRow {
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
   paid_at: string | null;
+  /** Rider pickup time chosen at booking; null for self drop-off. */
+  pickup_at: string | null;
+  /** Promised delivery-back time; null for self drop-off. */
+  deliver_by: string | null;
   estimated_total: number;
   final_total: number | null;
   claim_token: string;
@@ -99,6 +103,19 @@ export interface StatusHistoryRow {
   to_status: OrderStatus;
   changed_by: string | null;
   created_at: string;
+}
+
+export interface ReviewRow {
+  id: string;
+  shop_id: string;
+  customer_id: string;
+  order_id: string;
+  /** 1–5 stars. */
+  rating: number;
+  comment: string;
+  created_at: string;
+  /** Joined reviewer profile; null if the profile is gone. */
+  reviewer: { full_name: string } | null;
 }
 
 export interface ShopCustomer {
