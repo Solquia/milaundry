@@ -28,6 +28,12 @@ describe('generateBrandedAccount', () => {
     expect(account.username).toMatch(/[a-z]/);
   });
 
+  it('pads very short names so usernames always reach 3 characters', () => {
+    const account = generateBrandedAccount('Go', zeroRandom);
+    expect(account.username.length).toBeGreaterThanOrEqual(3);
+    expect(account.username).toBe('gowash');
+  });
+
   it('falls back to laundry branding when the name is unusable', () => {
     const account = generateBrandedAccount('!!!', zeroRandom);
     expect(account.username).toMatch(/^laundry/);
