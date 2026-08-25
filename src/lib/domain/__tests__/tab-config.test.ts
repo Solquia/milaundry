@@ -25,6 +25,11 @@ describe('tab bar configuration', () => {
     expect(CUSTOMER_TABS.map((tab) => tab.name)).toEqual(['orders', 'scan', 'shops']);
   });
 
+  it('brands the customer home tab as MiLaundry', () => {
+    const home = CUSTOMER_TABS.find((tab) => tab.name === 'orders');
+    expect(home?.title).toBe('MiLaundry');
+  });
+
   describe.each(CONFIGS)('$label tabs', ({ tabs }) => {
     it('marks exactly one tab as the raised center button', () => {
       expect(tabs.filter((tab) => tab.isCenter)).toHaveLength(1);
