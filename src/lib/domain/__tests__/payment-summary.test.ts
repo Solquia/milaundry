@@ -15,6 +15,10 @@ describe('PAYMENT_LABELS', () => {
   it('spells GCash the way the brand does', () => {
     expect(PAYMENT_LABELS.gcash).toBe('GCash');
   });
+
+  it('labels bank transfer for online bookings', () => {
+    expect(PAYMENT_LABELS.bank_transfer).toBe('Bank transfer');
+  });
 });
 
 describe('paidUpfrontLabel', () => {

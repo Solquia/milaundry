@@ -62,7 +62,14 @@ describe('walk-in order validation', () => {
   });
 
   it('exposes the supported payment methods', () => {
-    expect(PAYMENT_METHODS).toEqual(['cash', 'gcash', 'maya', 'card', 'other']);
+    expect(PAYMENT_METHODS).toEqual([
+      'cash',
+      'gcash',
+      'maya',
+      'card',
+      'bank_transfer',
+      'other',
+    ]);
   });
 
   it('rejects an unknown payment method', () => {
