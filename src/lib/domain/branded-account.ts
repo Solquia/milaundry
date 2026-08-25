@@ -3,6 +3,7 @@ import type { RandomInt } from './temp-password';
 import { TEMP_PASSWORD_ALPHABET } from './temp-password';
 
 export const MAX_USERNAME_LENGTH = 24;
+export const MIN_USERNAME_LENGTH = 3;
 const PASSWORD_RANDOM_LENGTH = 6;
 const MAX_BRAND_WORD_LENGTH = 10;
 const FALLBACK_BRAND = 'laundry';
@@ -30,7 +31,12 @@ export function generateBrandedAccount(
   const slug = slugifyShopName(shopName);
   const compact = slug.replace(/-/g, '');
   const hasLetter = /[a-z]/.test(compact);
-  const usernameBase = hasLetter ? compact : `${FALLBACK_BRAND}${compact}`;
+  let usernameBase = hasLetter ? compact : `${FALLBACK_BRAND}${compact}`;
+  // Auth usernames must be at least 3 characters (see the edge function's
+  // USERNAME_RE); very short shop names get a laundry-flavoured pad.
+  if (usernameBase.length < MIN_USERNAME_LENGTH) {
+    usernameBase = `${usernameBase}wash`;
+  }
   const username = usernameBase.slice(0, MAX_USERNAME_LENGTH);
 
   const firstWord = slug.split('-')[0] ?? '';

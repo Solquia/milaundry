@@ -67,20 +67,34 @@ export default function NewShop() {
         await adminUpdateShop(shop.id, validated.values, { logoUrl });
       }
 
-      // The branded owner login is generated from the shop's own name.
+      // The branded owner login is generated from the shop's own name. If the
+      // username is already taken (a similarly named shop), retry with -2/-3
+      // style suffixes rather than stranding a shop with no login.
       const account = generateBrandedAccount(validated.values.name);
-      await adminCreateBrandedOwner(shop.id, {
-        fullName: `${validated.values.name} Owner`,
-        username: account.username,
-        password: account.password,
-      });
-
-      return {
-        shopId: shop.id,
-        shopName: shop.name,
-        username: account.username,
-        password: account.password,
-      };
+      let lastError: Error | null = null;
+      for (const suffix of ['', '2', '3']) {
+        const username = `${account.username}${suffix}`;
+        try {
+          await adminCreateBrandedOwner(shop.id, {
+            fullName: `${validated.values.name} Owner`,
+            username,
+            password: account.password,
+          });
+          return {
+            shopId: shop.id,
+            shopName: shop.name,
+            username,
+            password: account.password,
+          };
+        } catch (err: unknown) {
+          lastError = err instanceof Error ? err : new Error('Account creation failed');
+          if (!/already|registered|taken/i.test(lastError.message)) break;
+        }
+      }
+      throw new Error(
+        `The shop was created, but its login could not be generated (${lastError?.message}). ` +
+          'Open the shop and add an account from the Accounts tab.'
+      );
     },
     onSuccess: (credentials) => {
       setError('');
