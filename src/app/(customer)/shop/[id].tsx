@@ -13,8 +13,23 @@ import {
   Subtle,
   colors,
 } from '@/components/ui-kit';
-import { getServices, getShop } from '@/lib/api';
+import { getServices, getShop, getShopReviews } from '@/lib/api';
 import { categoryIcon } from '@/lib/domain/shop-home';
+
+function Stars({ rating }: { rating: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Ionicons
+          key={star}
+          name={star <= rating ? 'star' : 'star-outline'}
+          size={14}
+          color="#F59E0B"
+        />
+      ))}
+    </View>
+  );
+}
 
 /** Tint pairs cycled across grid tiles so the grid feels lively, not flat. */
 const TILE_TINTS = [
@@ -37,6 +52,12 @@ export default function CustomerShopHome() {
   const { data: services, isLoading: isServicesLoading } = useQuery({
     queryKey: ['services', id],
     queryFn: () => getServices(id!),
+    enabled: Boolean(id),
+  });
+
+  const { data: reviews } = useQuery({
+    queryKey: ['shop-reviews', id],
+    queryFn: () => getShopReviews(id!),
     enabled: Boolean(id),
   });
 
@@ -92,12 +113,31 @@ export default function CustomerShopHome() {
 
       {/* Live reviews feed — rendered inline, not hidden behind a button. */}
       <Text style={styles.sectionTitle}>What customers say</Text>
-      <Card>
-        <Subtle>
-          No reviews yet. Reviews from customers will show up here after their
-          orders are completed.
-        </Subtle>
-      </Card>
+      {!reviews?.length && (
+        <Card>
+          <Subtle>
+            No reviews yet. Reviews from customers will show up here after their
+            orders are completed.
+          </Subtle>
+        </Card>
+      )}
+      {reviews?.map((review) => (
+        <Card key={review.id} compact>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={styles.reviewerName}>
+              {review.reviewer?.full_name ?? 'Customer'}
+            </Text>
+            <Stars rating={review.rating} />
+          </View>
+          {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
+        </Card>
+      ))}
     </Screen>
   );
 }
@@ -147,4 +187,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '500',
   },
+  reviewerName: { fontSize: 14, fontWeight: '600', color: colors.text },
+  reviewComment: { fontSize: 14, color: colors.text },
 });
