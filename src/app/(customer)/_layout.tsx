@@ -24,7 +24,16 @@ export default function CustomerLayout() {
       tabBar={renderTabBar}
     >
       {CUSTOMER_TABS.map((tab) => (
-        <Tabs.Screen key={tab.name} name={tab.name} options={{ title: tab.title }} />
+        <Tabs.Screen
+          key={tab.name}
+          name={tab.name}
+          options={{
+            title: tab.title,
+            // The MiLaundry home screen renders its own branded hero, so the
+            // native header would just repeat the wordmark.
+            headerShown: tab.name !== 'orders',
+          }}
+        />
       ))}
       <Tabs.Screen name="new-order" options={{ href: null, title: 'New Order' }} />
       <Tabs.Screen name="shop/[id]" options={{ href: null, title: 'Shop' }} />
