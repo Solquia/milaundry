@@ -14,10 +14,12 @@ function collectionPoint(fulfillment: Fulfillment): string {
   return fulfillment === 'delivery' ? 'delivery' : 'pickup';
 }
 
-/** Label for the paid/unpaid toggle the owner taps before saving an order. */
-export function paymentToggleLabel(isPaid: boolean, fulfillment: Fulfillment): string {
-  if (isPaid) return 'Paid now ✓';
-  return `Pay later (collect on ${collectionPoint(fulfillment)})`;
+/**
+ * Label for the dedicated "Paid upfront" button that sits directly above
+ * Save, so the owner records payment at the moment they close the order.
+ */
+export function paidUpfrontLabel(isPaid: boolean): string {
+  return isPaid ? 'Paid upfront ✓' : 'Paid upfront';
 }
 
 export interface PaymentSummaryInput {

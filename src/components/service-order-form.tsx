@@ -16,8 +16,8 @@ import {
 import { getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
 import {
   PAYMENT_LABELS,
+  paidUpfrontLabel,
   paymentSummaryLine,
-  paymentToggleLabel,
 } from '@/lib/domain/payment-summary';
 import { estimateOrderTotal } from '@/lib/domain/pricing';
 import {
@@ -223,11 +223,6 @@ export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuc
             ))}
           </View>
           <ErrorText>{fieldErrors.paymentMethod}</ErrorText>
-          <Button
-            title={paymentToggleLabel(isPaid, fulfillment)}
-            variant={isPaid ? 'primary' : 'outline'}
-            onPress={() => setIsPaid((paid) => !paid)}
-          />
           <Subtle>
             {paymentSummaryLine({
               paymentMethod,
@@ -240,6 +235,13 @@ export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuc
       )}
 
       <ErrorText>{error}</ErrorText>
+      {mode === 'walk_in' && (
+        <Button
+          title={paidUpfrontLabel(isPaid)}
+          variant={isPaid ? 'primary' : 'outline'}
+          onPress={() => setIsPaid((paid) => !paid)}
+        />
+      )}
       <Button
         title={mutation.isPending ? 'Submitting…' : submitLabel}
         onPress={handleSubmit}
