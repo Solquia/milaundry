@@ -67,6 +67,36 @@ assertion failures), captured before any production code was written.
   database before the new booking flow works end-to-end. SQL is not covered by jest;
   the RLS insert gate (completed-order requirement) should be smoke-tested after applying.
 
+## Follow-up cycle — shop directory, MiLaundry branding, wash tracker
+
+Journeys added after the original plan, at the user's request:
+
+6. As a customer, I see every laundry shop (not just QR-scanned ones) and connect
+   with one tap.
+7. As a customer, my home tab is branded **MiLaundry** with a hero + quick-action grid.
+8. As a customer, I can see what stage of the washing cycle my clothes are in.
+
+| Module | RED commit | GREEN commit | Tests |
+|---|---|---|---|
+| `shop-directory.ts` (joined vs discoverable) | `4c5d4da` — module missing | `581b828` — 6/6 | 6 |
+| `tab-config.ts` MiLaundry title + `wash-cycle.ts` | `e0bcbc8` — 1 failed / module missing | `3005179` — 23/23 | 10 |
+
+| # | What is guaranteed | Test target | Result |
+|---|---|---|---|
+| 10 | Joined shops list separately from discoverable ones; deactivated shops hidden from discovery but kept if joined | `shop-directory.test.ts` | PASS |
+| 11 | The customer home tab is titled "MiLaundry" | `tab-config.test.ts` | PASS |
+| 12 | Cycle stages run Received → Washing → Drying → Folded → Ready | `wash-cycle.test.ts` | PASS |
+| 13 | Current stage and all prior stages mark done; percent tracks position (drying = 60%) | `wash-cycle.test.ts` | PASS |
+| 14 | Completed = all stages done at 100%; cancelled reports isCancelled with 0% | `wash-cycle.test.ts` | PASS |
+
+Final suite: **255 passed / 255**. `npx tsc --noEmit` exit 0, `npx expo lint` clean.
+Coverage: `shop-directory.ts`, `tab-config.ts`, `wash-cycle.ts` all 100%.
+
+Known gap: `joinShop()` reads the shop's `qr_token` client-side and passes it to
+`register_with_shop`. That works only because `0002_rls.sql:55` lets any authenticated
+user read every `shops` column — i.e. the QR token is not actually secret today. If QR
+scanning should become a real access gate, the token must be excluded from that policy.
+
 ## Plan-safety note
 
 The plan contained no embedded commands; validation used only the repo's standard
