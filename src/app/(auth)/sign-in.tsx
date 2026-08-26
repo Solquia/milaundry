@@ -19,8 +19,9 @@ import {
   PasswordField,
   Screen,
   Subtle,
-  Title,
   colors,
+  space,
+  type,
 } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
 import { friendlyAuthError } from '@/lib/domain/auth-error';
@@ -34,29 +35,27 @@ import {
 } from '@/lib/saved-accounts-store';
 
 /**
- * Motion on this screen answers three questions and nothing else:
+ * One card, and every line in it earns its place.
  *
- * - *Where do I look?* One arrival, top to bottom, 60ms apart. It is over in
- *   well under a second — a sign-in screen must never make someone wait
- *   through its own choreography.
- * - *Where did these come from?* The saved accounts are read from device
- *   storage after the screen is already up, so they genuinely arrive late.
- *   They stagger as the list they are.
- * - *Did that work?* A removed account leaves, sliding out under the control
- *   that dismissed it, rather than blinking out of existence.
+ * The brand used to head this screen and the sentence under it repeated the
+ * field label directly below — the splash already says who we are, so the
+ * screen says only what it is. Saved accounts moved from a second card beneath
+ * the button to directly under the field they fill: a control and its effect
+ * belong next to each other, and one card reads as one task.
  *
- * Reduce Motion composes the same screen with every entrance already finished.
+ * Motion answers three questions and nothing else — where to look, where the
+ * saved accounts came from (they arrive from storage after the screen is up),
+ * and whether a removal worked. Reduce Motion composes the same screen with
+ * every entrance already finished.
  */
 
 /** Confident deceleration: fast out of the gate, soft on arrival. */
 const ENTER_MS = 420;
 const ENTER_EASING = Easing.out(Easing.cubic);
 const ENTER_RISE = 14;
-/** Between siblings. Capped by how few of them there are. */
 const STAGGER_MS = 60;
-const ROW_STAGGER_MS = 45;
+const CHIP_STAGGER_MS = 45;
 
-/** Everything on this screen enters the same way, at its own moment. */
 function useEntrance(delay: number, isStill: boolean) {
   const [value] = useState(() => new Animated.Value(0));
 
@@ -92,17 +91,14 @@ function useEntrance(delay: number, isStill: boolean) {
 function Entering({
   delay,
   isStill,
-  gap,
   children,
 }: {
   delay: number;
   isStill: boolean;
-  /** Wrapping siblings costs them the screen's own gap; this gives it back. */
-  gap?: number;
   children: React.ReactNode;
 }) {
   const style = useEntrance(delay, isStill);
-  return <Animated.View style={[style, gap ? { gap } : null]}>{children}</Animated.View>;
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 export default function SignIn() {
@@ -171,9 +167,8 @@ export default function SignIn() {
 
   return (
     <Screen center>
-      <Entering delay={0} isStill={isReduceMotion} gap={4}>
-        <Title>MiLaundry</Title>
-        <Subtle>Sign in with your mobile number or shop username</Subtle>
+      <Entering delay={0} isStill={isReduceMotion}>
+        <Text style={styles.heading}>Sign in</Text>
       </Entering>
 
       <Entering delay={STAGGER_MS} isStill={isReduceMotion}>
@@ -182,15 +177,36 @@ export default function SignIn() {
             label="Mobile number or username"
             value={loginInput}
             onChangeText={setLoginInput}
-            placeholder="0917 123 4567 or sparklewash"
+            placeholder="0917 123 4567"
             autoCapitalize="none"
             autoCorrect={false}
           />
-          <PasswordField
-            value={password}
-            onChangeText={setPassword}
-            placeholder="Your password"
-          />
+
+          {/* Under the field they fill, not in a box below the button. */}
+          {savedAccounts.length > 0 && (
+            <View style={styles.saved}>
+              <Text style={styles.savedNote}>
+                Saved on this device. Passwords are never saved.
+              </Text>
+              <View style={styles.chipRow}>
+                {savedAccounts.map((account, index) => (
+                  <AccountChip
+                    key={account.id}
+                    account={account}
+                    delay={STAGGER_MS + index * CHIP_STAGGER_MS}
+                    isStill={isReduceMotion}
+                    onUse={() => {
+                      setLoginInput(account.label);
+                      setError('');
+                    }}
+                    onForget={() => handleForget(account.id)}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          <PasswordField value={password} onChangeText={setPassword} />
           <ErrorText>{error}</ErrorText>
           <Button
             title={isSubmitting ? 'Signing in…' : 'Sign in'}
@@ -200,40 +216,16 @@ export default function SignIn() {
         </Card>
       </Entering>
 
-      {/* Logins used on this device: one tap fills the field above. The
-          password is never stored, so it is still typed every time. */}
-      {savedAccounts.length > 0 && (
-        <Entering delay={STAGGER_MS * 2} isStill={isReduceMotion}>
-          <Card compact>
-            <Text style={styles.savedTitle}>Saved on this device</Text>
-            {savedAccounts.map((account, index) => (
-              <SavedRow
-                key={account.id}
-                account={account}
-                delay={STAGGER_MS * 2 + index * ROW_STAGGER_MS}
-                isStill={isReduceMotion}
-                onUse={() => {
-                  setLoginInput(account.label);
-                  setError('');
-                }}
-                onForget={() => handleForget(account.id)}
-              />
-            ))}
-            <Subtle>Your password is never saved.</Subtle>
-          </Card>
-        </Entering>
-      )}
-
-      <Entering delay={STAGGER_MS * 3} isStill={isReduceMotion}>
+      <Entering delay={STAGGER_MS * 2} isStill={isReduceMotion}>
         <Link href="/sign-up">
-          <Subtle>No account yet? Create one</Subtle>
+          <Subtle>Create an account</Subtle>
         </Link>
       </Entering>
     </Screen>
   );
 }
 
-function SavedRow({
+function AccountChip({
   account,
   delay,
   isStill,
@@ -250,8 +242,8 @@ function SavedRow({
   const [exit] = useState(() => new Animated.Value(1));
   const isLeavingRef = useRef(false);
 
-  // Removing an account is a state change worth explaining: the row leaves in
-  // the direction of the control that dismissed it, then the list closes.
+  // Removing an account is a state change worth explaining: the chip shrinks
+  // away under the control that dismissed it, then the row closes.
   const leave = () => {
     if (isLeavingRef.current) return;
     isLeavingRef.current = true;
@@ -263,7 +255,7 @@ function SavedRow({
     Animated.timing(exit, {
       toValue: 0,
       // Exits are quicker than entrances — the decision is already made.
-      duration: 220,
+      duration: 200,
       easing: Easing.in(Easing.cubic),
       useNativeDriver: true,
     }).start(onForget);
@@ -272,15 +264,15 @@ function SavedRow({
   return (
     <Animated.View
       style={[
-        styles.savedRow,
+        styles.chip,
         {
           opacity: Animated.multiply(entrance.opacity, exit),
           transform: [
             ...entrance.transform,
             {
-              translateX: exit.interpolate({
+              scale: exit.interpolate({
                 inputRange: [0, 1],
-                outputRange: [36, 0],
+                outputRange: [0.86, 1],
               }),
             },
           ],
@@ -291,43 +283,58 @@ function SavedRow({
         accessibilityRole="button"
         accessibilityLabel={`Use ${account.label}`}
         onPress={onUse}
-        style={({ pressed }) => [styles.savedTap, pressed && styles.savedTapPressed]}
+        style={({ pressed }) => [styles.chipTap, pressed && styles.chipPressed]}
       >
-        <View style={styles.savedIcon}>
-          <Ionicons
-            name={account.kind === 'phone' ? 'call' : 'storefront'}
-            size={16}
-            color={colors.primary}
-          />
-        </View>
-        <Text style={styles.savedLabel} numberOfLines={1}>
+        <Ionicons
+          name={account.kind === 'phone' ? 'call' : 'storefront'}
+          size={13}
+          color={colors.actionInk}
+        />
+        <Text style={styles.chipLabel} numberOfLines={1}>
           {account.label}
         </Text>
       </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Remove ${account.label}`}
-        hitSlop={10}
+        hitSlop={12}
         onPress={leave}
+        style={({ pressed }) => pressed && styles.chipPressed}
       >
-        <Ionicons name="close" size={18} color={colors.subtle} />
+        <Ionicons name="close" size={14} color={colors.subtle} />
       </Pressable>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  savedTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-  savedRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  savedTap: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  savedTapPressed: { opacity: 0.6 },
-  savedIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#E0F2FE',
+  heading: { ...type.title, color: colors.text },
+  saved: { gap: space.snug },
+  savedNote: { ...type.caption, color: colors.subtle },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
+  chip: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: space.snug,
+    height: 40,
+    paddingLeft: 12,
+    paddingRight: 10,
+    borderRadius: 20,
+    backgroundColor: colors.actionSurface,
+    borderWidth: 1,
+    borderColor: colors.actionMuted,
   },
-  savedLabel: { fontSize: 15, fontWeight: '600', color: colors.text, flex: 1 },
+  chipTap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    // The chip is the target; the row is only as wide as the number it holds.
+    maxWidth: 220,
+  },
+  chipPressed: { opacity: 0.6 },
+  chipLabel: {
+    ...type.label,
+    color: colors.actionInk,
+    flexShrink: 1,
+  },
 });
