@@ -1,16 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  AccessibilityInfo,
-  Animated,
-  Easing,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
 import {
   Button,
   Card,
@@ -19,6 +12,7 @@ import {
   PasswordField,
   Screen,
   Subtle,
+  Title,
   colors,
   space,
   type,
@@ -33,73 +27,17 @@ import {
   loadSavedAccounts,
   rememberSignIn,
 } from '@/lib/saved-accounts-store';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 /**
- * One card, and every line in it earns its place.
+ * One card, and every line on it earns its place.
  *
  * The brand used to head this screen and the sentence under it repeated the
  * field label directly below — the splash already says who we are, so the
- * screen says only what it is. Saved accounts moved from a second card beneath
- * the button to directly under the field they fill: a control and its effect
+ * screen says only what it is. Saved accounts sit under the field they fill
+ * rather than in a second card below the button: a control and its effect
  * belong next to each other, and one card reads as one task.
- *
- * Motion answers three questions and nothing else — where to look, where the
- * saved accounts came from (they arrive from storage after the screen is up),
- * and whether a removal worked. Reduce Motion composes the same screen with
- * every entrance already finished.
  */
-
-/** Confident deceleration: fast out of the gate, soft on arrival. */
-const ENTER_MS = 420;
-const ENTER_EASING = Easing.out(Easing.cubic);
-const ENTER_RISE = 14;
-const STAGGER_MS = 60;
-const CHIP_STAGGER_MS = 45;
-
-function useEntrance(delay: number, isStill: boolean) {
-  const [value] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    if (isStill) {
-      value.setValue(1);
-      return;
-    }
-    const animation = Animated.timing(value, {
-      toValue: 1,
-      duration: ENTER_MS,
-      delay,
-      easing: ENTER_EASING,
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [value, delay, isStill]);
-
-  return {
-    opacity: value,
-    transform: [
-      {
-        translateY: value.interpolate({
-          inputRange: [0, 1],
-          outputRange: [ENTER_RISE, 0],
-        }),
-      },
-    ],
-  };
-}
-
-function Entering({
-  delay,
-  isStill,
-  children,
-}: {
-  delay: number;
-  isStill: boolean;
-  children: React.ReactNode;
-}) {
-  const style = useEntrance(delay, isStill);
-  return <Animated.View style={style}>{children}</Animated.View>;
-}
 
 export default function SignIn() {
   const { signIn } = useAuth();
@@ -109,17 +47,6 @@ export default function SignIn() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<SavedAccount[]>([]);
-  const [isReduceMotion, setIsReduceMotion] = useState(false);
-
-  useEffect(() => {
-    let isActive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((enabled) => {
-      if (isActive) setIsReduceMotion(enabled);
-    });
-    return () => {
-      isActive = false;
-    };
-  }, []);
 
   // Device storage is the external system this screen syncs with on open.
   useEffect(() => {
@@ -167,11 +94,11 @@ export default function SignIn() {
 
   return (
     <Screen center>
-      <Entering delay={0} isStill={isReduceMotion}>
-        <Text style={styles.heading}>Sign in</Text>
-      </Entering>
+      <Reveal>
+        <Title>Sign in</Title>
+      </Reveal>
 
-      <Entering delay={STAGGER_MS} isStill={isReduceMotion}>
+      <Reveal delay={REVEAL_STAGGER_MS}>
         <Card>
           <Field
             label="Mobile number or username"
@@ -190,17 +117,16 @@ export default function SignIn() {
               </Text>
               <View style={styles.chipRow}>
                 {savedAccounts.map((account, index) => (
-                  <AccountChip
-                    key={account.id}
-                    account={account}
-                    delay={STAGGER_MS + index * CHIP_STAGGER_MS}
-                    isStill={isReduceMotion}
-                    onUse={() => {
-                      setLoginInput(account.label);
-                      setError('');
-                    }}
-                    onForget={() => handleForget(account.id)}
-                  />
+                  <Reveal key={account.id} delay={REVEAL_STAGGER_MS * (index + 2)}>
+                    <AccountChip
+                      account={account}
+                      onUse={() => {
+                        setLoginInput(account.label);
+                        setError('');
+                      }}
+                      onForget={() => handleForget(account.id)}
+                    />
+                  </Reveal>
                 ))}
               </View>
             </View>
@@ -214,41 +140,38 @@ export default function SignIn() {
             disabled={isSubmitting}
           />
         </Card>
-      </Entering>
+      </Reveal>
 
-      <Entering delay={STAGGER_MS * 2} isStill={isReduceMotion}>
+      <Reveal delay={REVEAL_STAGGER_MS * 2}>
         <Link href="/sign-up">
           <Subtle>Create an account</Subtle>
         </Link>
-      </Entering>
+      </Reveal>
     </Screen>
   );
 }
 
 function AccountChip({
   account,
-  delay,
-  isStill,
   onUse,
   onForget,
 }: {
   account: SavedAccount;
-  delay: number;
-  isStill: boolean;
   onUse: () => void;
   onForget: () => void;
 }) {
-  const entrance = useEntrance(delay, isStill);
+  const isReduced = useReducedMotion();
   const [exit] = useState(() => new Animated.Value(1));
   const isLeavingRef = useRef(false);
 
   // Removing an account is a state change worth explaining: the chip shrinks
-  // away under the control that dismissed it, then the row closes.
+  // away under the control that dismissed it, and the row closes after it has
+  // gone rather than pulling the gap shut underneath it.
   const leave = () => {
     if (isLeavingRef.current) return;
     isLeavingRef.current = true;
 
-    if (isStill) {
+    if (isReduced) {
       onForget();
       return;
     }
@@ -266,15 +189,9 @@ function AccountChip({
       style={[
         styles.chip,
         {
-          opacity: Animated.multiply(entrance.opacity, exit),
+          opacity: exit,
           transform: [
-            ...entrance.transform,
-            {
-              scale: exit.interpolate({
-                inputRange: [0, 1],
-                outputRange: [0.86, 1],
-              }),
-            },
+            { scale: exit.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1] }) },
           ],
         },
       ]}
@@ -308,7 +225,6 @@ function AccountChip({
 }
 
 const styles = StyleSheet.create({
-  heading: { ...type.title, color: colors.text },
   saved: { gap: space.snug },
   savedNote: { ...type.caption, color: colors.subtle },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
@@ -328,13 +244,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
-    // The chip is the target; the row is only as wide as the number it holds.
+    // The chip is the target; it is only as wide as the number it holds.
     maxWidth: 220,
   },
   chipPressed: { opacity: 0.6 },
-  chipLabel: {
-    ...type.label,
-    color: colors.actionInk,
-    flexShrink: 1,
-  },
+  chipLabel: { ...type.label, color: colors.actionInk, flexShrink: 1 },
 });
