@@ -31,8 +31,8 @@ import { markSplashSeen } from '@/lib/splash-state';
  * wordmark, three crests drift across each other at their own speeds, and every
  * letter the water has taken turns foam-aqua — so the brand is revealed *by*
  * the wash rather than placed on top of it. Once the session is known the water
- * rises once more, takes the name, and settles just above it — the handover to
- * sign-in lands on that settle.
+ * rises once more, takes the name and settles clear above it, then the whole
+ * picture dissolves and the handover to sign-in lands on the fade.
  *
  * Two mechanics carry the whole screen:
  *
@@ -57,13 +57,12 @@ const FOAM_TEXT = '#D9FFF7';
 
 const RISE_MS = 2600;
 const FINISH_MS = 620;
-/** The beat: quick out, slower back, so it breathes rather than twitches. */
-const PULSE_OUT_MS = 170;
-const PULSE_BACK_MS = 260;
-/** Short enough that the exit never feels like a wait for the next screen. */
-const FADE_MS = 280;
-/** How far the mark swells on the beat. Past ~5% it stops reading as a breath. */
-const PULSE_SCALE = 1.045;
+/**
+ * The exit is one move now, so the dissolve carries it alone and gets a little
+ * more room than it had when a beat preceded it — still short enough that it
+ * never feels like waiting for the next screen.
+ */
+const FADE_MS = 360;
 
 /** Built once, outside the component: rebuilding it per render remounts it. */
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -78,12 +77,11 @@ const REST_LEVEL = 0.52;
 const MARK_ABOVE_LINE = 40;
 
 /**
- * Where the water stops. It comes up over the wordmark and holds a little above
- * it — enough to have taken the name, not so far that it swallows the screen.
- * The old exit flooded past the top edge, which meant the last thing anyone saw
- * was a blank field with nothing in it.
+ * Where the water stops: clear of the wordmark with room above it, so the name
+ * is well under before the screen dissolves. Not the top edge — the old exit
+ * flooded past it, and the last thing anyone saw was a blank field.
  */
-const CLEARANCE_ABOVE_MARK = 26;
+const CLEARANCE_ABOVE_MARK = 70;
 /** Wordmark 56 + rule block 33 + caps 14. */
 const MARK_HEIGHT = 103;
 
@@ -133,8 +131,6 @@ export default function Splash() {
   const [sink] = useState(() => new Animated.Value(1));
   const [markIn] = useState(() => new Animated.Value(0));
   const [breath] = useState(() => new Animated.Value(0));
-  /** One beat on the mark once the water has taken it. */
-  const [pulse] = useState(() => new Animated.Value(0));
   /** The whole composition dissolving into the field it was painted on. */
   const [exitFade] = useState(() => new Animated.Value(1));
 
@@ -218,10 +214,9 @@ export default function Splash() {
       return;
     }
 
-    // Lift, beat, dissolve — in that order, because each one is the reason the
-    // next makes sense. The water finishes the job it spent the whole screen
-    // doing; the mark answers once, under water, to say it landed; then the
-    // picture goes rather than being cut away mid-hold.
+    // Lift, then dissolve. Two moves, not three: the water finishes the job it
+    // spent the whole screen doing, and the picture goes rather than being cut
+    // away mid-hold.
     Animated.sequence([
       // `inOut` rather than `in`: this rise arrives somewhere and stops, so it
       // decelerates into the hold instead of accelerating off the screen the
@@ -232,20 +227,6 @@ export default function Splash() {
         easing: Easing.inOut(Easing.cubic),
         useNativeDriver: true,
       }),
-      // The beat. Out fast, back slow — a pulse that returns as quickly as it
-      // leaves reads as a twitch; the slower recovery is what makes it breathe.
-      Animated.timing(pulse, {
-        toValue: 1,
-        duration: PULSE_OUT_MS,
-        easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
-      }),
-      Animated.timing(pulse, {
-        toValue: 0,
-        duration: PULSE_BACK_MS,
-        easing: Easing.inOut(Easing.quad),
-        useNativeDriver: true,
-      }),
       Animated.timing(exitFade, {
         toValue: 0,
         duration: FADE_MS,
@@ -253,7 +234,7 @@ export default function Splash() {
         useNativeDriver: true,
       }),
     ]).start(go);
-  }, [router, session, profile?.role, sink, pulse, exitFade, isReduceMotion]);
+  }, [router, session, profile?.role, sink, exitFade, isReduceMotion]);
 
   useEffect(() => {
     if (shouldLeaveSplash({ elapsedMs, isAuthLoading: isLoading })) leave();
@@ -272,13 +253,6 @@ export default function Splash() {
 
   const markRise = markIn.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
 
-  // Applied to both copies of the mark. Scale is about each element's own
-  // centre and the two centres coincide on screen, so the dry letters and the
-  // submerged ones swell together instead of sliding out of register.
-  const markScale = pulse.interpolate({
-    inputRange: [0, 1],
-    outputRange: [1, PULSE_SCALE],
-  });
 
   return (
     <AnimatedPressable
@@ -311,10 +285,7 @@ export default function Splash() {
         style={[
           styles.markLayer,
           { top: restY - MARK_ABOVE_LINE },
-          {
-            opacity: markIn,
-            transform: [{ translateY: markRise }, { scale: markScale }],
-          },
+          { opacity: markIn, transform: [{ translateY: markRise }] },
         ]}
         pointerEvents="none"
       >
@@ -365,11 +336,6 @@ export default function Splash() {
               { top: -MARK_ABOVE_LINE },
               {
                 opacity: markIn,
-                // Scale last, exactly as on the dry copy. Transforms compose in
-                // order, so a scale placed first would multiply the translate
-                // that follows it — and this translate is the water's whole
-                // offset, so a 4.5% beat would throw the foam letters tens of
-                // pixels out of register with the white ones.
                 transform: [
                   {
                     translateY: Animated.add(
@@ -377,7 +343,6 @@ export default function Splash() {
                       markRise
                     ),
                   },
-                  { scale: markScale },
                 ],
               },
             ]}
