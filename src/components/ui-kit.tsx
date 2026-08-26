@@ -11,7 +11,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
 
 import type { OrderStatus } from '@/lib/domain/order-status';
 import { PAID_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
@@ -54,19 +53,6 @@ export const colors = {
   card: '#FFFFFF',
   /** Inputs, wells — recessed against a card rather than the same white. */
   sunken: '#F7F9FC',
-  /**
-   * Suds on the page field. Held within a couple of percent of `bg`, because
-   * labels sit directly on the page and have to stay ≥4.5:1 wherever a bubble
-   * lands behind them. This reads as texture, never as content.
-   */
-  suds: '#E5ECF6',
-  /**
-   * Lighter than the fill, not darker: a 1.5pt ring is thin enough to look
-   * safe and dark enough to fail. At #E0E8F3 subtle ink measured 4.44:1 over
-   * it. This sits at 4.65:1, and the ring carries a little more width to stay
-   * visible at the lighter value.
-   */
-  sudsLine: '#E6EDF7',
 
   // Ink --------------------------------------------------------------------
   text: '#14212E',
@@ -271,54 +257,6 @@ type ScreenProps = {
   center?: boolean;
 };
 
-/**
- * Suds on the page field — the one decorative thing in the app.
- *
- * Placed by hand, not scattered by a generator: a composed arrangement reads as
- * a wash of bubbles, and a random one reads as dust. They cluster along the
- * edges and stay out of the middle third, where cards and copy live.
- *
- * Positions are percentages so the arrangement holds its shape on any screen,
- * while the radii stay in points so a bubble is the same size on a phone as on
- * a tablet. It never moves — a still texture is furniture, and a moving one
- * would compete with content it sits behind.
- */
-const SUDS = [
-  { cx: '87%', cy: '5%', r: 52, filled: true },
-  { cx: '13%', cy: '11%', r: 21, filled: false },
-  { cx: '67%', cy: '17%', r: 9, filled: true },
-  { cx: '96%', cy: '29%', r: 30, filled: false },
-  { cx: '5%', cy: '36%', r: 38, filled: true },
-  { cx: '29%', cy: '45%', r: 7, filled: true },
-  { cx: '79%', cy: '54%', r: 17, filled: false },
-  { cx: '17%', cy: '62%', r: 11, filled: true },
-  { cx: '93%', cy: '69%', r: 43, filled: true },
-  { cx: '47%', cy: '75%', r: 8, filled: false },
-  { cx: '7%', cy: '83%', r: 25, filled: false },
-  { cx: '65%', cy: '89%', r: 15, filled: true },
-  { cx: '33%', cy: '96%', r: 33, filled: true },
-] as const;
-
-function PageSuds() {
-  return (
-    <View style={styles.suds} pointerEvents="none">
-      <Svg width="100%" height="100%">
-        {SUDS.map((bubble) => (
-          <Circle
-            key={`${bubble.cx}-${bubble.cy}`}
-            cx={bubble.cx}
-            cy={bubble.cy}
-            r={bubble.r}
-            fill={bubble.filled ? colors.suds : 'none'}
-            stroke={bubble.filled ? 'none' : colors.sudsLine}
-            strokeWidth={bubble.filled ? 0 : 2}
-          />
-        ))}
-      </Svg>
-    </View>
-  );
-}
-
 export function Screen({ children, scroll = true, footer, center }: ScreenProps) {
   const content = scroll ? (
     // `handled` matters at a counter: after typing a customer name, the first
@@ -343,10 +281,6 @@ export function Screen({ children, scroll = true, footer, center }: ScreenProps)
     // raised tab bar already applies the bottom inset, so claiming all four
     // here padded the screen twice.
     <SafeAreaView style={styles.screen} edges={['left', 'right']}>
-      {/* Behind everything, and fixed to the viewport rather than the content:
-          suds that scrolled with a long list would read as objects moving past
-          rather than as the surface the list rests on. */}
-      <PageSuds />
       {content}
       {footer ? <View style={styles.screenFooter}>{footer}</View> : null}
     </SafeAreaView>
@@ -627,7 +561,6 @@ export function ErrorState({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
-  suds: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   screenContent: { padding: space.room, gap: space.cosy },
   // `flexGrow` rather than `flex`: the content still grows past the viewport
   // and scrolls when it is taller, instead of being squeezed to fit.
