@@ -36,7 +36,22 @@ export default function CustomerLayout() {
         />
       ))}
       <Tabs.Screen name="new-order" options={{ href: null, title: 'New Order' }} />
-      <Tabs.Screen name="shop/[id]" options={{ href: null, title: 'Shop' }} />
+      {/* Reached from the bell on the home hero, not from the tab bar: it is
+          somewhere you go when something has happened, not a place you live. */}
+      <Tabs.Screen
+        name="notifications"
+        options={{ href: null, title: 'Notifications' }}
+      />
+      {/* Same reasoning as the bell: settings is somewhere you go once and
+          leave, so it takes a header and a back arrow rather than a tab. */}
+      <Tabs.Screen name="settings" options={{ href: null, title: 'Settings' }} />
+      {/* The shopfront paints its own gradient up behind the status bar and
+          carries its own back control, so a white header bar above it would
+          just be a band of nothing with the shop's name repeated in it. */}
+      <Tabs.Screen
+        name="shop/[id]"
+        options={{ href: null, title: 'Shop', headerShown: false }}
+      />
       <Tabs.Screen name="book/[serviceId]" options={{ href: null, title: 'Book service' }} />
       <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order' }} />
     </Tabs>

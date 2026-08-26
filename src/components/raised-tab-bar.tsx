@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '@/components/ui-kit';
 import type { TabConfig } from '@/lib/domain/tab-config';
+import { useHaptic } from '@/lib/use-app-settings';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -30,6 +31,7 @@ type Props = TabBarProps & { tabs: readonly TabConfig[] };
 export function RaisedTabBar({ state, navigation, tabs }: Props) {
   const insets = useSafeAreaInsets();
   const activeRouteName = state.routes[state.index]?.name;
+  const haptic = useHaptic();
 
   return (
     <View style={[styles.container, { height: BAR_HEIGHT + LIFT + insets.bottom }]}>
@@ -46,6 +48,10 @@ export function RaisedTabBar({ state, navigation, tabs }: Props) {
 
           const isFocused = activeRouteName === tab.name;
           const handlePress = () => {
+            // The raised tab is the app's one physical-looking button, so it
+            // gets the weight to match. Pressing the tab you are already on
+            // still answers — silence there reads as a missed tap.
+            haptic(tab.isCenter ? 'commit' : 'tap');
             const event = navigation.emit({
               type: 'tabPress',
               target: route.key,
@@ -67,13 +73,17 @@ export function RaisedTabBar({ state, navigation, tabs }: Props) {
                 style={styles.centerItem}
               >
                 <View style={[styles.circle, isFocused && styles.circleActive]}>
-                  <Ionicons name={tab.icon as IconName} color="#FFFFFF" size={28} />
+                  <Ionicons name={tab.icon as IconName} color={colors.onAccent} size={28} />
                 </View>
               </Pressable>
             );
           }
 
-          const tint = isFocused ? colors.primary : colors.subtle;
+          // The 22px glyph can carry the identity blue (a control needs 3:1);
+          // the 11px label cannot — at 3.5:1 it would fail AA, so it takes the
+          // deeper ink. Same blue family, two different jobs.
+          const iconTint = isFocused ? colors.primary : colors.subtle;
+          const labelTint = isFocused ? colors.actionInk : colors.subtle;
           return (
             <Pressable
               key={tab.name}
@@ -83,8 +93,8 @@ export function RaisedTabBar({ state, navigation, tabs }: Props) {
               onPress={handlePress}
               style={styles.item}
             >
-              <Ionicons name={tab.icon as IconName} color={tint} size={22} />
-              <Text style={[styles.label, { color: tint }]} numberOfLines={1}>
+              <Ionicons name={tab.icon as IconName} color={iconTint} size={22} />
+              <Text style={[styles.label, { color: labelTint }]} numberOfLines={1}>
                 {tab.title}
               </Text>
             </Pressable>

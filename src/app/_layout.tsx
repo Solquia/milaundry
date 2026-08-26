@@ -6,6 +6,7 @@ import * as SystemUI from 'expo-system-ui';
 
 import { Loading } from '@/components/ui-kit';
 import { AuthProvider } from '@/lib/auth';
+import { AppSettingsProvider } from '@/lib/use-app-settings';
 import { ViewAsShopProvider } from '@/lib/view-as-shop-context';
 
 const queryClient = new QueryClient({
@@ -32,9 +33,13 @@ export default function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ViewAsShopProvider>
-          <Stack screenOptions={{ headerShown: false }} />
-        </ViewAsShopProvider>
+        {/* Above the navigator: a press anywhere in the app can ask for a
+            haptic, and the answer has to be the same everywhere. */}
+        <AppSettingsProvider>
+          <ViewAsShopProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </ViewAsShopProvider>
+        </AppSettingsProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
