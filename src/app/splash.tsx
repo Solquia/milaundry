@@ -57,6 +57,16 @@ const FOAM_TEXT = '#D9FFF7';
 
 const RISE_MS = 2600;
 const FINISH_MS = 620;
+/** The beat: quick out, slower back, so it breathes rather than twitches. */
+const PULSE_OUT_MS = 170;
+const PULSE_BACK_MS = 260;
+/** Short enough that the exit never feels like a wait for the next screen. */
+const FADE_MS = 280;
+/** How far the mark swells on the beat. Past ~5% it stops reading as a breath. */
+const PULSE_SCALE = 1.045;
+
+/** Built once, outside the component: rebuilding it per render remounts it. */
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 /** Where the water rests, as a fraction of screen height from the top. */
 const REST_LEVEL = 0.52;
 
@@ -123,6 +133,10 @@ export default function Splash() {
   const [sink] = useState(() => new Animated.Value(1));
   const [markIn] = useState(() => new Animated.Value(0));
   const [breath] = useState(() => new Animated.Value(0));
+  /** One beat on the mark once the water has taken it. */
+  const [pulse] = useState(() => new Animated.Value(0));
+  /** The whole composition dissolving into the field it was painted on. */
+  const [exitFade] = useState(() => new Animated.Value(1));
 
   useEffect(() => {
     let isActive = true;
@@ -204,17 +218,42 @@ export default function Splash() {
       return;
     }
 
-    // The last lift: the water comes up over the name and settles just above
-    // it, and the handover lands on that settle. `inOut` rather than `in` —
-    // this rise arrives somewhere and stops, so it decelerates into the hold
-    // instead of accelerating off the screen the way the old flood did.
-    Animated.timing(sink, {
-      toValue: -1,
-      duration: FINISH_MS,
-      easing: Easing.inOut(Easing.cubic),
-      useNativeDriver: true,
-    }).start(go);
-  }, [router, session, profile?.role, sink, isReduceMotion]);
+    // Lift, beat, dissolve — in that order, because each one is the reason the
+    // next makes sense. The water finishes the job it spent the whole screen
+    // doing; the mark answers once, under water, to say it landed; then the
+    // picture goes rather than being cut away mid-hold.
+    Animated.sequence([
+      // `inOut` rather than `in`: this rise arrives somewhere and stops, so it
+      // decelerates into the hold instead of accelerating off the screen the
+      // way the old flood did.
+      Animated.timing(sink, {
+        toValue: -1,
+        duration: FINISH_MS,
+        easing: Easing.inOut(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      // The beat. Out fast, back slow — a pulse that returns as quickly as it
+      // leaves reads as a twitch; the slower recovery is what makes it breathe.
+      Animated.timing(pulse, {
+        toValue: 1,
+        duration: PULSE_OUT_MS,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(pulse, {
+        toValue: 0,
+        duration: PULSE_BACK_MS,
+        easing: Easing.inOut(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.timing(exitFade, {
+        toValue: 0,
+        duration: FADE_MS,
+        easing: Easing.in(Easing.quad),
+        useNativeDriver: true,
+      }),
+    ]).start(go);
+  }, [router, session, profile?.role, sink, pulse, exitFade, isReduceMotion]);
 
   useEffect(() => {
     if (shouldLeaveSplash({ elapsedMs, isAuthLoading: isLoading })) leave();
@@ -233,9 +272,20 @@ export default function Splash() {
 
   const markRise = markIn.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
 
+  // Applied to both copies of the mark. Scale is about each element's own
+  // centre and the two centres coincide on screen, so the dry letters and the
+  // submerged ones swell together instead of sliding out of register.
+  const markScale = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [1, PULSE_SCALE],
+  });
+
   return (
-    <Pressable
-      style={styles.screen}
+    <AnimatedPressable
+      // The whole picture dissolves as one, background included. What is left
+      // underneath is the window's own deep blue — the same colour this screen
+      // is painted in — so the fade lands on the app rather than on a hole.
+      style={[styles.screen, { opacity: exitFade }]}
       accessibilityRole="button"
       accessibilityLabel="Continue to MiLaundry"
       onPress={() => {
@@ -261,7 +311,10 @@ export default function Splash() {
         style={[
           styles.markLayer,
           { top: restY - MARK_ABOVE_LINE },
-          { opacity: markIn, transform: [{ translateY: markRise }] },
+          {
+            opacity: markIn,
+            transform: [{ translateY: markRise }, { scale: markScale }],
+          },
         ]}
         pointerEvents="none"
       >
@@ -312,6 +365,11 @@ export default function Splash() {
               { top: -MARK_ABOVE_LINE },
               {
                 opacity: markIn,
+                // Scale last, exactly as on the dry copy. Transforms compose in
+                // order, so a scale placed first would multiply the translate
+                // that follows it — and this translate is the water's whole
+                // offset, so a 4.5% beat would throw the foam letters tens of
+                // pixels out of register with the white ones.
                 transform: [
                   {
                     translateY: Animated.add(
@@ -319,6 +377,7 @@ export default function Splash() {
                       markRise
                     ),
                   },
+                  { scale: markScale },
                 ],
               },
             ]}
@@ -327,8 +386,7 @@ export default function Splash() {
           </Animated.View>
         </View>
       </Animated.View>
-
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
