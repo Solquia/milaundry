@@ -5,12 +5,24 @@ Expo app (customer + merchant + superadmin) backed by Supabase.
 ## 1. Supabase project
 
 1. Create a project at https://supabase.com (or `supabase start` locally with the CLI).
-2. Apply migrations in order (SQL editor, or `supabase db push` with the CLI):
+2. Apply **every** migration in order (SQL editor, or `supabase db push` with the CLI).
+   Skipping any of them leaves the app calling functions the database does not have,
+   which surfaces in the app as *"Could not find the function public.… in the schema
+   cache"*:
    - `supabase/migrations/0001_schema.sql`
    - `supabase/migrations/0002_rls.sql`
    - `supabase/migrations/0003_functions.sql`
    - `supabase/migrations/0004_phone_email_auth.sql`
    - `supabase/migrations/0005_shop_accounts.sql`
+   - `supabase/migrations/0007_superadmin_view_as.sql`
+   - `supabase/migrations/0008_shop_branding.sql`
+   - `supabase/migrations/0009_owner_console.sql` — walk-in intake, payments, laundry
+     stages, service categories/minimums
+   - `supabase/migrations/0010_customer_booking.sql` — customer booking with a
+     pickup/delivery schedule, bank transfer, reviews
+
+   `supabase/all-in-one.sql` is the same set concatenated, for a fresh project set up in
+   one paste. Keep it in step whenever a migration is added.
 3. Optional dev data: `supabase/seed.sql`.
 4. **Auth settings** (Authentication → Providers → Phone):
    - Enable the Phone provider.
