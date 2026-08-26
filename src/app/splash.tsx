@@ -31,7 +31,8 @@ import { markSplashSeen } from '@/lib/splash-state';
  * wordmark, three crests drift across each other at their own speeds, and every
  * letter the water has taken turns foam-aqua — so the brand is revealed *by*
  * the wash rather than placed on top of it. Once the session is known the water
- * floods the screen and the handover happens underneath it.
+ * rises once more, takes the name, and settles just above it — the handover to
+ * sign-in lands on that settle.
  *
  * Two mechanics carry the whole screen:
  *
@@ -55,7 +56,7 @@ const FOAM = '#7FF3D6';
 const FOAM_TEXT = '#D9FFF7';
 
 const RISE_MS = 2600;
-const FLOOD_MS = 620;
+const FINISH_MS = 620;
 /** Where the water rests, as a fraction of screen height from the top. */
 const REST_LEVEL = 0.52;
 
@@ -65,6 +66,14 @@ const REST_LEVEL = 0.52;
  * and the tracked caps under water.
  */
 const MARK_ABOVE_LINE = 40;
+
+/**
+ * Where the water stops. It comes up over the wordmark and holds a little above
+ * it — enough to have taken the name, not so far that it swallows the screen.
+ * The old exit flooded past the top edge, which meant the last thing anyone saw
+ * was a blank field with nothing in it.
+ */
+const CLEARANCE_ABOVE_MARK = 26;
 /** Wordmark 56 + rule block 33 + caps 14. */
 const MARK_HEIGHT = 103;
 
@@ -195,11 +204,14 @@ export default function Splash() {
       return;
     }
 
-    // The flood: the water takes the screen, and the handover lands under it.
+    // The last lift: the water comes up over the name and settles just above
+    // it, and the handover lands on that settle. `inOut` rather than `in` —
+    // this rise arrives somewhere and stops, so it decelerates into the hold
+    // instead of accelerating off the screen the way the old flood did.
     Animated.timing(sink, {
       toValue: -1,
-      duration: FLOOD_MS,
-      easing: Easing.in(Easing.cubic),
+      duration: FINISH_MS,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start(go);
   }, [router, session, profile?.role, sink, isReduceMotion]);
@@ -212,7 +224,9 @@ export default function Splash() {
   const waterY = Animated.add(
     sink.interpolate({
       inputRange: [-1, 0, 1],
-      outputRange: [-restY - MARK_HEIGHT, 0, height],
+      // -1 is no longer "off the top": it is the crest resting just above the
+      // wordmark, which is where the screen now ends.
+      outputRange: [-(MARK_ABOVE_LINE + CLEARANCE_ABOVE_MARK), 0, height],
     }),
     breath.interpolate({ inputRange: [0, 1], outputRange: [0, -7] })
   );
