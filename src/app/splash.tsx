@@ -27,51 +27,57 @@ import { markSplashSeen } from '@/lib/splash-state';
 /**
  * The wash line.
  *
- * The app opens on deep water. The level rises until it cuts through the
- * wordmark, three crests drift across each other at their own speeds, and every
- * letter the water has taken turns foam-aqua — so the brand is revealed *by*
- * the wash rather than placed on top of it. Once the session is known the water
- * floods the screen and the handover happens underneath it.
+ * The water rises until it cuts through the wordmark; every letter it has taken
+ * reads foam-aqua. Three crests drift across each other at the surface, suds
+ * climb through the body, and on handover the water floods the screen.
  *
- * Two mechanics carry the whole screen:
+ * ## Why the layers are built the way they are
  *
- * 1. **The reveal.** One mark is drawn dry on the field. A second, foam-toned
- *    copy lives inside the water's clip, counter-translated by the exact water
- *    offset — so it holds still on screen while its container moves, and the
- *    clip edge *is* the waterline. No masking library, no per-frame layout.
- * 2. **The seam.** Each crest is a path spanning two screen widths at a whole
- *    number of periods, translated exactly one width per loop. Sliding by one
- *    width lands on an identical crest, so the loop cannot show a seam.
+ * React Native clips differently on Android than on iOS, and both differences
+ * bite this composition:
  *
- * Everything animated here drives `transform` or `opacity` only, so all of it
- * runs on the native driver: no per-frame work crosses the bridge.
+ * - **Children outside a parent's bounds are clipped away on Android.** The
+ *   crests break *above* the waterline, so they cannot be children of the water
+ *   body. They live in their own band whose box already contains the headroom
+ *   they need.
+ * - **Transformed children are not reliably clipped by `overflow: hidden` on
+ *   Android.** So the reveal cannot be a transformed copy inside a clip — it
+ *   paints straight over the dry mark instead. Here the water body is a
+ *   bottom-anchored box whose *height* animates, and the foam copy sits at a
+ *   fixed distance from the screen bottom with no transform at all. The box's
+ *   growing top edge is the waterline, and it does the revealing.
+ *
+ * Animating height means that one value runs on the JS driver. Its partner —
+ * the crest band, which only ever translates — runs on the native driver, and
+ * the two are started in the same `parallel` with identical timing so they
+ * stay in register. One Animated.Value cannot serve both drivers, which is why
+ * there are two.
  */
 
-/** Deepened brand field — the blue the rest of the app uses, at full strength. */
-const FIELD = ['#04203F', '#0B4A8C', '#1B76CE'] as const;
-/** Foam. The one colour the splash adds, and it only ever touches water. */
+/** Deep field. No bright blue survives anywhere the water does not cover. */
+const FIELD = ['#0A3E75', '#062F5C', '#04203F'] as const;
+/** Foam — the one colour added, and it only ever touches water. */
 const FOAM = '#7FF3D6';
-/** Submerged secondary text: foam-white, kept light enough to read on water. */
 const FOAM_TEXT = '#D9FFF7';
 
 const RISE_MS = 2600;
 const FLOOD_MS = 620;
-/** Where the water rests, as a fraction of screen height from the top. */
 const REST_LEVEL = 0.52;
 
-/**
- * The wordmark straddles the waterline: this much of the lockup sits above it,
- * which puts the line about 70% down the letterforms and leaves the hairline
- * and the tracked caps under water.
- */
+/** How much of the lockup sits above the waterline. */
 const MARK_ABOVE_LINE = 40;
 /** Wordmark 56 + rule block 33 + caps 14. */
 const MARK_HEIGHT = 103;
 
-/** `periods` must be a whole number, or the one-width loop shift would seam. */
+/** Room above the waterline for the tallest crest to break into. */
+const CREST_HEADROOM = 60;
+/** Tallest crest band: the largest amplitude times six. */
+const CREST_BAND = 132;
+
+/** `periods` must be whole, or the one-width loop shift would show a seam. */
 const CRESTS = [
-  { key: 'far', amplitude: 12, periods: 3, duration: 13000, opacity: 0.28, lift: 30 },
-  { key: 'mid', amplitude: 17, periods: 2, duration: 9000, opacity: 0.5, lift: 14 },
+  { key: 'far', amplitude: 12, periods: 3, duration: 13000, opacity: 0.3, lift: 30 },
+  { key: 'mid', amplitude: 17, periods: 2, duration: 9000, opacity: 0.55, lift: 14 },
   { key: 'near', amplitude: 22, periods: 1, duration: 6200, opacity: 1, lift: 0 },
 ] as const;
 
@@ -87,8 +93,8 @@ const BUBBLES = [
 ] as const;
 
 /**
- * A seamless wave spanning two screen widths, with `periods * 2` full periods
- * across it and a filled body hanging below the trough.
+ * A seamless wave spanning two screen widths, with a filled body hanging below
+ * the trough so the crest and the water read as one surface.
  */
 function crestPath(width: number, amplitude: number, periods: number): string {
   const period = width / periods;
@@ -110,10 +116,14 @@ export default function Splash() {
   const [isReduceMotion, setIsReduceMotion] = useState(false);
   const hasLeftRef = useRef(false);
 
-  // 1 = a screen below the resting line, 0 = resting, -1 = flooded past the top.
-  const [sink] = useState(() => new Animated.Value(1));
+  // 1 = below the screen, 0 = resting waterline, -1 = flooded past the top.
+  // Two values, one per driver — see the note at the top of the file.
+  const [surfaceNative] = useState(() => new Animated.Value(1));
+  const [surfaceLayout] = useState(() => new Animated.Value(1));
   const [markIn] = useState(() => new Animated.Value(0));
-  const [breath] = useState(() => new Animated.Value(0));
+
+  const restY = height * REST_LEVEL;
+  const depth = height - restY;
 
   useEffect(() => {
     let isActive = true;
@@ -125,60 +135,47 @@ export default function Splash() {
     };
   }, []);
 
-  // The one authored moment: the water arriving. Everything else is its
-  // secondary motion.
+  // The one authored moment: the water arriving.
   useEffect(() => {
     if (isReduceMotion) {
-      sink.setValue(0);
+      surfaceNative.setValue(0);
+      surfaceLayout.setValue(0);
       markIn.setValue(1);
       return;
     }
 
-    Animated.parallel([
-      Animated.timing(sink, {
+    const rise = (value: Animated.Value, useNativeDriver: boolean) =>
+      Animated.timing(value, {
         toValue: 0,
         duration: RISE_MS,
         // Exponential ease-out: the water arrives fast and settles, the way a
         // filling drum does.
         easing: Easing.out(Easing.exp),
-        useNativeDriver: true,
-      }),
+        useNativeDriver,
+      });
+
+    const run = Animated.parallel([
+      rise(surfaceNative, true),
+      rise(surfaceLayout, false),
       Animated.timing(markIn, {
         toValue: 1,
         duration: 1300,
         delay: 260,
         easing: Easing.out(Easing.cubic),
+        // Opacity only. A transform here would break the reveal: Android does
+        // not reliably clip transformed children.
         useNativeDriver: true,
       }),
-    ]).start();
-
-    const bob = Animated.loop(
-      Animated.sequence([
-        Animated.timing(breath, {
-          toValue: 1,
-          duration: 3600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-        Animated.timing(breath, {
-          toValue: 0,
-          duration: 3600,
-          easing: Easing.inOut(Easing.sin),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    bob.start();
-    return () => bob.stop();
-  }, [isReduceMotion, sink, markIn, breath]);
+    ]);
+    run.start();
+    return () => run.stop();
+  }, [isReduceMotion, surfaceNative, surfaceLayout, markIn]);
 
   useEffect(() => {
     const startedAt = Date.now();
     const id = setInterval(() => setElapsedMs(Date.now() - startedAt), 100);
     return () => clearInterval(id);
   }, []);
-
-  const restY = height * REST_LEVEL;
 
   const leave = useCallback(() => {
     if (hasLeftRef.current) return;
@@ -195,29 +192,36 @@ export default function Splash() {
       return;
     }
 
-    // The flood: the water takes the screen, and the handover lands under it.
-    Animated.timing(sink, {
-      toValue: -1,
-      duration: FLOOD_MS,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start(go);
-  }, [router, session, profile?.role, sink, isReduceMotion]);
+    const flood = (value: Animated.Value, useNativeDriver: boolean) =>
+      Animated.timing(value, {
+        toValue: -1,
+        duration: FLOOD_MS,
+        easing: Easing.in(Easing.cubic),
+        useNativeDriver,
+      });
+
+    // The water takes the screen, and the handover lands under it.
+    Animated.parallel([
+      flood(surfaceNative, true),
+      flood(surfaceLayout, false),
+    ]).start(go);
+  }, [router, session, profile?.role, surfaceNative, surfaceLayout, isReduceMotion]);
 
   useEffect(() => {
     if (shouldLeaveSplash({ elapsedMs, isAuthLoading: isLoading })) leave();
   }, [elapsedMs, isLoading, leave]);
 
-  // One value drives the body, the crests and the reveal together.
-  const waterY = Animated.add(
-    sink.interpolate({
-      inputRange: [-1, 0, 1],
-      outputRange: [-restY - MARK_HEIGHT, 0, height],
-    }),
-    breath.interpolate({ inputRange: [0, 1], outputRange: [0, -7] })
-  );
+  const markTop = restY - MARK_ABOVE_LINE;
 
-  const markRise = markIn.interpolate({ inputRange: [0, 1], outputRange: [18, 0] });
+  // The crest band rides the surface; the body grows up to meet it.
+  const crestShift = surfaceNative.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [-(restY + CREST_HEADROOM + 80), 0, depth + CREST_HEADROOM],
+  });
+  const bodyHeight = surfaceLayout.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [height + 80, depth, 0],
+  });
 
   return (
     <Pressable
@@ -230,99 +234,88 @@ export default function Splash() {
     >
       <StatusBar style="light" />
 
-      {/* The field the water sits in. */}
+      {/* The field. Deep at every stop, so nothing bright shows before the
+          water arrives. */}
       <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
         <Defs>
-          <SvgLinearGradient id="field" x1="0" y1="0" x2="0.55" y2="1">
+          <SvgLinearGradient id="field" x1="0" y1="0" x2="0.5" y2="1">
             <Stop offset="0" stopColor={FIELD[0]} />
-            <Stop offset="0.6" stopColor={FIELD[1]} />
+            <Stop offset="0.55" stopColor={FIELD[1]} />
             <Stop offset="1" stopColor={FIELD[2]} />
           </SvgLinearGradient>
         </Defs>
         <Rect x="0" y="0" width="100%" height="100%" fill="url(#field)" />
       </Svg>
 
-      {/* The dry mark, drawn on the field. The water occludes its lower part. */}
+      {/* The dry mark, on the field. The water paints over its lower part. */}
       <Animated.View
-        style={[
-          styles.markLayer,
-          { top: restY - MARK_ABOVE_LINE },
-          { opacity: markIn, transform: [{ translateY: markRise }] },
-        ]}
+        style={[styles.markLayer, { top: markTop }, { opacity: markIn }]}
         pointerEvents="none"
       >
         <Mark tone="#FFFFFF" taglineTone="#A8CFF2" />
       </Animated.View>
 
-      {/* The water. Its top edge is the waterline; the crests break above it. */}
+      {/* The body: bottom-anchored, and its growing top edge is the waterline.
+          Nothing inside it is transformed except the suds, which are held below
+          the edge by their travel distance. */}
+      <Animated.View
+        style={[styles.body, { height: bodyHeight }]}
+        pointerEvents="none"
+      >
+        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+          <Defs>
+            <SvgLinearGradient id="body" x1="0" y1="0" x2="0" y2="1">
+              <Stop offset="0" stopColor="#0E5FA8" />
+              <Stop offset="1" stopColor="#04203F" />
+            </SvgLinearGradient>
+          </Defs>
+          <Rect x="0" y="0" width="100%" height="100%" fill="url(#body)" />
+        </Svg>
+
+        {BUBBLES.map((bubble) => (
+          <Bubble
+            key={bubble.key}
+            bubble={bubble}
+            width={width}
+            depth={depth}
+            isStill={isReduceMotion}
+          />
+        ))}
+
+        {/* The foam copy: fixed to the screen bottom, so it holds still while
+            the box grows past it. No transform — the clip must be trusted. */}
+        <Animated.View
+          style={[
+            styles.submerged,
+            { bottom: height - markTop - MARK_HEIGHT },
+            { opacity: markIn },
+          ]}
+        >
+          <Mark tone={FOAM} taglineTone={FOAM_TEXT} />
+        </Animated.View>
+      </Animated.View>
+
+      {/* The surface, in its own band with the headroom its crests need. */}
       <Animated.View
         style={[
-          styles.water,
-          { top: restY, height: height + MARK_HEIGHT },
-          { transform: [{ translateY: waterY }] },
+          styles.crestBand,
+          { top: restY - CREST_HEADROOM },
+          { transform: [{ translateY: crestShift }] },
         ]}
         pointerEvents="none"
       >
         {CRESTS.map((crest) => (
           <Crest key={crest.key} width={width} crest={crest} isStill={isReduceMotion} />
         ))}
-
-        {/* Everything below the line, clipped by the line itself. */}
-        <View style={styles.clip}>
-          <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-            <Defs>
-              <SvgLinearGradient id="body" x1="0" y1="0" x2="0" y2="1">
-                <Stop offset="0" stopColor="#0E5FA8" />
-                <Stop offset="1" stopColor="#04203F" />
-              </SvgLinearGradient>
-            </Defs>
-            <Rect x="0" y="0" width="100%" height="100%" fill="url(#body)" />
-          </Svg>
-
-          {BUBBLES.map((bubble) => (
-            <Bubble
-              key={bubble.key}
-              bubble={bubble}
-              width={width}
-              depth={height - restY}
-              isStill={isReduceMotion}
-            />
-          ))}
-
-          {/* The submerged copy: pinned to the dry mark's screen position by
-              cancelling the water's own offset, so the clip edge does the
-              revealing. */}
-          <Animated.View
-            style={[
-              styles.submerged,
-              { top: -MARK_ABOVE_LINE },
-              {
-                opacity: markIn,
-                transform: [
-                  {
-                    translateY: Animated.add(
-                      Animated.multiply(waterY, -1),
-                      markRise
-                    ),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Mark tone={FOAM} taglineTone={FOAM_TEXT} />
-          </Animated.View>
-        </View>
       </Animated.View>
-
     </Pressable>
   );
 }
 
 /**
- * The lockup. A display wordmark set tight, a hairline, and the tagline in
- * tracked caps — the type does the work, so the screen needs no other text.
- * Both copies share these metrics exactly; only the tones differ, or the
- * submerged copy would drift out of register with the dry one.
+ * The lockup: a display wordmark set tight, a hairline, and the tagline in
+ * tracked caps. Both copies share these metrics exactly — only the tones
+ * differ, or the foam copy would fall out of register with the dry one.
  */
 function Mark({ tone, taglineTone }: { tone: string; taglineTone: string }) {
   return (
@@ -371,7 +364,9 @@ function Crest({
       style={[
         styles.crest,
         {
-          top: -(crest.amplitude * 2 + crest.lift),
+          // Positioned inside the band's own headroom, never outside it:
+          // Android would clip an out-of-bounds child away entirely.
+          top: CREST_HEADROOM - (crest.amplitude * 2 + crest.lift),
           width: width * 2,
           height: band,
           opacity: crest.opacity,
@@ -382,7 +377,7 @@ function Crest({
       <Svg width={width * 2} height={band}>
         <Path
           d={crestPath(width, crest.amplitude, crest.periods)}
-          fill={crest.key === 'near' ? '#0E5FA8' : '#1B76CE'}
+          fill={crest.key === 'near' ? '#0E5FA8' : '#1568B8'}
         />
         {crest.key === 'near' && (
           <Path
@@ -406,7 +401,7 @@ function Bubble({
 }: {
   bubble: (typeof BUBBLES)[number];
   width: number;
-  /** Visible water depth below the line, so suds rise through it and not past. */
+  /** Water depth at rest — suds rise through it and stop short of the surface. */
   depth: number;
   isStill: boolean;
 }) {
@@ -418,7 +413,9 @@ function Bubble({
       Animated.timing(rise, {
         toValue: 1,
         duration: bubble.duration,
-        delay: bubble.delay,
+        // Held back until the water has settled: while the body is still short,
+        // a sud could travel past its top edge, and Android would not clip it.
+        delay: RISE_MS + bubble.delay,
         easing: Easing.linear,
         useNativeDriver: true,
       })
@@ -439,16 +436,14 @@ function Bubble({
           height: bubble.size,
           borderRadius: bubble.size / 2,
           opacity: rise.interpolate({
-            inputRange: [0, 0.15, 0.75, 1],
-            outputRange: [0, 0.45, 0.28, 0],
+            inputRange: [0, 0.15, 0.8, 1],
+            outputRange: [0, 0.45, 0.3, 0],
           }),
           transform: [
             {
-              // Up through the water and out at the surface, where the crest
-              // stroke takes over.
               translateY: rise.interpolate({
                 inputRange: [0, 1],
-                outputRange: [depth * 0.92, 4],
+                outputRange: [0, -depth * 0.88],
               }),
             },
             {
@@ -465,7 +460,7 @@ function Bubble({
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: FIELD[0] },
+  screen: { flex: 1, backgroundColor: FIELD[2] },
   markLayer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   mark: { alignItems: 'center' },
   wordmark: {
@@ -475,28 +470,28 @@ const styles = StyleSheet.create({
     // -0.032em: optical correction at display size, inside the tracking floor.
     letterSpacing: -1.6,
   },
-  /** Hairline between mark and tagline — the pause that makes the caps read. */
+  /** The pause that makes the tracked caps read as deliberate. */
   rule: { width: 40, height: 1, marginTop: 18, marginBottom: 14, opacity: 0.55 },
   tagline: {
     fontSize: 10,
     fontWeight: '600',
-    // Tracked caps carry the premium register; at 0.3em the line stays on one
-    // row down to a 360pt screen.
     letterSpacing: 3,
     lineHeight: 14,
   },
-  water: { position: 'absolute', left: 0, right: 0 },
-  crest: { position: 'absolute', left: 0 },
-  clip: {
+  body: {
     position: 'absolute',
-    top: 0,
     left: 0,
     right: 0,
     bottom: 0,
     overflow: 'hidden',
   },
   submerged: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  // Anchored to the waterline (the clip's top edge), not the container bottom,
-  // which sits a screen below the phone.
-  bubble: { position: 'absolute', top: 0, backgroundColor: FOAM },
+  bubble: { position: 'absolute', bottom: 0, backgroundColor: FOAM },
+  crestBand: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: CREST_HEADROOM + CREST_BAND,
+  },
+  crest: { position: 'absolute', left: 0 },
 });
