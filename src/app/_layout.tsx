@@ -19,7 +19,7 @@ const queryClient = new QueryClient({
 // React frame. Left at its default it flashed bright blue under the navigation
 // bar; deep navy is the colour the splash opens on, so the seam disappears.
 // App-level, so it runs module-side rather than in an effect.
-void SystemUI.setBackgroundColorAsync('#04203F');
+void SystemUI.setBackgroundColorAsync('#082B4D');
 
 export default function RootLayout() {
   // Tab bars render Ionicons glyphs; without preloading, the first paint shows
