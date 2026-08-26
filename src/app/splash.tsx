@@ -56,13 +56,19 @@ const FOAM = '#7FF3D6';
 const FOAM_TEXT = '#D9FFF7';
 
 const RISE_MS = 2600;
-const FINISH_MS = 620;
+/**
+ * The last lift, deliberately unhurried. At 620ms this move covered a long
+ * distance quickly enough to read as a jump; water this size does not leap.
+ */
+const FINISH_MS = 1150;
 /**
  * The exit is one move now, so the dissolve carries it alone and gets a little
  * more room than it had when a beat preceded it — still short enough that it
  * never feels like waiting for the next screen.
  */
-const FADE_MS = 360;
+const FADE_MS = 420;
+/** The idle bob resolving to nothing, so the crest lands still. */
+const SETTLE_MS = 520;
 
 /** Built once, outside the component: rebuilding it per render remounts it. */
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -131,6 +137,8 @@ export default function Splash() {
   const [sink] = useState(() => new Animated.Value(1));
   const [markIn] = useState(() => new Animated.Value(0));
   const [breath] = useState(() => new Animated.Value(0));
+  /** The idle bob, kept so the exit can stop it rather than fade over it. */
+  const bobRef = useRef<Animated.CompositeAnimation | null>(null);
   /** The whole composition dissolving into the field it was painted on. */
   const [exitFade] = useState(() => new Animated.Value(1));
 
@@ -187,9 +195,13 @@ export default function Splash() {
         }),
       ])
     );
+    // Held so the exit can stop it. Left running, this loop keeps adding its
+    // ±7pt to the waterline after the lift has finished — the crest lines
+    // wander while the screen is fading, which is the drift at the end.
+    bobRef.current = bob;
     bob.start();
     return () => bob.stop();
-  }, [isReduceMotion, sink, markIn, breath]);
+  }, [isReduceMotion, sink, markIn, breath, bobRef]);
 
   useEffect(() => {
     const startedAt = Date.now();
@@ -214,19 +226,35 @@ export default function Splash() {
       return;
     }
 
-    // Lift, then dissolve. Two moves, not three: the water finishes the job it
-    // spent the whole screen doing, and the picture goes rather than being cut
-    // away mid-hold.
+    // The bob stops here rather than running under the exit. Nothing else can
+    // hold the waterline still while the lift moves it, and a crest that is
+    // still wandering when the screen fades is the drift at the end.
+    bobRef.current?.stop();
+
+    // Lift, then dissolve. Two moves: the water finishes the job it spent the
+    // whole screen doing, and the picture goes rather than being cut away
+    // mid-hold.
     Animated.sequence([
-      // `inOut` rather than `in`: this rise arrives somewhere and stops, so it
-      // decelerates into the hold instead of accelerating off the screen the
-      // way the old flood did.
-      Animated.timing(sink, {
-        toValue: -1,
-        duration: FINISH_MS,
-        easing: Easing.inOut(Easing.cubic),
-        useNativeDriver: true,
-      }),
+      Animated.parallel([
+        // `inOut(sin)` over `inOut(cubic)`: cubic's steep middle made a long
+        // move look like a lunge. A sine curve has no sharp segment anywhere,
+        // which is what a body of water this size should do — leave rest
+        // gradually, arrive gradually, never appear to be pushed.
+        Animated.timing(sink, {
+          toValue: -1,
+          duration: FINISH_MS,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+        // The bob unwinds into the lift instead of being cut mid-swing, so the
+        // crest arrives level rather than 7pt off wherever it was caught.
+        Animated.timing(breath, {
+          toValue: 0,
+          duration: SETTLE_MS,
+          easing: Easing.inOut(Easing.sin),
+          useNativeDriver: true,
+        }),
+      ]),
       Animated.timing(exitFade, {
         toValue: 0,
         duration: FADE_MS,
@@ -234,7 +262,7 @@ export default function Splash() {
         useNativeDriver: true,
       }),
     ]).start(go);
-  }, [router, session, profile?.role, sink, exitFade, isReduceMotion]);
+  }, [router, session, profile?.role, sink, breath, exitFade, isReduceMotion]);
 
   useEffect(() => {
     if (shouldLeaveSplash({ elapsedMs, isAuthLoading: isLoading })) leave();

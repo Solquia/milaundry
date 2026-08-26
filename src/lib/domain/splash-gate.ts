@@ -16,11 +16,12 @@ export type HomeRoute =
 export type OpenDestination = '/splash' | '/sign-in' | HomeRoute;
 
 /**
- * Long enough for the water to arrive, cross the wordmark and settle before
- * anything else happens. A splash that leaves while it is still moving reads as
- * a glitch, not as an entrance.
+ * Long enough for the water to arrive, cross the wordmark, settle — and then be
+ * held there for a beat before the exit begins. A splash that leaves while it
+ * is still moving reads as a glitch; one that starts its exit the instant it
+ * settles reads as impatient. The pause is the point.
  */
-export const SPLASH_MIN_MS = 3400;
+export const SPLASH_MIN_MS = 3900;
 
 /**
  * The point at which a session check is treated as never arriving. Waiting
