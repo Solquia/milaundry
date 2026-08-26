@@ -15,8 +15,12 @@ export type HomeRoute =
 
 export type OpenDestination = '/splash' | '/sign-in' | HomeRoute;
 
-/** Long enough to read the wordmark; short enough not to be a toll. */
-export const SPLASH_MIN_MS = 1600;
+/**
+ * Long enough for the water to arrive, cross the wordmark and settle before
+ * anything else happens. A splash that leaves while it is still moving reads as
+ * a glitch, not as an entrance.
+ */
+export const SPLASH_MIN_MS = 3400;
 
 /**
  * The point at which a session check is treated as never arriving. Waiting

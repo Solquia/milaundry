@@ -21,11 +21,7 @@ import Svg, {
 
 import { type } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
-import {
-  SPLASH_MAX_MS,
-  homeRouteForRole,
-  shouldLeaveSplash,
-} from '@/lib/domain/splash-gate';
+import { homeRouteForRole, shouldLeaveSplash } from '@/lib/domain/splash-gate';
 import { markSplashSeen } from '@/lib/splash-state';
 
 /**
@@ -58,31 +54,36 @@ const FOAM = '#7FF3D6';
 /** Submerged secondary text: foam-white, kept light enough to read on water. */
 const FOAM_TEXT = '#D9FFF7';
 
-const RISE_MS = 1500;
-const FLOOD_MS = 460;
+const RISE_MS = 2600;
+const FLOOD_MS = 620;
 /** Where the water rests, as a fraction of screen height from the top. */
 const REST_LEVEL = 0.52;
 
-/** The wordmark straddles the waterline: this much of it sits above the line. */
-const MARK_ABOVE_LINE = 38;
-const MARK_HEIGHT = 92;
+/**
+ * The wordmark straddles the waterline: this much of the lockup sits above it,
+ * which puts the line about 70% down the letterforms and leaves the hairline
+ * and the tracked caps under water.
+ */
+const MARK_ABOVE_LINE = 40;
+/** Wordmark 56 + rule block 33 + caps 14. */
+const MARK_HEIGHT = 103;
 
 /** `periods` must be a whole number, or the one-width loop shift would seam. */
 const CRESTS = [
-  { key: 'far', amplitude: 12, periods: 3, duration: 9000, opacity: 0.28, lift: 30 },
-  { key: 'mid', amplitude: 17, periods: 2, duration: 6200, opacity: 0.5, lift: 14 },
-  { key: 'near', amplitude: 22, periods: 1, duration: 4200, opacity: 1, lift: 0 },
+  { key: 'far', amplitude: 12, periods: 3, duration: 13000, opacity: 0.28, lift: 30 },
+  { key: 'mid', amplitude: 17, periods: 2, duration: 9000, opacity: 0.5, lift: 14 },
+  { key: 'near', amplitude: 22, periods: 1, duration: 6200, opacity: 1, lift: 0 },
 ] as const;
 
 const BUBBLES = [
-  { key: 'a', x: 0.16, size: 9, delay: 0, duration: 5200, drift: 14 },
-  { key: 'b', x: 0.31, size: 5, delay: 900, duration: 4200, drift: -10 },
-  { key: 'c', x: 0.46, size: 12, delay: 400, duration: 6200, drift: 8 },
-  { key: 'd', x: 0.62, size: 6, delay: 1600, duration: 4800, drift: -16 },
-  { key: 'e', x: 0.74, size: 8, delay: 2400, duration: 5600, drift: 12 },
-  { key: 'f', x: 0.88, size: 4, delay: 1200, duration: 3800, drift: -8 },
-  { key: 'g', x: 0.24, size: 6, delay: 3000, duration: 5000, drift: 10 },
-  { key: 'h', x: 0.55, size: 4, delay: 2000, duration: 4400, drift: -12 },
+  { key: 'a', x: 0.16, size: 9, delay: 0, duration: 7200, drift: 14 },
+  { key: 'b', x: 0.31, size: 5, delay: 1200, duration: 6000, drift: -10 },
+  { key: 'c', x: 0.46, size: 12, delay: 600, duration: 8600, drift: 8 },
+  { key: 'd', x: 0.62, size: 6, delay: 2200, duration: 6600, drift: -16 },
+  { key: 'e', x: 0.74, size: 8, delay: 3200, duration: 7800, drift: 12 },
+  { key: 'f', x: 0.88, size: 4, delay: 1600, duration: 5400, drift: -8 },
+  { key: 'g', x: 0.24, size: 6, delay: 4000, duration: 6900, drift: 10 },
+  { key: 'h', x: 0.55, size: 4, delay: 2600, duration: 6200, drift: -12 },
 ] as const;
 
 /**
@@ -144,8 +145,8 @@ export default function Splash() {
       }),
       Animated.timing(markIn, {
         toValue: 1,
-        duration: 900,
-        delay: 120,
+        duration: 1300,
+        delay: 260,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
@@ -155,13 +156,13 @@ export default function Splash() {
       Animated.sequence([
         Animated.timing(breath, {
           toValue: 1,
-          duration: 2600,
+          duration: 3600,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
         Animated.timing(breath, {
           toValue: 0,
-          duration: 2600,
+          duration: 3600,
           easing: Easing.inOut(Easing.sin),
           useNativeDriver: true,
         }),
@@ -206,8 +207,6 @@ export default function Splash() {
   useEffect(() => {
     if (shouldLeaveSplash({ elapsedMs, isAuthLoading: isLoading })) leave();
   }, [elapsedMs, isLoading, leave]);
-
-  const isWaitingOnSession = isLoading && elapsedMs < SPLASH_MAX_MS;
 
   // One value drives the body, the crests and the reveal together.
   const waterY = Animated.add(
@@ -315,21 +314,23 @@ export default function Splash() {
         </View>
       </Animated.View>
 
-      <View style={styles.foot}>
-        <Text style={styles.footText}>
-          {isWaitingOnSession ? 'Filling the drum…' : 'Tap to continue'}
-        </Text>
-      </View>
     </Pressable>
   );
 }
 
+/**
+ * The lockup. A display wordmark set tight, a hairline, and the tagline in
+ * tracked caps — the type does the work, so the screen needs no other text.
+ * Both copies share these metrics exactly; only the tones differ, or the
+ * submerged copy would drift out of register with the dry one.
+ */
 function Mark({ tone, taglineTone }: { tone: string; taglineTone: string }) {
   return (
     <View style={styles.mark}>
       <Text style={[styles.wordmark, { color: tone }]}>MiLaundry</Text>
+      <View style={[styles.rule, { backgroundColor: taglineTone }]} />
       <Text style={[styles.tagline, { color: taglineTone }]}>
-        Fresh clothes, handled for you
+        FRESH CLOTHES, HANDLED FOR YOU
       </Text>
     </View>
   );
@@ -466,14 +467,24 @@ function Bubble({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: FIELD[0] },
   markLayer: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
-  mark: { alignItems: 'center', gap: 10 },
+  mark: { alignItems: 'center' },
   wordmark: {
     ...type.hero,
-    fontSize: 46,
-    lineHeight: 52,
-    letterSpacing: -1.4,
+    fontSize: 50,
+    lineHeight: 56,
+    // -0.032em: optical correction at display size, inside the tracking floor.
+    letterSpacing: -1.6,
   },
-  tagline: { ...type.body, letterSpacing: 0.2 },
+  /** Hairline between mark and tagline — the pause that makes the caps read. */
+  rule: { width: 40, height: 1, marginTop: 18, marginBottom: 14, opacity: 0.55 },
+  tagline: {
+    fontSize: 10,
+    fontWeight: '600',
+    // Tracked caps carry the premium register; at 0.3em the line stays on one
+    // row down to a 360pt screen.
+    letterSpacing: 3,
+    lineHeight: 14,
+  },
   water: { position: 'absolute', left: 0, right: 0 },
   crest: { position: 'absolute', left: 0 },
   clip: {
@@ -488,12 +499,4 @@ const styles = StyleSheet.create({
   // Anchored to the waterline (the clip's top edge), not the container bottom,
   // which sits a screen below the phone.
   bubble: { position: 'absolute', top: 0, backgroundColor: FOAM },
-  foot: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 52,
-    alignItems: 'center',
-  },
-  footText: { ...type.caption, color: '#8FBFEC', letterSpacing: 0.6 },
 });
