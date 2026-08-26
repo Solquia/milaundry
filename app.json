@@ -7,10 +7,10 @@
     "icon": "./assets/images/icon.png",
     "scheme": "milaundry",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#082B4D",
+    "backgroundColor": "#04203F",
     "androidNavigationBar": {
       "barStyle": "light-content",
-      "backgroundColor": "#082B4D"
+      "backgroundColor": "#04203F"
     },
     "ios": {
       "icon": "./assets/expo.icon"
@@ -33,7 +33,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#082B4D",
+          "backgroundColor": "#04203F",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
