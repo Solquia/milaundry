@@ -1,4 +1,5 @@
 import type { OrderStatus } from './domain/order-status';
+import type { ShopPaymentDetails } from './domain/shop-payment';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
@@ -17,11 +18,30 @@ import type {
 } from './types';
 
 export interface OrderWithDetails extends OrderRow {
-  shop: Pick<Shop, 'id' | 'name'> | null;
+  shop:
+    | Pick<
+        Shop,
+        | 'id'
+        | 'name'
+        | 'brand_accent'
+        // The rails ride along so the customer's pay screen can say where the
+        // money actually goes without a second fetch racing the first.
+        | 'gcash_number'
+        | 'gcash_name'
+        | 'maya_number'
+        | 'bank_name'
+        | 'bank_account_name'
+        | 'bank_account_number'
+      >
+    | null;
   order_items: OrderItemRow[];
 }
 
-const ORDER_SELECT = '*, shop:shops(id, name), order_items(*)';
+// `brand_accent` rides along so an order can be shown in its shop's own colour.
+// Without it the order screen falls back to the id hash, and a laundry that had
+// chosen teal would be teal everywhere in the app except on its own orders.
+const ORDER_SELECT =
+  '*, shop:shops(id, name, brand_accent, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
 
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
@@ -163,6 +183,106 @@ export async function placeOrder(
     p_deliver_by: options.deliverBy?.toISOString() ?? null,
   });
   return unwrap(result) as OrderRow;
+}
+
+// ── weighing & settlement ────────────────────────────────────────────────
+/** How long a signed link to a private order photo stays good. */
+const PHOTO_LINK_TTL_SECONDS = 60 * 60;
+
+/**
+ * Uploads into the private `order-photos` bucket and returns the storage
+ * *path*, not a URL. Unlike `shop-logos`, this bucket is not public: a photo of
+ * someone's laundry and a receipt carrying their name are only ever served
+ * through a short-lived signed link.
+ */
+async function uploadOrderPhoto(
+  orderId: string,
+  kind: 'weigh' | 'proof',
+  localUri: string
+): Promise<string> {
+  const response = await fetch(localUri);
+  const body = await response.arrayBuffer();
+  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const path = `${orderId}/${kind}-${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage.from('order-photos').upload(path, body, {
+    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw new Error(error.message);
+
+  return path;
+}
+
+/** A viewable link for a private order photo, or null when there is none. */
+export async function orderPhotoUrl(path: string | null): Promise<string | null> {
+  if (!path) return null;
+  const { data, error } = await supabase.storage
+    .from('order-photos')
+    .createSignedUrl(path, PHOTO_LINK_TTL_SECONDS);
+  if (error) throw new Error(error.message);
+  return data?.signedUrl ?? null;
+}
+
+/**
+ * Records what the scale said. The photo is uploaded first so that a failed
+ * upload never leaves a repriced order with no evidence behind it.
+ *
+ * The total is recomputed server-side from the `services` table; the figure the
+ * merchant saw while typing is advisory, exactly as the booking estimate is.
+ */
+export async function weighOrder(
+  orderId: string,
+  weighed: { serviceId: string; weightKg: number; photoUri?: string | null }
+): Promise<OrderRow> {
+  const photoPath = weighed.photoUri
+    ? await uploadOrderPhoto(orderId, 'weigh', weighed.photoUri)
+    : null;
+
+  const result = await supabase.rpc('weigh_order', {
+    p_order_id: orderId,
+    p_service_id: weighed.serviceId,
+    p_weight_kg: weighed.weightKg,
+    p_photo_path: photoPath,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/**
+ * The customer's claim that they have sent the money. Deliberately does not
+ * mark the order paid — only the shop, looking at their own wallet, can do
+ * that via `markOrderPaid`.
+ */
+export async function submitPaymentProof(
+  orderId: string,
+  proof: { photoUri: string; reference: string; method: PaymentMethod }
+): Promise<OrderRow> {
+  const path = await uploadOrderPhoto(orderId, 'proof', proof.photoUri);
+
+  const result = await supabase.rpc('submit_payment_proof', {
+    p_order_id: orderId,
+    p_path: path,
+    p_reference: proof.reference,
+    p_method: proof.method,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/** The rails a shop publishes to customers who are not at the counter. */
+export async function setShopPaymentDetails(
+  shopId: string,
+  details: ShopPaymentDetails
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_payment_details', {
+    p_shop_id: shopId,
+    p_gcash_number: details.gcash_number,
+    p_gcash_name: details.gcash_name,
+    p_maya_number: details.maya_number,
+    p_bank_name: details.bank_name,
+    p_bank_account_name: details.bank_account_name,
+    p_bank_account_number: details.bank_account_number,
+  });
+  return unwrap(result) as Shop;
 }
 
 export async function markOrderPaid(
@@ -347,6 +467,47 @@ export async function uploadShopLogo(slug: string, localUri: string): Promise<st
   if (error) throw new Error(error.message);
 
   return supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl;
+}
+
+// ── shop branding (merchant self-serve) ──────────────────────────────────
+/**
+ * Uploads a logo the shop chose for itself.
+ *
+ * Keyed `<shop_id>/<ts>.<ext>`, unlike `uploadShopLogo`'s flat `<slug>-<ts>`:
+ * the folder is what the storage policy checks, so one shop's owner cannot
+ * overwrite another's logo. The superadmin path keeps its flat keys because a
+ * superadmin is already trusted across every shop.
+ */
+export async function uploadBrandLogo(shopId: string, localUri: string): Promise<string> {
+  const response = await fetch(localUri);
+  const body = await response.arrayBuffer();
+  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+  const path = `${shopId}/${Date.now()}.${extension}`;
+
+  const { error } = await supabase.storage.from('shop-logos').upload(path, body, {
+    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
+    upsert: true,
+  });
+  if (error) throw new Error(error.message);
+
+  return supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * The face the shop shows its customers. A null `logoUrl` leaves the existing
+ * logo alone, so saving a colour never wipes a logo uploaded earlier.
+ */
+export async function setShopBranding(
+  shopId: string,
+  branding: { accent: number | null; tagline: string; logoUrl?: string | null }
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_branding', {
+    p_shop_id: shopId,
+    p_brand_accent: branding.accent,
+    p_tagline: branding.tagline,
+    p_logo_url: branding.logoUrl ?? null,
+  });
+  return unwrap(result) as Shop;
 }
 
 export async function adminSetShopActive(

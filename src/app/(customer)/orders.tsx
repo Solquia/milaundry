@@ -32,12 +32,16 @@ import {
   type,
 } from '@/components/ui-kit';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
-import { assignAccents } from '@/lib/domain/accent';
+import { assignBrandAccents } from '@/lib/domain/shop-branding';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import {
   connectedShopTiles,
   type ConnectedShopTile,
 } from '@/lib/domain/connected-shops';
+import {
+  homeAttention,
+  type AttentionCard,
+} from '@/lib/domain/home-attention';
 import { homeSubline, type HeadlineOrder } from '@/lib/domain/home-headline';
 import { formatOrderTime } from '@/lib/domain/order-card';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
@@ -152,9 +156,34 @@ export default function CustomerOrders() {
   );
 
 
+  // The ping. Derived from the same orders as the bell, through the same
+  // proof-state the pay screen reads, so the three can never disagree about
+  // whether money is owed.
+  const attention = useMemo(
+    () =>
+      homeAttention(
+        (orders ?? []).map((order) => ({
+          id: order.id,
+          shopName: order.shop?.name ?? 'Laundry shop',
+          status: order.status,
+          order_type: order.order_type,
+          payment_status: order.payment_status,
+          payment_method: order.payment_method,
+          final_total: order.final_total,
+          payment_proof_path: order.payment_proof_path,
+          updated_at: order.updated_at,
+        }))
+      ),
+    [orders]
+  );
+
   // Assigned across the whole list, so no two shops on screen share a tone.
   const shopAccents = useMemo(
-    () => assignAccents(shopTiles.map((shop) => shop.id), ACCENTS.length),
+    () =>
+      assignBrandAccents(
+        shopTiles.map((shop) => ({ id: shop.id, brand_accent: shop.brand_accent })),
+        ACCENTS.length
+      ),
     [shopTiles]
   );
 
@@ -185,6 +214,17 @@ export default function CustomerOrders() {
         onOpenNotifications={() => go('/(customer)/notifications')}
         onOpenSettings={() => go('/(customer)/settings')}
       />
+
+      {/* The ping: what is owed, straight under the hero, before anything the
+          customer might browse to. A bill is the one thing on this screen the
+          shop is waiting on. */}
+      {attention.map((card) => (
+        <AttentionBanner
+          key={`${card.orderId}:${card.kind}`}
+          card={card}
+          onPress={() => go(`/(customer)/order/${card.orderId}`)}
+        />
+      ))}
 
       {/* These two arrive as a pair, so they arrive in sequence. */}
       <View style={styles.actionRow}>
@@ -412,6 +452,61 @@ function NotificationBell({ count, onPress }: { count: number; onPress: () => vo
           <Text style={styles.bellBadgeText}>{badge}</Text>
         </View>
       ) : null}
+    </Pressable>
+  );
+}
+
+/**
+ * The ping itself: one bill (or one receipt-in-review), pressed on the
+ * customer rather than waiting behind the bell.
+ *
+ * A bill is set in the app's action blue — the same tone the notification
+ * feed gives its one actionable row — and a receipt being checked drops to
+ * paper quiet, because it asks nothing. The whole card is the button; the
+ * chevron says it goes somewhere, and where it goes is the order's own pay
+ * screen.
+ */
+function AttentionBanner({
+  card,
+  onPress,
+}: {
+  card: AttentionCard;
+  onPress: () => void;
+}) {
+  const isPay = card.kind === 'pay';
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${card.title}. ${card.body}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.attention,
+        isPay ? styles.attentionPay : styles.attentionQuiet,
+        pressed && { opacity: 0.85 },
+      ]}
+    >
+      <Ionicons
+        name={card.icon as never}
+        size={22}
+        color={isPay ? colors.actionInk : colors.subtle}
+      />
+      <View style={styles.attentionText}>
+        <Text
+          style={[styles.attentionTitle, isPay && { color: colors.actionInk }]}
+          numberOfLines={1}
+        >
+          {card.title}
+        </Text>
+        <Text style={styles.attentionBody} numberOfLines={2}>
+          {card.body}
+        </Text>
+      </View>
+      <Ionicons
+        name="chevron-forward"
+        size={18}
+        color={isPay ? colors.actionInk : colors.subtle}
+      />
     </Pressable>
   );
 }
@@ -680,6 +775,28 @@ const styles = StyleSheet.create({
   },
   // #3B2400 on #F5A623 is 8.4:1 — a 12px bold count has to survive sunlight.
   bellBadgeText: { fontSize: 11, fontWeight: '800', color: '#3B2400' },
+
+  /** The ping: a full-width row the thumb cannot miss. */
+  attention: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.cosy,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: space.cosy,
+    paddingVertical: space.snug,
+  },
+  attentionPay: {
+    backgroundColor: colors.actionSurface,
+    borderColor: colors.actionMuted,
+  },
+  attentionQuiet: {
+    backgroundColor: colors.sunken,
+    borderColor: colors.border,
+  },
+  attentionText: { flex: 1, gap: 2 },
+  attentionTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
+  attentionBody: { fontSize: 13, color: colors.subtle },
 
   actionRow: { flexDirection: 'row', gap: space.cosy },
   // The shell carries the press transform; the card keeps the surface, so the
