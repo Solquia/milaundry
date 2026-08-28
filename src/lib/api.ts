@@ -1,4 +1,12 @@
+import { File } from 'expo-file-system';
+
 import type { OrderStatus } from './domain/order-status';
+import {
+  ensurePhotoBytes,
+  photoContentType,
+  photoObjectPath,
+  type PhotoKind,
+} from './domain/photo-upload';
 import type { ShopPaymentDetails } from './domain/shop-payment';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
@@ -197,16 +205,21 @@ const PHOTO_LINK_TTL_SECONDS = 60 * 60;
  */
 async function uploadOrderPhoto(
   orderId: string,
-  kind: 'weigh' | 'proof',
+  kind: PhotoKind,
   localUri: string
 ): Promise<string> {
-  const response = await fetch(localUri);
-  const body = await response.arrayBuffer();
-  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const path = `${orderId}/${kind}-${Date.now()}.${extension}`;
+  // `fetch(file://…).arrayBuffer()` used to read this, and on a real device it
+  // silently returned a 14-byte stub: the upload succeeded, the order carried
+  // a valid-looking path, and the customer's ticket showed an empty frame.
+  // expo-file-system's `File` reads the file natively rather than through the
+  // fetch polyfill, and the guard below makes any future failure loud.
+  const body = await new File(localUri).arrayBuffer();
+  ensurePhotoBytes(body.byteLength);
+
+  const path = photoObjectPath(orderId, kind, localUri, Date.now());
 
   const { error } = await supabase.storage.from('order-photos').upload(path, body, {
-    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
+    contentType: photoContentType(localUri),
     upsert: true,
   });
   if (error) throw new Error(error.message);
