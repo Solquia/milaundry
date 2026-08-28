@@ -110,6 +110,56 @@ Tests:       15 passed, 15 total
   edit to `(customer)/order/[id].tsx` (docket perforation/stamp work) landed
   after this session's validation run.
 
+## Follow-up — the photo that uploaded as 14 bytes (2026-08-28)
+
+**Reported:** "i took a picture and it din't show here … the image should be
+seen in the ticket style".
+
+**Diagnosis, from the live database rather than by guessing.** The render code
+was intact and the storage policies were correct — `customers read own order
+photos` lets a customer SELECT any object under their own order's folder, which
+covers the merchant-uploaded weigh photo. The order row was correct too. The
+object was not:
+
+```
+select name, (metadata->>'size') from storage.objects where bucket_id='order-photos';
+0277161d-…/weigh-1787894012617.jpeg   |  14
+```
+
+Fourteen bytes. `uploadOrderPhoto` read the file with
+`fetch(localUri).arrayBuffer()`; in React Native `fetch` is an XHR-based
+polyfill, and `arrayBuffer()` on a `file://` URI yields a stub rather than the
+file. `upload()` then reported success, the order stored a valid-looking path,
+and the customer's ticket rendered an empty frame — no error at any layer.
+
+**RED** (`e1e328f`): `npx jest photo-upload` →
+`Cannot find module '../photo-upload'`.
+
+**GREEN** (`b4b7cc2`): 12/12. `photo-upload.ts` adds the size guard and the
+object-key rules; `api.ts` now reads through `expo-file-system`'s `File`
+(`arrayBuffer()`, a native read, verified against the installed 57.0.5 types
+per AGENTS.md), and `expo-file-system@~57.0.6` became an explicit dependency.
+
+| # | What is guaranteed | Test | Type | Result |
+|---|---|---|---|---|
+| 14 | An unreadable photo fails loudly instead of storing a stub | `photo-upload.test.ts:rejects the empty body…` / `…zero-length body` | unit | PASS |
+| 15 | The failure tells the person holding the phone to retake it | `…:explains itself to whoever is holding the phone` | unit | PASS |
+| 16 | A real photo is never second-guessed | `…:accepts a real photo` | unit | PASS |
+| 17 | JPEG/PNG are labelled correctly, case-insensitively | four `photoContentType` tests | unit | PASS |
+| 18 | The key starts with the order id, which is what both storage policies match on | `…:files the photo under its own order` | unit | PASS |
+| 19 | A reweighing never overwrites the photo behind the previous price | `…:never overwrites an earlier weighing` | unit | PASS |
+| 20 | A picker query-string cannot corrupt the object key | `…:does not let a query-string…` | unit | PASS |
+
+**Suite after the fix:** 747/747 tests across 70 suites. The 71st suite,
+`payment-copy.test.ts`, is a parallel session's own RED reproducer (commit
+`20ee180`) awaiting its implementation — not part of this work.
+
+**Still outstanding:** the already-stored 14-byte object for order
+`0277161d-…` cannot be recovered — that load must be weighed again to get a
+real photo. And the customer's ticket still has no visible state for "a photo
+exists but will not load"; it renders an empty frame. Not fixed here because
+the root cause was the upload, but worth a follow-up.
+
 ## Merge evidence
 
 - RED: 2 suites failing on `Cannot find module` (`f422e35`).
