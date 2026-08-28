@@ -50,6 +50,14 @@ describe('copyableNumber', () => {
     expect(copyableNumber('')).toBe('');
     expect(copyableNumber('   ')).toBe('');
   });
+
+  it('treats a null out of the database as nothing rather than crashing', () => {
+    // The column is typed `string`, but a row that predates the payment fields
+    // hands back null. A pay sheet that throws is worse than one with no copy
+    // control on it.
+    expect(copyableNumber(null as unknown as string)).toBe('');
+    expect(copyableNumber(undefined as unknown as string)).toBe('');
+  });
 });
 
 describe('copyPrompt', () => {
