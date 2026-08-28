@@ -13,9 +13,10 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Clipboard from 'expo-clipboard';
 import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
@@ -41,6 +42,12 @@ import {
   proofState,
   validateReference,
 } from '@/lib/domain/payment-proof';
+import {
+  COPY_FEEDBACK_MS,
+  copyConfirmation,
+  copyPrompt,
+  copyableNumber,
+} from '@/lib/domain/payment-copy';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import {
   availableRails,
@@ -49,6 +56,7 @@ import {
   type PaymentRail,
 } from '@/lib/domain/shop-payment';
 import type { PaymentMethod } from '@/lib/domain/walk-in-order';
+import { useHaptic } from '@/lib/use-app-settings';
 
 interface PaySheetProps {
   order: OrderWithDetails;
@@ -217,18 +225,91 @@ export function PaySheet({ order }: PaySheetProps) {
 }
 
 /**
- * Where the money goes: the account's own name and number, set large enough to
- * copy digit by digit into a banking app on the same phone.
+ * Where the money goes: the account's own name and number, and a way to take
+ * the number with you.
+ *
+ * The number used to be set large and left there, which made copying it a
+ * transcription job — read four digits, switch apps, type them, switch back.
+ * Ten digits typed by eye between two apps is how a customer pays a stranger,
+ * and nothing about that mistake is recoverable. So the figure keeps the shape
+ * the shop typed it in, for checking against the tarpaulin, and the clipboard
+ * gets the run of digits a banking field will take.
  */
 function RailDetails({ rail }: { rail: PaymentRail }) {
+  const haptic = useHaptic();
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const payload = copyableNumber(rail.accountNumber);
+
+  // The confirmation stands down on its own. A customer who copies, pastes,
+  // and comes back to check should find the control offering to copy again
+  // rather than still congratulating itself about the last time.
+  useEffect(() => {
+    if (state !== 'copied') return;
+    const timer = setTimeout(() => setState('idle'), COPY_FEEDBACK_MS);
+    return () => clearTimeout(timer);
+  }, [state]);
+
+  const copy = () => {
+    Clipboard.setStringAsync(payload)
+      .then(() => {
+        haptic('success');
+        setState('copied');
+      })
+      .catch(() => {
+        // A clipboard that refused is not a copy that happened. Saying so is
+        // the difference between a customer checking their paste and a
+        // customer pasting an old string into a payment.
+        haptic('error');
+        setState('failed');
+      });
+  };
+
+  const isCopied = state === 'copied';
+
   return (
     <View style={styles.rail}>
       <View style={styles.railHead}>
         <Ionicons name={rail.icon as never} size={18} color={colors.actionInk} />
         <Text style={styles.railLabel}>{rail.label}</Text>
       </View>
-      <Text style={styles.railNumber}>{rail.accountNumber}</Text>
+
+      <View style={styles.railRow}>
+        <Text style={styles.railNumber} selectable>
+          {rail.accountNumber}
+        </Text>
+        {payload ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isCopied ? copyConfirmation(rail) : copyPrompt(rail)}
+            onPress={copy}
+            hitSlop={space.snug}
+            style={({ pressed }) => [
+              styles.copyKey,
+              isCopied && styles.copyKeyDone,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={isCopied ? 'checkmark' : 'copy-outline'}
+              size={16}
+              color={isCopied ? colors.success : colors.actionInk}
+            />
+            {/* Fixed width across both words, so confirming the copy does not
+                shuffle the number beside it. */}
+            <Text style={[styles.copyText, isCopied && styles.copyTextDone]}>
+              {isCopied ? 'Copied' : 'Copy'}
+            </Text>
+          </Pressable>
+        ) : null}
+      </View>
+
       <Subtle>{rail.accountName}</Subtle>
+
+      {state === 'failed' ? (
+        <Text style={styles.copyFailed} accessibilityLiveRegion="polite">
+          Your phone would not let us copy that. Type the number across instead.
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -251,8 +332,39 @@ const styles = StyleSheet.create({
   },
   railHead: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   railLabel: { ...type.label, color: colors.actionInk },
+  railRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   /** Monospace so the digits column up as they do in the banking app. */
-  railNumber: { fontFamily: mono, fontSize: 20, fontWeight: '700', color: colors.text },
+  railNumber: {
+    flex: 1,
+    fontFamily: mono,
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.text,
+  },
+
+  /**
+   * The copy control sits on the number's own line rather than under the card,
+   * because it acts on the number and nothing else in the sheet does.
+   */
+  copyKey: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.tight,
+    minWidth: 92,
+    minHeight: 40,
+    paddingHorizontal: space.cosy,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.actionMuted,
+    backgroundColor: colors.card,
+  },
+  copyKeyDone: { borderColor: colors.takingsBorder, backgroundColor: colors.takingsSurface },
+  copyText: { ...type.label, color: colors.actionInk },
+  copyTextDone: { color: colors.success },
+  copyFailed: { ...type.caption, color: colors.dangerInk },
+
+  pressed: { opacity: 0.7 },
 
   /** Same 16:9 frame the merchant's weigh photo uses. */
   proofBox: {
