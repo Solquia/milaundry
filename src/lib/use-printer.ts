@@ -1,6 +1,12 @@
 /**
- * The printer as a hook: one state machine the settings card and the order
- * screen both read, backed by the saved-printer store and the BLE transport.
+ * The printer as a hook: one state machine the settings card, the order
+ * screen and the POS all read, backed by the saved-printer store and the
+ * BLE transport.
+ *
+ * The state lives at module level and reaches components through
+ * `useSyncExternalStore`, because the merchant tabs stay mounted: pairing a
+ * printer in Settings must be seen by a POS screen that mounted earlier,
+ * or the print button there stays hidden until the app is killed.
  *
  * Nothing here is clever. Scanning collects advertisements into a list the
  * card ranks; pairing just remembers an id and a name (BLE printers have no
@@ -8,7 +14,7 @@
  * to the transport, and reports success or a sentence the merchant can act on.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 
 import type { OrderWithDetails } from './api';
 import {
@@ -19,146 +25,169 @@ import {
   type SavedPrinter,
   type ScannedDevice,
 } from './domain/printer';
-import { PAPER_COLUMNS, buildReceipt, receiptToEscPos, type ReceiptShop } from './domain/receipt';
+import { PAPER_COLUMNS, buildReceipt, receiptToEscPos, type ReceiptLine, type ReceiptShop } from './domain/receipt';
 import * as transport from './printer/ble-transport';
 import { forgetSavedPrinter, loadSavedPrinter, saveSavedPrinter } from './printer-store';
 
 const SCAN_WINDOW_MS = 12_000;
 
+interface Snapshot {
+  isSupported: boolean;
+  saved: SavedPrinter | null;
+  state: PrinterState;
+  devices: ScannedDevice[];
+}
+
+let snapshot: Snapshot = {
+  isSupported: false,
+  saved: null,
+  state: { kind: 'unsupported' },
+  devices: [],
+};
+let seen: ScannedDevice[] = [];
+let scanHandle: transport.ScanHandle | null = null;
+let scanTimer: ReturnType<typeof setTimeout> | null = null;
+let loaded: Promise<void> | null = null;
+const listeners = new Set<() => void>();
+
+function publish(next: Partial<Snapshot>): void {
+  snapshot = { ...snapshot, ...next };
+  listeners.forEach((listener) => listener());
+}
+
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+const getSnapshot = () => snapshot;
+
+/** Runs once per app session; every hook instance shares the result. */
+function ensureLoaded(): Promise<void> {
+  if (loaded) return loaded;
+  const isSupported = transport.isSupported();
+  publish({ isSupported, state: isSupported ? { kind: 'idle', saved: null } : { kind: 'unsupported' } });
+  loaded = loadSavedPrinter().then((saved) => {
+    publish({ saved, state: isSupported ? { kind: 'idle', saved } : { kind: 'unsupported' } });
+  });
+  return loaded;
+}
+
 function messageOf(error: unknown): string {
   return error instanceof Error && error.message ? error.message : 'Something went wrong with the printer.';
 }
 
+function idle(): PrinterState {
+  return { kind: 'idle', saved: snapshot.saved };
+}
+
+function stopScan(): void {
+  scanHandle?.stop();
+  scanHandle = null;
+  if (scanTimer) clearTimeout(scanTimer);
+  scanTimer = null;
+  if (snapshot.state.kind === 'scanning') publish({ state: idle() });
+}
+
+async function scan(): Promise<void> {
+  if (!snapshot.isSupported) return;
+  stopScan();
+  seen = [];
+  publish({ devices: [], state: { kind: 'scanning' } });
+  try {
+    scanHandle = await transport.startScan(
+      (device) => {
+        seen = [...seen, device];
+        publish({ devices: rankScanResults(seen) });
+      },
+      (message) => {
+        stopScan();
+        publish({ state: { kind: 'error', message } });
+      }
+    );
+    scanTimer = setTimeout(stopScan, SCAN_WINDOW_MS);
+  } catch (error) {
+    publish({ state: { kind: 'error', message: messageOf(error) } });
+  }
+}
+
+async function remember(printer: SavedPrinter): Promise<void> {
+  await saveSavedPrinter(printer);
+  publish({ saved: printer, state: { kind: 'idle', saved: printer } });
+}
+
+async function pair(device: ScannedDevice, paper?: PrinterPaper): Promise<void> {
+  stopScan();
+  await remember({
+    id: device.id,
+    name: device.name ?? 'Printer',
+    paper: paper ?? snapshot.saved?.paper ?? DEFAULT_PAPER,
+  });
+}
+
+async function setPaper(paper: PrinterPaper): Promise<void> {
+  if (!snapshot.saved) return;
+  await remember({ ...snapshot.saved, paper });
+}
+
+async function forget(): Promise<void> {
+  stopScan();
+  await forgetSavedPrinter();
+  publish({ saved: null, state: { kind: 'idle', saved: null } });
+}
+
+function columnsNow() {
+  return PAPER_COLUMNS[snapshot.saved?.paper ?? DEFAULT_PAPER];
+}
+
+async function send(lines: ReceiptLine[]): Promise<boolean> {
+  const { saved } = snapshot;
+  if (!saved) {
+    publish({ state: { kind: 'error', message: 'No printer is paired. Connect one in Settings.' } });
+    return false;
+  }
+  const columns = columnsNow();
+  publish({ state: { kind: 'printing' } });
+  try {
+    await transport.printBytes(saved.id, receiptToEscPos(lines, columns));
+    publish({ state: idle() });
+    return true;
+  } catch (error) {
+    publish({ state: { kind: 'error', message: messageOf(error) } });
+    return false;
+  }
+}
+
+function printReceipt(order: OrderWithDetails, shop: ReceiptShop): Promise<boolean> {
+  return send(buildReceipt(order, shop, { columns: columnsNow() }));
+}
+
+function testPrint(shop: ReceiptShop): Promise<boolean> {
+  const paper = snapshot.saved?.paper ?? DEFAULT_PAPER;
+  return send([
+    { kind: 'text', text: shop.name, align: 'center', bold: true, big: true },
+    { kind: 'text', text: 'Printer connected', align: 'center' },
+    { kind: 'rule' },
+    { kind: 'text', text: `Paper: ${paper}, ${columnsNow()} columns` },
+    { kind: 'feed', lines: 3 },
+    { kind: 'cut' },
+  ]);
+}
+
+/** Surfaces a failure that happened outside the transport, in the same place. */
+function reportError(message: string): void {
+  publish({ state: { kind: 'error', message } });
+}
+
 export function usePrinter() {
-  const isSupported = transport.isSupported();
-  const [saved, setSaved] = useState<SavedPrinter | null>(null);
-  const [state, setState] = useState<PrinterState>(isSupported ? { kind: 'idle', saved: null } : { kind: 'unsupported' });
-  const [seen, setSeen] = useState<ScannedDevice[]>([]);
-  const scanRef = useRef<transport.ScanHandle | null>(null);
-  const scanTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useEffect(() => {
-    let alive = true;
-    loadSavedPrinter().then((printer) => {
-      if (!alive) return;
-      setSaved(printer);
-      if (isSupported) setState({ kind: 'idle', saved: printer });
-    });
-    return () => {
-      alive = false;
-    };
-  }, [isSupported]);
-
-  const stopScan = useCallback(() => {
-    scanRef.current?.stop();
-    scanRef.current = null;
-    if (scanTimer.current) clearTimeout(scanTimer.current);
-    scanTimer.current = null;
-    setState((current) => (current.kind === 'scanning' ? { kind: 'idle', saved } : current));
-  }, [saved]);
-
-  useEffect(() => () => stopScan(), [stopScan]);
-
-  const scan = useCallback(async () => {
-    if (!isSupported) return;
-    stopScan();
-    setSeen([]);
-    setState({ kind: 'scanning' });
-    try {
-      scanRef.current = await transport.startScan(
-        (device) => setSeen((list) => [...list, device]),
-        (message) => {
-          stopScan();
-          setState({ kind: 'error', message });
-        }
-      );
-      scanTimer.current = setTimeout(stopScan, SCAN_WINDOW_MS);
-    } catch (error) {
-      setState({ kind: 'error', message: messageOf(error) });
-    }
-  }, [isSupported, stopScan]);
-
-  const remember = useCallback(async (printer: SavedPrinter) => {
-    await saveSavedPrinter(printer);
-    setSaved(printer);
-    setState({ kind: 'idle', saved: printer });
+    void ensureLoaded();
   }, []);
 
-  const pair = useCallback(
-    async (device: ScannedDevice, paper: PrinterPaper = saved?.paper ?? DEFAULT_PAPER) => {
-      stopScan();
-      await remember({ id: device.id, name: device.name ?? 'Printer', paper });
-    },
-    [remember, saved, stopScan]
-  );
-
-  const setPaper = useCallback(
-    async (paper: PrinterPaper) => {
-      if (!saved) return;
-      await remember({ ...saved, paper });
-    },
-    [remember, saved]
-  );
-
-  const forget = useCallback(async () => {
-    stopScan();
-    await forgetSavedPrinter();
-    setSaved(null);
-    setState({ kind: 'idle', saved: null });
-  }, [stopScan]);
-
-  const send = useCallback(
-    async (bytes: number[]): Promise<boolean> => {
-      if (!saved) {
-        setState({ kind: 'error', message: 'No printer is paired. Connect one in Settings.' });
-        return false;
-      }
-      setState({ kind: 'printing' });
-      try {
-        await transport.printBytes(saved.id, bytes);
-        setState({ kind: 'idle', saved });
-        return true;
-      } catch (error) {
-        setState({ kind: 'error', message: messageOf(error) });
-        return false;
-      }
-    },
-    [saved]
-  );
-
-  const printReceipt = useCallback(
-    (order: OrderWithDetails, shop: ReceiptShop): Promise<boolean> => {
-      const columns = PAPER_COLUMNS[saved?.paper ?? DEFAULT_PAPER];
-      return send(receiptToEscPos(buildReceipt(order, shop, { columns }), columns));
-    },
-    [saved, send]
-  );
-
-  const testPrint = useCallback(
-    (shop: ReceiptShop): Promise<boolean> => {
-      const columns = PAPER_COLUMNS[saved?.paper ?? DEFAULT_PAPER];
-      return send(
-        receiptToEscPos(
-          [
-            { kind: 'text', text: shop.name, align: 'center', bold: true, big: true },
-            { kind: 'text', text: 'Printer connected', align: 'center' },
-            { kind: 'rule' },
-            { kind: 'text', text: `Paper: ${saved?.paper ?? DEFAULT_PAPER}, ${columns} columns` },
-            { kind: 'feed', lines: 3 },
-            { kind: 'cut' },
-          ],
-          columns
-        )
-      );
-    },
-    [saved, send]
-  );
-
   return {
-    isSupported,
-    state,
-    saved,
-    devices: rankScanResults(seen),
+    ...current,
     scan,
     stopScan,
     pair,
@@ -166,5 +195,6 @@ export function usePrinter() {
     forget,
     printReceipt,
     testPrint,
+    reportError,
   };
 }
