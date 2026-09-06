@@ -63,6 +63,7 @@ already-claimed order QR". The scanner then showed that raw log message.
 | 7 | Holder rescanning their own receipt gets the order back unchanged | rolled-back plpgsql probe on the live project | integration | PASS |
 | 8 | A taken ticket is refused with `order belongs to another account` | same probe | integration | PASS |
 | 9 | A wrong token is refused with `invalid order QR` | same probe | integration | PASS |
+| 10 | The claim reads the row `for update`, so two phones scanning one receipt serialise and the second sees the owner | probe: `locked=t` after `claim_own_order_lock` | integration | PASS |
 
 ## Applied
 
@@ -86,3 +87,8 @@ which is correct: a guest with someone's receipt gets no shop name.
 
 - RED `3267ac8` test: add reproducer for claiming an order from its receipt QR
 - GREEN `6f63272` feat: claim an order from its receipt QR, and clear the home quick actions
+- REVIEW `3a01527` fix: lock the order row while claiming it — the code reviewer
+  found the first 0017 read the row and then wrote it without a lock, so two
+  concurrent claims could both succeed; the read now takes `for update`, the
+  function was reapplied live as `claim_own_order_lock`, and the probe result
+  is unchanged: `own=true other=order belongs to another account badtoken=invalid order QR locked=t`
