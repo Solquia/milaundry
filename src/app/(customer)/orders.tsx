@@ -13,7 +13,6 @@ import Svg, {
 } from 'react-native-svg';
 
 import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
-import { WashCycleTracker } from '@/components/wash-cycle-tracker';
 import { WasherMark } from '@/components/washer-mark';
 import {
   ACCENTS,
@@ -22,17 +21,21 @@ import {
   ErrorText,
   HERO_GRADIENT,
   Loading,
+  STATUS_COLORS,
   STATUS_LABELS,
   Screen,
   StatusBadge,
   colors,
   elevation,
   formatMoney,
+  mono,
   space,
   type,
 } from '@/components/ui-kit';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
-import { assignBrandAccents } from '@/lib/domain/shop-branding';
+import { docketNumber } from '@/lib/domain/docket';
+import { assignBrandAccents, resolveAccent } from '@/lib/domain/shop-branding';
+import { cycleStanding, washCycleProgress } from '@/lib/domain/wash-cycle';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import {
   connectedShopTiles,
@@ -53,28 +56,6 @@ import {
   enabledNotifications,
 } from '@/lib/domain/notifications';
 import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
-
-/**
- * The two actions that actually go somewhere. Booking lives in the hero, and
- * tracking lives on the shop whose laundry it is — a load belongs to a shop,
- * so that is where "where is it?" gets answered.
- */
-const ACTIONS = [
-  {
-    key: 'scan',
-    icon: 'qr-code',
-    label: 'Scan QR',
-    caption: 'Connect to a shop',
-    href: '/(customer)/scan',
-  },
-  {
-    key: 'shops',
-    icon: 'storefront',
-    label: 'Shops',
-    caption: 'Find a laundry',
-    href: '/(customer)/shops',
-  },
-] as const;
 
 function toHeadlineOrder(order: OrderWithDetails): HeadlineOrder {
   return {
@@ -226,24 +207,6 @@ export default function CustomerOrders() {
         />
       ))}
 
-      {/* These two arrive as a pair, so they arrive in sequence. */}
-      <View style={styles.actionRow}>
-        {ACTIONS.map((action, index) => (
-          <Reveal
-            key={action.key}
-            delay={index * REVEAL_STAGGER_MS}
-            style={styles.actionShell}
-          >
-            <ActionCard
-              icon={action.icon}
-              label={action.label}
-              caption={action.caption}
-              onPress={() => go(action.href)}
-            />
-          </Reveal>
-        ))}
-      </View>
-
       {/* Connected shops: the customer's own laundries, one tap from home. */}
       <View style={styles.sectionHead}>
         <Text style={styles.sectionLabel}>YOUR SHOPS</Text>
@@ -269,7 +232,7 @@ export default function CustomerOrders() {
         </View>
       )}
       {shopTiles.map((shop, index) => (
-        <Reveal key={shop.id} delay={(index + ACTIONS.length) * REVEAL_STAGGER_MS}>
+        <Reveal key={shop.id} delay={index * REVEAL_STAGGER_MS}>
           <ShopShortcut
             shop={shop}
             accent={ACCENTS[shopAccents[index]]}
@@ -540,43 +503,6 @@ function usePress() {
   };
 }
 
-function ActionCard({
-  icon,
-  label,
-  caption,
-  onPress,
-}: {
-  icon: string;
-  label: string;
-  caption: string;
-  onPress: () => void;
-}) {
-  const press = usePress();
-
-  return (
-    <Animated.View style={[styles.actionShell, { transform: [{ scale: press.scale }] }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label}. ${caption}`}
-        onPress={onPress}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        style={styles.action}
-      >
-        <View style={styles.actionIcon}>
-          <Ionicons name={icon as never} size={20} color={colors.action} />
-        </View>
-        <Text style={styles.actionLabel} numberOfLines={1}>
-          {label}
-        </Text>
-        <Text style={styles.actionCaption} numberOfLines={1}>
-          {caption}
-        </Text>
-      </Pressable>
-    </Animated.View>
-  );
-}
-
 /**
  * Colour as identity: a shop keeps its tone, so the list is scannable by hue
  * before it is read. The initials carry the same job for anyone who cannot
@@ -624,6 +550,26 @@ function ShopShortcut({
   );
 }
 
+/**
+ * One load in the wash, as a ticket stub.
+ *
+ * This was three full wash-cycle trackers stacked down the home screen: five
+ * dots, five labels, a bar and a sentence, repeated per order at roughly 250px
+ * each. With three loads from the same laundry the cards were literally
+ * indistinguishable — same name, same badge, same five grey dots, same
+ * sentence — so the section answered "how many loads do I have" and nothing
+ * else. The roadmap of five stages belongs on the order screen, which is opened
+ * to study one load; a list is opened to *find* one.
+ *
+ * So each row keeps only what tells loads apart, in the order they are asked
+ * for: which laundry, which load, where it is, what it costs. The full tracker
+ * is one tap away and unchanged.
+ *
+ * It reads as the stub of that ticket — the laundry's colour down the spine
+ * where the ticket wears it as a band, and the same docket number in the same
+ * monospace — so tapping one opens something recognisably larger rather than
+ * something else.
+ */
 function TrackerCard({
   order,
   onPress,
@@ -632,28 +578,83 @@ function TrackerCard({
   onPress: () => void;
 }) {
   const shopName = order.shop?.name ?? 'Laundry shop';
+  const accent =
+    ACCENTS[
+      resolveAccent(
+        { id: order.shop?.id ?? order.shop_id, brand_accent: order.shop?.brand_accent ?? null },
+        ACCENTS.length
+      )
+    ];
+  const progress = washCycleProgress(order.status);
+  const standing = cycleStanding(order.status);
+  const stageColor = STATUS_COLORS[order.status];
+  const docket = docketNumber(order.id);
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${shopName}, ${STATUS_LABELS[order.status]}`}
+      // The spoken label carries the position too: the bar and the spine are
+      // sighted shorthand, and a screen reader gets the whole sentence.
+      accessibilityLabel={`${shopName}, ${STATUS_LABELS[order.status]}, ${
+        standing.caption
+      }, ${formatMoney(order.final_total ?? order.estimated_total)}${
+        order.final_total === null ? ' estimated' : ''
+      }`}
       onPress={onPress}
-      style={({ pressed }) => [styles.panel, styles.tracker, pressed && { opacity: 0.85 }]}
+      style={({ pressed }) => [styles.stub, pressed && { opacity: 0.85 }]}
     >
-      <View style={styles.trackerHead}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.shopName} numberOfLines={1}>
-            {shopName}
-          </Text>
-          <Text style={styles.trackerAmount}>
-            {formatMoney(order.final_total ?? order.estimated_total)}
-            {order.final_total === null ? ' estimated' : ''}
-          </Text>
-        </View>
-        <StatusBadge status={order.status} />
+      {/* The stub's end block, in the laundry's own tone — the ticket's band,
+          stood on its end. A 6px spine was the same idea whispered: it read as
+          a rule left on a list row, not as a piece of the ticket.
+          The drum inside it is the app's own mark, and it *turns only while the
+          load is genuinely in a machine* — so on a screen of three loads, the
+          one actually being washed is the one that moves. Nothing else in the
+          list moves at all, which is what makes it worth noticing. */}
+      <View style={[styles.stubBlock, { backgroundColor: accent.ink }]}>
+        <WasherMark size={30} isRunning={standing.isRunning} />
       </View>
 
-      <WashCycleTracker status={order.status} />
+      {/* The punch and the dashed seam: where a real stub is torn from its
+          ticket. The circles are page-coloured and clipped by the card, so the
+          bite is a clip rather than a shape kept in sync with the height. */}
+      <View style={[styles.stubNotch, styles.stubNotchTop]} />
+      <View style={[styles.stubNotch, styles.stubNotchBottom]} />
+      <View style={styles.stubSeam} />
+
+      <View style={styles.stubBody}>
+        <View style={styles.stubHead}>
+          <Text style={styles.stubShop} numberOfLines={1}>
+            {shopName}
+          </Text>
+          {docket ? <Text style={styles.stubDocket}>NO. {docket}</Text> : null}
+        </View>
+
+        {/* The cycle as one line rather than five. The bar carries the same
+            status hue the order screen's tracker uses, so the two agree. */}
+        <View style={styles.stubTrack}>
+          <View
+            style={[
+              styles.stubFill,
+              { width: `${progress.percent}%`, backgroundColor: stageColor },
+            ]}
+          />
+        </View>
+
+        <View style={styles.stubFoot}>
+          <Text style={[styles.stubStage, { color: stageColor }]} numberOfLines={1}>
+            {STATUS_LABELS[order.status]}
+          </Text>
+          {/* Only once the cycle has begun: before that the caption reads "Not
+              started yet", which the stage word beside it has already said. */}
+          {standing.position > 0 ? (
+            <Text style={styles.stubStep}>{standing.caption}</Text>
+          ) : null}
+          <Text style={styles.stubAmount}>
+            {formatMoney(order.final_total ?? order.estimated_total)}
+            {order.final_total === null ? ' est.' : ''}
+          </Text>
+        </View>
+      </View>
     </Pressable>
   );
 }
@@ -689,8 +690,83 @@ function PastOrderRow({
 }
 
 const HERO_RADIUS = 28;
+/** The accent block the drum sits in — the ticket's band, stood on its end. */
+const BLOCK_WIDTH = 76;
+/** How far the punched holes bite in at the seam. */
+const STUB_NOTCH = 16;
 
 const styles = StyleSheet.create({
+  /**
+   * A load in the wash. Roughly a third of the height the old tracker card
+   * took, so three loads are a glanceable list rather than three screenfuls.
+   */
+  stub: {
+    flexDirection: 'row',
+    // Paper, like the ticket it is a stub of, rather than another white card.
+    backgroundColor: colors.paper,
+    borderRadius: 16,
+    // Clips the block and the punched holes to the card's own shape.
+    overflow: 'hidden',
+    ...elevation.lift,
+  },
+  /** The laundry's colour, and the drum that turns when the machine does. */
+  stubBlock: {
+    width: BLOCK_WIDTH,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  /** Page-coloured holes punched at the seam; the card's clip does the cutting. */
+  stubNotch: {
+    position: 'absolute',
+    left: BLOCK_WIDTH - STUB_NOTCH / 2,
+    width: STUB_NOTCH,
+    height: STUB_NOTCH,
+    borderRadius: STUB_NOTCH / 2,
+    backgroundColor: colors.bg,
+  },
+  stubNotchTop: { top: -STUB_NOTCH / 2 },
+  stubNotchBottom: { bottom: -STUB_NOTCH / 2 },
+  /** The tear line between the block and the body, inset past both punches. */
+  stubSeam: {
+    position: 'absolute',
+    left: BLOCK_WIDTH,
+    top: STUB_NOTCH / 2,
+    bottom: STUB_NOTCH / 2,
+    borderLeftWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.paperRule,
+  },
+  stubBody: { flex: 1, paddingHorizontal: space.room, paddingVertical: space.cosy, gap: space.snug },
+  stubHead: { flexDirection: 'row', alignItems: 'baseline', gap: space.snug },
+  stubShop: { flex: 1, ...type.section, fontSize: 17, color: colors.text },
+  /** The same number, in the same face, as the ticket this is a stub of. */
+  stubDocket: { fontFamily: mono, fontSize: 11, letterSpacing: 0.8, color: colors.subtle },
+  stubTrack: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: colors.paperRule,
+    overflow: 'hidden',
+  },
+  stubFill: { height: 5, borderRadius: 3 },
+  stubFoot: { flexDirection: 'row', alignItems: 'baseline', gap: space.snug },
+  // The state, in the state's own colour, set the way a ticket sets a class of
+  // travel. It does the badge's job, so the row carries no second object.
+  stubStage: {
+    ...type.label,
+    fontSize: 13,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  stubStep: { fontFamily: mono, fontSize: 11, color: colors.subtle },
+  // `auto` rather than a flexed sibling: the step text is absent before the
+  // cycle starts, and the figure has to hold the right edge either way.
+  stubAmount: {
+    marginLeft: 'auto',
+    fontFamily: mono,
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
   // Escapes the page gutter on three sides so the colour reaches every edge.
   hero: {
     marginTop: -space.room,
@@ -798,31 +874,6 @@ const styles = StyleSheet.create({
   attentionTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
   attentionBody: { fontSize: 13, color: colors.subtle },
 
-  actionRow: { flexDirection: 'row', gap: space.cosy },
-  // The shell carries the press transform; the card keeps the surface, so the
-  // shadow scales with the card instead of detaching from it.
-  actionShell: { flex: 1 },
-  action: {
-    gap: space.tight,
-    padding: space.room,
-    borderRadius: 18,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.lift,
-  },
-  actionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
-    marginBottom: space.tight,
-  },
-  actionLabel: { ...type.label, fontSize: 16, color: colors.text },
-  actionCaption: { ...type.caption, color: colors.subtle },
-
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -863,10 +914,6 @@ const styles = StyleSheet.create({
   shopInitials: { ...type.label, fontSize: 15, color: colors.actionInk },
   shopName: { ...type.label, fontSize: 16, color: colors.text },
   shopAddress: { ...type.caption, color: colors.subtle },
-
-  tracker: { gap: space.room },
-  trackerHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.cosy },
-  trackerAmount: { ...type.caption, color: colors.subtle, marginTop: 2 },
 
   pastRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
 
