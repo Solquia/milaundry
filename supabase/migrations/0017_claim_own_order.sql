@@ -7,6 +7,10 @@
 -- So the claim is idempotent for its holder: scanning your own receipt returns
 -- your order. A receipt on someone else's account is still refused, and says
 -- so in its own words, so the app can tell a stale code from a taken one.
+--
+-- The read takes the row lock. Two phones scanning one receipt at once would
+-- otherwise both see it unclaimed and the second write would quietly take it
+-- off the first; with the lock the second reader waits, then sees the owner.
 create or replace function public.claim_order(p_order_id uuid, p_token uuid)
 returns public.orders
 language plpgsql
@@ -21,7 +25,8 @@ begin
 
   select * into v_order
   from public.orders
-  where id = p_order_id and claim_token = p_token;
+  where id = p_order_id and claim_token = p_token
+  for update;
 
   if v_order.id is null then
     raise exception 'invalid order QR';
