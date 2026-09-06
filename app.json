@@ -40,6 +40,14 @@
       ],
       "expo-secure-store",
       [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "neverForLocation": true,
+          "bluetoothAlwaysPermission": "MiLaundry uses Bluetooth to print receipts on your shop's thermal printer."
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "MiLaundry uses the camera to scan laundry shop and order QR codes."

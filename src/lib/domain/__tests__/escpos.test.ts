@@ -11,6 +11,7 @@ import {
   qrCode,
   chunkBytes,
   toAscii,
+  bytesToBase64,
 } from '../escpos';
 
 // ESC/POS is a byte protocol, so every test pins exact bytes. A printer
@@ -114,5 +115,14 @@ describe('chunkBytes', () => {
   it('returns no chunks for an empty payload and guards a zero size', () => {
     expect(chunkBytes([], 20)).toEqual([]);
     expect(chunkBytes([1, 2, 3], 0)).toEqual([[1, 2, 3]]);
+  });
+});
+
+describe('bytesToBase64', () => {
+  it('encodes with padding exactly as the BLE library expects', () => {
+    expect(bytesToBase64([])).toBe('');
+    expect(bytesToBase64([0x1b, 0x40])).toBe('G0A=');
+    expect(bytesToBase64([72, 105, 0x0a])).toBe('SGkK');
+    expect(bytesToBase64([255, 254, 253, 252])).toBe('//79/A==');
   });
 });

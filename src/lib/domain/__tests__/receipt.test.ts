@@ -18,6 +18,13 @@ const order: OrderWithDetails = {
   id: 'a1b2c3d4-0000-4000-8000-9f8e7d6c5b4a',
   shop_id: 'shop-1',
   customer_id: null,
+  created_by: 'staff-1',
+  delivery_address: '',
+  weigh_photo_path: null,
+  weighed_at: null,
+  payment_proof_path: null,
+  payment_reference: null,
+  updated_at: '2026-09-06T02:15:00.000Z',
   status: 'received',
   order_type: 'walk_in',
   fulfillment: 'pickup',
@@ -37,10 +44,10 @@ const order: OrderWithDetails = {
   created_at: '2026-09-06T02:15:00.000Z',
   shop: null,
   order_items: [
-    { id: 'i1', order_id: 'o', service_id: 's1', created_at: '2026-09-06T02:15:00.000Z', service_name: 'Wash & Fold', unit: 'kg', unit_price: 50, quantity: 5, subtotal: 250 },
-    { id: 'i2', order_id: 'o', service_id: 's2', created_at: '2026-09-06T02:15:00.000Z', service_name: 'Comforter (single)', unit: 'piece', unit_price: 100, quantity: 1, subtotal: 100 },
+    { id: 'i1', order_id: 'o', service_id: 's1', created_at: '2026-09-06T02:15:00.000Z', service_name: 'Wash & Fold', unit: 'per_kg', unit_price: 50, quantity: 5, subtotal: 250 },
+    { id: 'i2', order_id: 'o', service_id: 's2', created_at: '2026-09-06T02:15:00.000Z', service_name: 'Comforter (single)', unit: 'per_item', unit_price: 100, quantity: 1, subtotal: 100 },
   ],
-} as OrderWithDetails;
+};
 
 const shop = { name: 'Sud Buds Laundry', address: '12 Rizal St, Makati', phone: '09181112222' };
 
