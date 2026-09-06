@@ -146,6 +146,7 @@ export default function CustomerOrders() {
         (orders ?? []).map((order) => ({
           id: order.id,
           shopName: order.shop?.name ?? 'Laundry shop',
+          customer_id: order.customer_id,
           status: order.status,
           order_type: order.order_type,
           payment_status: order.payment_status,

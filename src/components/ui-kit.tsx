@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,8 +13,8 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import type { OrderStatus } from '@/lib/domain/order-status';
-import { PAID_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
+import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
+import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
 import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
 
 /**
@@ -51,6 +52,16 @@ export const colors = {
   // Surfaces ---------------------------------------------------------------
   bg: '#EDF2F8',
   card: '#FFFFFF',
+  /**
+   * Receipt stock. Every surface in this app is cool — a blue-grey field under
+   * white cards — so paper is the one warm thing in it, which is what makes it
+   * read as a different material rather than as another card. Barely off-white
+   * on purpose: thermal paper is not cream, and a beige slab would look aged
+   * instead of freshly printed. Ink on it measures within 0.2 of ink on white.
+   */
+  paper: '#FDFBF6',
+  /** The dotted rules and leader lines printed on that stock. */
+  paperRule: '#D9D3C6',
   /** Inputs, wells — recessed against a card rather than the same white. */
   sunken: '#F7F9FC',
 
@@ -74,7 +85,15 @@ export const colors = {
   takingsBorder: '#CDE8DA',
 
   // Semantics --------------------------------------------------------------
+  /** Filled destructive buttons. White 16px on it clears 4.8:1. */
   danger: '#DC2626',
+  /**
+   * Red as text on a surface: a destructive action that is *offered* rather
+   * than urged. The same split the blues already make — `danger` fills,
+   * `dangerInk` reads. #DC2626 as 16px text on the app field is 4.4:1 and
+   * fails AA; one step deeper is 5.9:1 there and 6.5:1 on a card.
+   */
+  dangerInk: '#B91C1C',
   success: '#0B7A45',
 };
 
@@ -86,6 +105,8 @@ export const TAG_TONES = {
   neutral: { bg: '#E9EEF5', ink: '#43536B' },
   owed: { bg: '#FDF0D2', ink: '#8A4F05' },
   settled: { bg: '#DEF3E7', ink: '#0B6238' },
+  /** A ticket an account now holds — a fact worth a glance, not an alert. */
+  linked: { bg: '#E8F1FC', ink: '#1263AF' },
 } as const;
 
 /**
@@ -167,6 +188,24 @@ export const HERO_GRADIENT = ['#0B48BE', '#1060D2', '#1272DF'] as const;
  * Every ink is ≥5:1 on its own surface, so initials stay legible, and the
  * initials themselves carry the identity when colour cannot.
  */
+/**
+ * The receipt's own face.
+ *
+ * Monospace is a costume when it is used to make something look "technical".
+ * Here it is the actual material: a thermal printer has one width per glyph, so
+ * a docket's figures line up in a column whether or not anyone designed them
+ * to. It is used only where a real slip uses it — the item lines, the figures,
+ * the docket number — and never for prose, which monospace only slows down.
+ *
+ * The platform's own fixed-width face rather than a bundled font: shipping a
+ * webfont to buy one card's texture is a download the customer pays for.
+ */
+export const mono = Platform.select({
+  ios: 'Menlo',
+  android: 'monospace',
+  default: 'monospace',
+});
+
 export const ACCENTS = [
   { surface: '#E8F1FC', ink: '#1263AF' },
   { surface: '#DCF2EE', ink: '#0F6B5F' },
@@ -204,7 +243,7 @@ export const type = {
  * two states read most often, and at arm's length two neighbouring purples
  * were the same badge. Every value carries white 12px text at ≥4.5:1.
  */
-const STATUS_COLORS: Record<OrderStatus, string> = {
+export const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#5A6B7D',
   received: '#1370CE',
   washing: '#6D3FD4',
@@ -218,27 +257,16 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
 /** The one status that means somebody is standing at the counter. */
 const URGENT_STATUS: OrderStatus = 'ready';
 
-/**
- * Where the laundry is, said the way an owner would say it across the counter.
- * "Pending" and "Received" were ambiguous — received what, the laundry or the
- * money? — and "Delivered / picked up" made a badge carry a slash.
- */
-export const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: 'Not started',
-  received: 'In the shop',
-  washing: 'Washing',
-  drying: 'Drying',
-  folded: 'Folded',
-  ready: 'Ready for pickup',
-  completed: 'Done',
-  cancelled: 'Cancelled',
-};
+/** The status words live beside the status machine; re-exported for screens. */
+export { STATUS_LABELS };
 
 export { formatMoney } from '@/lib/domain/money';
-
-export function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString();
-}
+/**
+ * Replaces a `toLocaleString()` wrapper that printed pickups as
+ * "8/29/2026, 12:00:00 PM" — and the literal text "Invalid Date" when a
+ * timestamp was missing. See `domain/order-time`.
+ */
+export { formatWhen } from '@/lib/domain/order-time';
 
 type ScreenProps = {
   children: React.ReactNode;
@@ -469,11 +497,13 @@ export function Tag({ label }: { label: string }) {
   // facts about the order, not things to act on, so they stay neutral and let
   // the payment state be the one tag that catches the eye.
   const tone =
-    label === UNPAID_TAG
+    label === UNPAID_TAG || label === RECEIPT_TAG
       ? TAG_TONES.owed
       : label === PAID_TAG
         ? TAG_TONES.settled
-        : TAG_TONES.neutral;
+        : label === CLAIMED_TAG
+          ? TAG_TONES.linked
+          : TAG_TONES.neutral;
 
   return (
     <View style={[styles.tag, { backgroundColor: tone.bg }]}>

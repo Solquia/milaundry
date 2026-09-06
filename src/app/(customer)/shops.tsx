@@ -1,140 +1,151 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useMemo } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
-  Button,
-  Card,
+  ACCENTS,
   EmptyState,
-  ErrorText,
   Loading,
   Screen,
   Subtle,
   colors,
+  elevation,
+  space,
+  type,
 } from '@/components/ui-kit';
-import { getRegisteredShops, getVisibleShops, joinShop } from '@/lib/api';
-import { splitShopsByRegistration } from '@/lib/domain/shop-directory';
+import { getRegisteredShops } from '@/lib/api';
+import { assignBrandAccents } from '@/lib/domain/shop-branding';
+import { shopInitials } from '@/lib/domain/connected-shops';
+import { emptyDirectoryMessage } from '@/lib/domain/shop-directory';
 import type { Shop } from '@/lib/types';
 
+/**
+ * The customer's own laundries, and nothing else.
+ *
+ * This tab used to go on to list every other shop in the system under "More
+ * laundry shops", with a connect button on each. A customer meets a laundry by
+ * standing in it, not by browsing — so the way to a new shop is the code at
+ * its counter, and the list of everyone else's laundries is gone.
+ */
 export default function CustomerShops() {
   const router = useRouter();
-  const queryClient = useQueryClient();
-  const [error, setError] = useState('');
 
-  const { data: registered, isLoading: isRegisteredLoading } = useQuery({
+  const { data: registered, isLoading } = useQuery({
     queryKey: ['registered-shops'],
     queryFn: getRegisteredShops,
   });
 
-  const { data: allShops, isLoading: isDirectoryLoading, error: directoryError } =
-    useQuery({
-      queryKey: ['visible-shops'],
-      queryFn: getVisibleShops,
-    });
+  const mine = useMemo(() => registered ?? [], [registered]);
 
-  const { mine, discoverable } = useMemo(
+  // Assigned across the list, so two of your shops never share a tone — but a
+  // tone a shop chose for itself is held fixed, and only the rest walk.
+  const mineAccents = useMemo(
     () =>
-      splitShopsByRegistration(
-        allShops ?? [],
-        (registered ?? []).map((shop) => shop.id)
+      assignBrandAccents(
+        mine.map((shop) => ({ id: shop.id, brand_accent: shop.brand_accent })),
+        ACCENTS.length
       ),
-    [allShops, registered]
+    [mine]
   );
-
-  const joinMutation = useMutation({
-    mutationFn: joinShop,
-    onSuccess: async (_result, shopId) => {
-      await queryClient.invalidateQueries({ queryKey: ['registered-shops'] });
-      router.push(`/(customer)/shop/${shopId}` as never);
-    },
-    onError: (err: Error) => setError(err.message),
-  });
 
   const openShop = (shopId: string) =>
     router.push(`/(customer)/shop/${shopId}` as never);
 
-  if (isRegisteredLoading || isDirectoryLoading) return <Loading />;
+  const emptyMessage = emptyDirectoryMessage(mine.length);
+
+  if (isLoading) return <Loading />;
 
   return (
     <Screen>
-      {directoryError ? <ErrorText>{(directoryError as Error).message}</ErrorText> : null}
-      <ErrorText>{error}</ErrorText>
-
-      <Text style={styles.sectionTitle}>My laundry shops</Text>
-      {mine.length === 0 && (
-        <EmptyState message="You haven't connected to a laundry shop yet. Pick one below or scan its QR code." />
-      )}
-      {mine.map((shop) => (
-        <ShopCard key={shop.id} shop={shop} onPress={() => openShop(shop.id)}>
-          <Button title="View shop" onPress={() => openShop(shop.id)} />
-        </ShopCard>
+      <Text style={styles.sectionTitle}>Your laundry shops</Text>
+      {emptyMessage ? <EmptyState message={emptyMessage} /> : null}
+      {mine.map((shop, index) => (
+        <ShopCard
+          key={shop.id}
+          shop={shop}
+          accent={ACCENTS[mineAccents[index]]}
+          onPress={() => openShop(shop.id)}
+        />
       ))}
-
-      {discoverable.length > 0 && (
-        <>
-          <Text style={styles.sectionTitle}>Laundry shops near you</Text>
-          {discoverable.map((shop) => (
-            <ShopCard key={shop.id} shop={shop} onPress={() => openShop(shop.id)}>
-              <Button
-                title={
-                  joinMutation.isPending && joinMutation.variables === shop.id
-                    ? 'Connecting…'
-                    : 'Connect to this shop'
-                }
-                variant="outline"
-                disabled={joinMutation.isPending}
-                onPress={() => {
-                  setError('');
-                  joinMutation.mutate(shop.id);
-                }}
-              />
-            </ShopCard>
-          ))}
-        </>
-      )}
     </Screen>
   );
 }
 
+/**
+ * A shop you have connected to wears its initials in its own accent — the same
+ * tone it carries on the home screen and across the top of its own page — and
+ * the card takes a hairline of that accent, so "mine" reads as a set before a
+ * word of it is read. One you have not wears a plain storefront glyph and
+ * spends its colour on the one thing you can do about that: connect.
+ *
+ * Three roles, one each: accent means yours, blue means you can act here, grey
+ * means not yet.
+ */
 function ShopCard({
   shop,
+  accent,
   onPress,
   children,
 }: {
   shop: Shop;
+  accent?: (typeof ACCENTS)[number];
   onPress: () => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
-    <Card>
-      <View style={styles.shopRow}>
-        <View style={styles.shopIcon}>
-          <Ionicons name="storefront" size={20} color={colors.primary} />
+    <View style={[styles.card, accent && { borderColor: accent.ink }]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open ${shop.name}`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.shopRow, pressed && { opacity: 0.7 }]}
+      >
+        <View style={[styles.shopIcon, accent && { backgroundColor: accent.surface }]}>
+          {accent ? (
+            <Text style={[styles.shopInitials, { color: accent.ink }]}>
+              {shopInitials(shop.name)}
+            </Text>
+          ) : (
+            <Ionicons name="storefront" size={20} color={colors.subtle} />
+          )}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.shopName} onPress={onPress}>
+          <Text style={styles.shopName} numberOfLines={1}>
             {shop.name}
           </Text>
           {shop.address ? <Subtle>{shop.address}</Subtle> : null}
         </View>
-      </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
+      </Pressable>
       {children}
-    </Card>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text, marginTop: 4 },
-  shopRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sectionTitle: { ...type.section, color: colors.text, marginTop: space.tight },
+  // Rebuilt from the same recipe as `ui-kit`'s Card so a connected shop can
+  // carry its accent on the border. One hairline, never a slab.
+  card: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: space.room,
+    gap: space.snug,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.rest,
+  },
+  shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   shopIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E0F2FE',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.sunken,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shopName: { fontWeight: '600', fontSize: 16, color: colors.text },
+  shopInitials: { ...type.label, fontSize: 15 },
+  shopName: { ...type.label, fontSize: 16, color: colors.text },
 });

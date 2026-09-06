@@ -5,6 +5,7 @@ const base: AttentionOrder = {
   shopName: 'Sparkle Wash',
   status: 'washing',
   order_type: 'online',
+  customer_id: 'cust-1',
   payment_status: 'unpaid',
   payment_method: 'gcash',
   final_total: 350,
@@ -30,13 +31,19 @@ describe('homeAttention', () => {
     expect(homeAttention([{ ...base, payment_status: 'paid' }])).toHaveLength(0);
   });
 
-  it('never pings a walk-in or a cancelled order', () => {
+  it('never pings an unclaimed walk-in or a cancelled order', () => {
     expect(
       homeAttention([
-        { ...base, order_type: 'walk_in' },
+        { ...base, order_type: 'walk_in', customer_id: null },
         { ...base, id: 'order-2', status: 'cancelled' },
       ])
     ).toHaveLength(0);
+  });
+
+  it('pings a claimed walk-in the same as a booking: someone holds it', () => {
+    const cards = homeAttention([{ ...base, order_type: 'walk_in' }]);
+    expect(cards).toHaveLength(1);
+    expect(cards[0].kind).toBe('pay');
   });
 
   it('turns a sent receipt into a quiet "being checked" note, not a demand', () => {

@@ -17,6 +17,7 @@ import type { PaymentMethod } from './walk-in-order';
 
 export interface AttentionOrder {
   id: string;
+  customer_id: string | null;
   /** Pre-resolved by the screen, so this module stays free of API shapes. */
   shopName: string;
   status: OrderStatus;
