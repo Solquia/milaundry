@@ -74,8 +74,7 @@ describe('monthGrid', () => {
     // The delivery leg's earliest day is the pickup, not today.
     const laterFloor = monthGrid(MAY, NOW, 3, 30)
       .flat()
-      .filter((it) => it.kind === 'day' && it.isSelectable)
-      .map((it) => it.dayOfMonth);
+      .flatMap((it) => (it.kind === 'day' && it.isSelectable ? [it.dayOfMonth] : []));
     expect(laterFloor[0]).toBe(15);
   });
 });
