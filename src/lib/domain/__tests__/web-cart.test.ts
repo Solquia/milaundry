@@ -5,6 +5,7 @@ import {
   cartItems,
   cartLines,
   cartTotal,
+  startingCart,
   type CartService,
 } from '../web-cart';
 import { MAX_WEIGHT_KG } from '../booking-estimate';
@@ -82,5 +83,22 @@ describe('cartItems and cartCount', () => {
   it('counts lines, not pieces', () => {
     expect(cartCount({ wash: 4, shirt: 2 })).toBe(2);
     expect(cartCount(EMPTY_CART)).toBe(0);
+  });
+});
+
+describe('startingCart', () => {
+  it('opens the basket with the tapped service at its starting quantity', () => {
+    expect(startingCart('wash', catalog)).toEqual({ wash: 3 });
+    expect(startingCart('shirt', catalog)).toEqual({ shirt: 1 });
+  });
+
+  it('takes the first id when the router repeats the key', () => {
+    expect(startingCart(['shirt', 'wash'], catalog)).toEqual({ shirt: 1 });
+  });
+
+  it('opens empty for no id, or an id the shop no longer sells', () => {
+    expect(startingCart(undefined, catalog)).toBe(EMPTY_CART);
+    expect(startingCart('', catalog)).toBe(EMPTY_CART);
+    expect(startingCart('gone', catalog)).toBe(EMPTY_CART);
   });
 });
