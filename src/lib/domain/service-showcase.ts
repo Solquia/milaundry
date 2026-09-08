@@ -82,24 +82,25 @@ export function showcasePrice(service: ShowcaseService): ShowcasePrice {
 }
 
 export interface ShowcaseTone {
-  /** The tile behind the glyph. */
+  /** The tile: the category's colour at full strength, with the glyph in white on it. */
   bg: string;
-  /** The glyph, and anything written on the tile. */
+  /** The same hue deep enough to write the title in, on the white card. */
   ink: string;
 }
 
 /**
  * One colour per category, so a price list with five kinds of service shows
- * five kinds of tile instead of five blue squares. Soft surfaces with a deep
- * ink of the same hue: every pair clears 4.5:1 for text.
+ * five kinds of tile instead of five blue squares. The tile is the colour at
+ * full strength — a block of it, the glyph white on top — and the ink is the
+ * same hue deep enough to clear 4.5:1 as a title on the white card.
  */
 const CATEGORY_TONES: Record<ServiceCategory, ShowcaseTone> = {
-  wash_fold: { bg: '#DDEEFF', ink: '#0F5FB8' },
-  ironing: { bg: '#FFE7D6', ink: '#B4470F' },
-  dry_cleaning: { bg: '#EAE4FF', ink: '#5B3DB8' },
-  special_items: { bg: '#DDF5EA', ink: '#0B6B44' },
-  self_service: { bg: '#FFF1C9', ink: '#8A5A05' },
-  other: { bg: '#E9EEF5', ink: '#43536B' },
+  wash_fold: { bg: '#2B7FE0', ink: '#0F5FB8' },
+  ironing: { bg: '#F0742A', ink: '#B4470F' },
+  dry_cleaning: { bg: '#7B5CE5', ink: '#5B3DB8' },
+  special_items: { bg: '#1FA46A', ink: '#0B6B44' },
+  self_service: { bg: '#F2B233', ink: '#8A5A05' },
+  other: { bg: '#6B7C93', ink: '#43536B' },
 };
 
 export function showcaseTone(category: ServiceCategory): ShowcaseTone {

@@ -91,16 +91,17 @@ export function ServiceShowcaseCard({
 
       <View style={styles.tileColumn}>
         <View style={[styles.tile, { backgroundColor: tone.bg }]}>
-          {/* The same glyph, oversized and faint, bleeding off the corner: a
-              tile with depth instead of an icon centred in a square. */}
+          {/* A block of the category's colour with the glyph in white — the
+              same glyph again, oversized and faint, bleeding off the corner so
+              the tile has depth instead of an icon centred in a square. */}
           <Ionicons
             name={icon}
             size={WATERMARK}
-            color={tone.ink}
+            color={colors.onAccent}
             style={styles.watermark}
             pointerEvents="none"
           />
-          <Ionicons name={icon} size={GLYPH} color={tone.ink} />
+          <Ionicons name={icon} size={GLYPH} color={colors.onAccent} />
         </View>
         {isBookable ? (
           <View
@@ -155,14 +156,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  watermark: { position: 'absolute', right: -22, bottom: -24, opacity: 0.14 },
+  watermark: { position: 'absolute', right: -22, bottom: -24, opacity: 0.22 },
   /** Overlaps the tile's bottom edge, the way a price sticker sits on glass. */
   sticker: {
     marginTop: -16,
-    minHeight: 32,
+    minHeight: 36,
     paddingHorizontal: 18,
     borderRadius: 999,
     justifyContent: 'center',
+    // A white rim, so the sticker reads as its own thing on a tile of any
+    // colour, including one close to the sticker's own.
+    borderWidth: 2.5,
+    borderColor: colors.card,
     ...elevation.lift,
   },
   stickerText: { ...type.label, fontSize: 13, fontWeight: '800', letterSpacing: 0.4 },
