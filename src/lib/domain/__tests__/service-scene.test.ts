@@ -66,3 +66,33 @@ describe('sceneFaces', () => {
     }
   });
 });
+
+describe('sceneFaces on a white card', () => {
+  const onTile = sceneFaces('#2B7FE0');
+  const onWhite = sceneFaces('#2B7FE0', 'white');
+  const brightness = (hex: string) =>
+    parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16);
+
+  it('keeps the same light source: top lit, right shaded', () => {
+    expect(brightness(onWhite.top)).toBeGreaterThan(brightness(onWhite.left));
+    expect(brightness(onWhite.left)).toBeGreaterThan(brightness(onWhite.right));
+  });
+
+  it('paints the object in its own colour rather than near-white', () => {
+    // On a coloured tile the object is white and the tile carries the hue. On
+    // a white card that reads as a hole, so the object has to carry the hue.
+    expect(brightness(onWhite.top)).toBeLessThan(brightness(onTile.top));
+    expect(brightness(onWhite.top)).toBeLessThan(255 * 3 * 0.94);
+  });
+
+  it('drops the tile, so nothing paints a panel behind the object', () => {
+    expect(onWhite.skyTop).toBe('transparent');
+    expect(onWhite.skyFoot).toBe('transparent');
+  });
+
+  it('still returns hex for every face that paints one', () => {
+    for (const key of ['top', 'left', 'right', 'shadow', 'rim'] as const) {
+      expect(onWhite[key]).toMatch(/^#[0-9a-f]{6}$/i);
+    }
+  });
+});
