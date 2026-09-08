@@ -8,10 +8,13 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, space, type } from '@/components/ui-kit';
+import { ServiceScene } from '@/components/service-scene';
+import { CROWN, RADII, colors, fontFor, space, type } from '@/components/ui-kit';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import { formatQuantity, minimumLabel, unitCaption } from '@/lib/domain/price-label';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
+import { sceneFor } from '@/lib/domain/service-scene';
+import { showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
 import { adjustLine, type Cart } from '@/lib/domain/web-cart';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -60,10 +63,20 @@ function CartRow({ service, quantity, onAdd, onRemove, theme }: CartRowProps) {
   const unit = unitCaption(service.unit);
   const minimum = minimumLabel(service);
   const isFlat = service.unit === 'flat';
+  const tone = showcaseTone(service.category);
   return (
     <View style={styles.row}>
+      {/* The same object the price list showed. A customer who chose from
+          pictures a screen ago should not be handed a list of words here. */}
+      <View style={styles.thumb}>
+        <ServiceScene
+          scene={sceneFor(service.name, service.category)}
+          brand={tone.bg}
+          surface="white"
+        />
+      </View>
       <View style={styles.words}>
-        <Text style={styles.name}>{service.name}</Text>
+        <Text style={styles.name}>{showcaseTitle(service.name)}</Text>
         <Text style={styles.price}>
           {formatMoneyCompact(service.price)}
           {unit}
@@ -109,9 +122,7 @@ const styles = StyleSheet.create({
   list: { gap: space.section },
   section: {
     backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...CROWN,
     overflow: 'hidden',
     paddingTop: space.room,
   },
@@ -132,16 +143,18 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  /** Big enough to recognise the object, small enough to stay a list. */
+  thumb: { width: 54, height: 54 },
   words: { flex: 1, gap: 2 },
-  name: { ...type.body, fontWeight: '600', color: colors.text },
+  name: { ...type.body, fontFamily: fontFor(700), color: colors.text },
   price: { ...type.caption, color: colors.subtle },
-  add: { minHeight: 40, paddingHorizontal: space.room, borderRadius: 999, justifyContent: 'center' },
+  add: { minHeight: 40, paddingHorizontal: space.room, borderRadius: RADII.pill, justifyContent: 'center' },
   addText: { ...type.label },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderRadius: 999,
+    borderRadius: RADII.pill,
     overflow: 'hidden',
   },
   step: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
