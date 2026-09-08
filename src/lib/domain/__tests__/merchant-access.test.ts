@@ -3,6 +3,7 @@ import {
   canManageShop,
   canOpenMerchantRoute,
   describeShopAccess,
+  redirectForMerchantScreen,
   resolveShopRole,
   tabsForShopRole,
 } from '../merchant-access';
@@ -75,5 +76,37 @@ describe('describeShopAccess', () => {
   it('tells staff what their account covers', () => {
     expect(describeShopAccess('staff')).toContain('Staff account');
     expect(describeShopAccess('staff')).toContain('prices');
+  });
+});
+
+describe('redirectForMerchantScreen', () => {
+  it('lets an owner through to every screen in the group', () => {
+    for (const screen of ['analytics', 'customers', 'orders', 'pos', 'services']) {
+      expect(redirectForMerchantScreen('owner', screen)).toBeNull();
+    }
+  });
+
+  it('lets staff through to the three screens their tabs already show', () => {
+    for (const screen of ['orders', 'pos', 'services']) {
+      expect(redirectForMerchantScreen('staff', screen)).toBeNull();
+    }
+  });
+
+  it('sends staff who asked for the earnings screen back to their own home', () => {
+    // Dropping the tab is enough on a phone. The web has an address bar, so
+    // a bookmark or a typed path is a second way in, and it used to leave the
+    // browser showing /analytics while a different screen was on the page.
+    expect(redirectForMerchantScreen('staff', 'analytics')).toBe('/(merchant)/orders');
+  });
+
+  it('sends staff who asked for the customer book back too', () => {
+    expect(redirectForMerchantScreen('staff', 'customers')).toBe('/(merchant)/orders');
+  });
+
+  it('leaves screens outside the tab bar alone, so a ticket still opens', () => {
+    // `order/[id]` and `settings` are reachable by design and are not owner-only;
+    // a guard that swallowed them would break tapping a ticket.
+    expect(redirectForMerchantScreen('staff', 'settings')).toBeNull();
+    expect(redirectForMerchantScreen('staff', 'index')).toBeNull();
   });
 });
