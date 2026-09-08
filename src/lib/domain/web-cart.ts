@@ -98,3 +98,20 @@ export function cartItems(cart: Cart): OrderItemInput[] {
 export function cartCount(cart: Cart): number {
   return cartItems(cart).length;
 }
+
+/**
+ * The basket the booking page opens with when a price row was tapped: that
+ * service, at the quantity its first "+" would give, so the customer arrives
+ * with the decision already made. A repeated query key arrives as an array;
+ * an id the shop no longer sells opens an empty basket rather than a broken
+ * line.
+ */
+export function startingCart(
+  serviceId: string | string[] | undefined,
+  catalog: readonly CartService[]
+): Cart {
+  const id = Array.isArray(serviceId) ? serviceId[0] : serviceId;
+  if (!id) return EMPTY_CART;
+  const service = catalog.find((item) => item.id === id);
+  return service ? adjustLine(EMPTY_CART, service, 1) : EMPTY_CART;
+}

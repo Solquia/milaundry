@@ -23,7 +23,7 @@ import { friendlyBookingError, isConnectionError } from '@/lib/domain/booking-er
 import { validateBookingSchedule, type BookingScheduleErrors } from '@/lib/domain/booking-schedule';
 import type { Slot } from '@/lib/domain/booking-slot';
 import { resolveAccent } from '@/lib/domain/shop-branding';
-import { EMPTY_CART, cartCount, cartItems, cartLines, cartTotal, type Cart } from '@/lib/domain/web-cart';
+import { cartCount, cartItems, cartLines, cartTotal, startingCart, type Cart } from '@/lib/domain/web-cart';
 import { storefrontTheme } from '@/lib/domain/web-theme';
 import type { Storefront } from '@/lib/types';
 
@@ -45,7 +45,7 @@ function slotDate(slot: Slot): Date {
 }
 
 export default function BookPage() {
-  const { slug } = useLocalSearchParams<{ slug: string }>();
+  const { slug, service } = useLocalSearchParams<{ slug: string; service?: string | string[] }>();
   const { data, isLoading, error } = useQuery({
     queryKey: ['storefront', slug],
     queryFn: () => getStorefront(slug!),
@@ -64,17 +64,24 @@ export default function BookPage() {
       </WebShell>
     );
   }
-  return <BookingFlow storefront={data} slug={slug!} />;
+  return <BookingFlow storefront={data} slug={slug!} preselected={service} />;
 }
 
-function BookingFlow({ storefront, slug }: { storefront: Storefront; slug: string }) {
+interface BookingFlowProps {
+  storefront: Storefront;
+  slug: string;
+  /** The service a price row was tapped on, if the customer came from one. */
+  preselected?: string | string[];
+}
+
+function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
   const { shop, services } = storefront;
   const theme = storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
   const router = useRouter();
   const { session, profile, signOut } = useAuth();
 
   const [step, setStep] = useState<Step>('items');
-  const [cart, setCart] = useState<Cart>(EMPTY_CART);
+  const [cart, setCart] = useState<Cart>(() => startingCart(preselected, services));
   const [schedule, setSchedule] = useState<ScheduleValue>(DEFAULT_SCHEDULE);
   const [fieldErrors, setFieldErrors] = useState<BookingScheduleErrors>({});
   const [error, setError] = useState('');

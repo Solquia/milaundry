@@ -116,7 +116,16 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
             </Pressable>
           ) : null}
           <Text style={styles.sectionTitle}>Prices</Text>
-          <PriceList services={services} theme={theme} />
+          <PriceList
+            services={services}
+            theme={theme}
+            onBook={
+              canBook
+                ? (serviceId) =>
+                    router.push({ pathname: `/s/${shop.slug}/book`, params: { service: serviceId } } as never)
+                : undefined
+            }
+          />
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>
