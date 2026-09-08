@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
 import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
+import { CROWN, RADII, TYPE_ROLES, fontFor } from '@/lib/domain/design-scale';
 import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
 
 /**
@@ -216,19 +217,17 @@ export const ACCENTS = [
 ] as const;
 
 /**
- * Type roles. `hero` is reserved for the one figure a screen exists to
- * deliver; a screen with two heroes has none.
+ * Type roles, from the scale in `design-scale.ts`.
+ *
+ * `hero` is reserved for the one figure a screen exists to deliver; a screen
+ * with two heroes has none. Each role names a font *family* rather than a
+ * weight, because a custom face on React Native is selected by family — a bare
+ * `fontWeight: '700'` gets a synthesised bold, or nothing.
  */
-export const type = {
-  hero: { fontSize: 30, fontWeight: '700', letterSpacing: -0.5 },
-  title: { fontSize: 23, fontWeight: '700', letterSpacing: -0.2 },
-  section: { fontSize: 17, fontWeight: '700' },
-  /** A value being edited — subordinate to `hero`, which is the answer. */
-  value: { fontSize: 20, fontWeight: '700' },
-  body: { fontSize: 15 },
-  label: { fontSize: 14, fontWeight: '600' },
-  caption: { fontSize: 12 },
-} satisfies Record<string, TextStyle>;
+export const type = TYPE_ROLES satisfies Record<string, TextStyle>;
+
+/** The corner scale. Nothing in the app has a square corner. */
+export { CROWN, RADII, fontFor };
 
 /**
  * Status badges, coloured by *how much the owner has to care*, not by
@@ -603,28 +602,33 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  title: { fontSize: 24, fontWeight: '700', color: colors.text },
-  subtle: { fontSize: 14, color: colors.subtle },
-  error: { fontSize: 14, color: colors.danger, marginVertical: 4 },
+  title: { ...type.title, color: colors.text },
+  subtle: { ...type.label, fontFamily: fontFor(400), color: colors.subtle },
+  error: { ...type.label, fontFamily: fontFor(400), color: colors.danger, marginVertical: 4 },
+  /**
+   * A card, with the head rounded further than the foot so it reads as
+   * something resting on the page rather than as a container. The 1px outline
+   * is gone: a soft shadow separates it from the field without drawing a box
+   * around it.
+   */
   card: {
     backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: 16,
-    gap: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...CROWN,
+    padding: 18,
+    gap: 10,
+    ...elevation.rest,
   },
-  cardCompact: { padding: 12, gap: 6, borderRadius: 10 },
+  cardCompact: { padding: 14, gap: 8, borderRadius: RADII.card },
   field: { gap: 4 },
-  fieldLabel: { fontSize: 13, fontWeight: '600', color: colors.subtle },
+  fieldLabel: { ...type.label, color: colors.subtle },
   input: {
     backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+    borderRadius: RADII.control,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    ...type.body,
     color: colors.text,
   },
   inputRow: {
@@ -633,47 +637,47 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingLeft: 12,
+    borderRadius: RADII.control,
+    paddingLeft: 14,
   },
   rowInput: {
     flex: 1,
-    paddingVertical: 10,
-    fontSize: 16,
+    paddingVertical: 12,
+    ...type.body,
     color: colors.text,
   },
   revealButton: { paddingHorizontal: 12, paddingVertical: 10 },
-  revealText: { fontSize: 14, fontWeight: '600', color: colors.actionInk },
+  revealText: { ...type.label, color: colors.actionInk },
   phoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: colors.sunken,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
-    paddingLeft: 12,
+    borderRadius: RADII.control,
+    paddingLeft: 14,
   },
   phonePrefix: {
-    fontSize: 16,
+    ...type.body,
+    fontFamily: fontFor(600),
     color: colors.subtle,
-    fontWeight: '600',
     marginRight: 8,
   },
   phoneInput: {
     flex: 1,
-    paddingRight: 12,
-    paddingVertical: 10,
-    fontSize: 16,
+    paddingRight: 14,
+    paddingVertical: 12,
+    ...type.body,
     color: colors.text,
   },
   button: {
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderRadius: RADII.pill,
+    paddingVertical: 14,
     alignItems: 'center',
   },
   buttonOutline: { borderWidth: 1, borderColor: colors.borderStrong },
   buttonOutlineText: { color: colors.text },
-  buttonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
+  buttonText: { color: '#FFFFFF', ...type.body, fontFamily: fontFor(700) },
   badge: {
     alignSelf: 'flex-start',
     borderRadius: 999,
@@ -687,15 +691,15 @@ const styles = StyleSheet.create({
     // green it makes "Ready for pickup" the one badge that finds the eye.
     paddingHorizontal: 12,
   },
-  badgeText: { color: colors.onAccent, fontSize: 12, fontWeight: '600' },
+  badgeText: { color: colors.onAccent, ...type.caption, fontFamily: fontFor(700) },
   tag: {
     alignSelf: 'flex-start',
-    borderRadius: 6,
+    borderRadius: RADII.chip,
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
   // Colour comes from TAG_TONES; every pair clears 5.7:1 on its own chip.
-  tagText: { fontSize: 12, fontWeight: '600' },
+  tagText: { ...type.caption, fontFamily: fontFor(700) },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', padding: space.gulf, gap: space.cosy },
   emptyText: { textAlign: 'center' },

@@ -16,7 +16,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ServiceShowcaseCard } from '@/components/service-showcase-card';
-import { colors, space, type } from '@/components/ui-kit';
+import { CROWN, colors, space, type } from '@/components/ui-kit';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -78,9 +78,7 @@ const styles = StyleSheet.create({
   footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight },
   empty: {
     backgroundColor: colors.card,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...CROWN,
     padding: space.section,
     gap: space.tight,
   },

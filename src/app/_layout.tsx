@@ -1,5 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import {
+  Figtree_400Regular,
+  Figtree_500Medium,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+  Figtree_800ExtraBold,
+} from '@expo-google-fonts/figtree';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
@@ -27,9 +34,19 @@ export default function RootLayout() {
   // Tab bars render Ionicons glyphs; without preloading, the first paint shows
   // empty boxes until the icon font arrives. Never block the app on a failure
   // though — missing icons must not cost the user their way to sign in.
-  const [areIconsLoaded, iconFontError] = useFonts(Ionicons.font);
+  // Figtree rides along in the same call: every type role names one of its
+  // cuts by family, so text painted before it lands would fall back to the
+  // system face and reflow when it arrives.
+  const [areFontsLoaded, fontError] = useFonts({
+    ...Ionicons.font,
+    Figtree_400Regular,
+    Figtree_500Medium,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
+  });
 
-  if (!areIconsLoaded && !iconFontError) return <Loading />;
+  if (!areFontsLoaded && !fontError) return <Loading />;
 
   return (
     <QueryClientProvider client={queryClient}>

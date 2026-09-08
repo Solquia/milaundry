@@ -27,7 +27,7 @@ import {
 } from '@/lib/domain/service-showcase';
 
 import { ServiceScene } from './service-scene';
-import { colors, elevation, space, type } from './ui-kit';
+import { CROWN, RADII, colors, elevation, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
   name: string;
@@ -168,9 +168,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     gap: space.room,
     padding: space.room,
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...CROWN,
     backgroundColor: colors.card,
     ...elevation.rest,
     ...Platform.select({
@@ -193,7 +191,7 @@ const styles = StyleSheet.create({
   tile: {
     width: 104,
     height: 104,
-    borderRadius: 20,
+    borderRadius: RADII.card,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -203,7 +201,7 @@ const styles = StyleSheet.create({
     marginTop: -16,
     minHeight: 36,
     paddingHorizontal: 18,
-    borderRadius: 999,
+    borderRadius: RADII.pill,
     justifyContent: 'center',
     // A white rim, so the sticker reads as its own thing on a tile of any
     // colour, including one close to the sticker's own.
