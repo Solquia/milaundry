@@ -1,6 +1,7 @@
 import {
   CUSTOMER_TABS,
   MERCHANT_TABS,
+  STAFF_TABS,
   centerTabIndex,
   type TabConfig,
 } from '../tab-config';
@@ -8,6 +9,7 @@ import {
 const CONFIGS: { label: string; tabs: readonly TabConfig[] }[] = [
   { label: 'merchant', tabs: MERCHANT_TABS },
   { label: 'customer', tabs: CUSTOMER_TABS },
+  { label: 'staff', tabs: STAFF_TABS },
 ];
 
 describe('tab bar configuration', () => {
@@ -25,6 +27,16 @@ describe('tab bar configuration', () => {
     expect(CUSTOMER_TABS.map((tab) => tab.name)).toEqual(['orders', 'scan', 'shops']);
   });
 
+  it('lists the staff tabs in display order, with New Order raised', () => {
+    expect(STAFF_TABS.map((tab) => tab.name)).toEqual(['orders', 'pos', 'services']);
+    expect(STAFF_TABS[centerTabIndex(STAFF_TABS)].name).toBe('pos');
+  });
+
+  it('keeps the merchant and staff QR/center buttons on their own icons', () => {
+    expect(MERCHANT_TABS[centerTabIndex(MERCHANT_TABS)].icon).toBe('qr-code');
+    expect(CUSTOMER_TABS[centerTabIndex(CUSTOMER_TABS)].icon).toBe('qr-code');
+  });
+
   it('brands the customer home tab as MiLaundry', () => {
     const home = CUSTOMER_TABS.find((tab) => tab.name === 'orders');
     expect(home?.title).toBe('MiLaundry');
@@ -39,9 +51,9 @@ describe('tab bar configuration', () => {
       expect(centerTabIndex(tabs)).toBe(Math.floor(tabs.length / 2));
     });
 
-    it('uses a QR icon for the raised center button', () => {
+    it('gives the raised center button a filled glyph', () => {
       const center = tabs[centerTabIndex(tabs)];
-      expect(center.icon).toBe('qr-code');
+      expect(center.icon.endsWith('-outline')).toBe(false);
     });
 
     it('gives every tab a title and an icon', () => {

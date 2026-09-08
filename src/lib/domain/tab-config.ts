@@ -11,12 +11,30 @@ export interface TabConfig {
   isCenter?: boolean;
 }
 
+/**
+ * Titles are the words a laundry owner already says out loud. "POS",
+ * "Analytics" and "Services" are retail-software vocabulary; they sat in the
+ * tab bar, on every screen, asking the least technical person in the shop to
+ * translate before they could navigate. Route names are unchanged, so no file
+ * or link moves.
+ */
 export const MERCHANT_TABS: readonly TabConfig[] = [
   { name: 'orders', title: 'Orders', icon: 'receipt-outline' },
-  { name: 'pos', title: 'POS', icon: 'cart-outline' },
+  { name: 'pos', title: 'New Order', icon: 'cart-outline' },
   { name: 'customers', title: 'Customers', icon: 'qr-code', isCenter: true },
-  { name: 'analytics', title: 'Analytics', icon: 'stats-chart-outline' },
-  { name: 'services', title: 'Services', icon: 'pricetags-outline' },
+  { name: 'analytics', title: 'Earnings', icon: 'stats-chart-outline' },
+  { name: 'services', title: 'Prices', icon: 'pricetags-outline' },
+];
+
+/**
+ * What a staff login sees: the orders coming in, a new walk-in order, and the
+ * price list. Earnings and the customer book are the owner's. "New Order" is
+ * the raised button because it is the one thing staff do most.
+ */
+export const STAFF_TABS: readonly TabConfig[] = [
+  { name: 'orders', title: 'Orders', icon: 'receipt-outline' },
+  { name: 'pos', title: 'New Order', icon: 'cart', isCenter: true },
+  { name: 'services', title: 'Prices', icon: 'pricetags-outline' },
 ];
 
 export const CUSTOMER_TABS: readonly TabConfig[] = [
