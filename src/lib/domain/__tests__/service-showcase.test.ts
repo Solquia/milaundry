@@ -107,3 +107,29 @@ describe('showcaseTone', () => {
     expect(showcaseTone('mystery' as never)).toEqual(showcaseTone('other'));
   });
 });
+
+describe('showcasePrice symbol and amount', () => {
+  it('splits the peso sign off the digits so each can be set on its own', () => {
+    // Figtree has no peso glyph, so the browser substitutes another face for
+    // it. Set at the same size and weight as the digits, that substitution
+    // reads as a mistake; the card sets it smaller and lighter instead.
+    expect(showcasePrice(washFold).symbol).toBe('₱');
+    expect(showcasePrice(washFold).amount).toBe('176');
+  });
+
+  it('keeps the grouped thousands with the amount, not the symbol', () => {
+    const pricey = { ...washFold, price: 2841 };
+    expect(showcasePrice(pricey).symbol).toBe('₱');
+    expect(showcasePrice(pricey).amount).toBe('2,841');
+  });
+
+  it('keeps centavos a shop really charges', () => {
+    const odd = { ...washFold, price: 60.5 };
+    expect(showcasePrice(odd).amount).toBe('60.50');
+  });
+
+  it('still offers the whole figure for anything that wants one string', () => {
+    const price = showcasePrice(washFold);
+    expect(price.figure).toBe(`${price.symbol}${price.amount}`);
+  });
+});
