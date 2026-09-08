@@ -1,20 +1,22 @@
 /**
- * One service as a card in a grid: the object, its name, its price.
+ * One service as a card: what it is, what it costs, and the thing itself.
  *
- * Modelled on the shape a services menu takes when it is trying to be looked
- * at rather than read — a white card, the thing itself standing on the page
- * with its own shadow under it, and the words kept small and out of the way.
- * No coloured panel: the object carries the colour, and the card stays white,
- * which is what stops a grid of eight of these reading as eight boxes.
+ * The words sit top-left and the object sits bottom-right, big enough to be
+ * looked at rather than referred to. That split is what makes a grid of these
+ * scannable — every card's first line starts in the same place, so the names
+ * read down the column like a list, while the objects fill the space the text
+ * does not need and give each card its own face.
  *
- * Both the app and the web price list draw this, so a shop looks like itself
- * on either. A photograph wins the frame whenever the shop has one.
+ * The same card serves the price list and the ordering step. Pass `quantity`
+ * and the pair of steppers and it becomes a basket row; pass only `onBook` and
+ * it stays a way in to the booking page. Both the app and the web draw it, so
+ * a shop looks like itself on either.
  */
 import { Image } from 'expo-image';
 import React from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { formatPriceLine } from '@/lib/domain/price-label';
+import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
 import { sceneFor } from '@/lib/domain/service-scene';
 import {
   showcasePrice,
@@ -31,17 +33,26 @@ export interface ShowcaseCardService extends ShowcaseService {
   /**
    * A photograph of this service, when the shop has one. A picture of the
    * shop's own work beats any drawing, so it wins the frame whenever it
-   * exists; the diorama is what a service wears until then.
+   * exists; the drawing is what a service wears until then.
    */
   image_url?: string | null;
 }
 
 interface ServiceTileCardProps {
   service: ShowcaseCardService;
-  /** The add button's colours — the shop's brand on web, action blue in the app. */
+  /** The button's colours — the shop's brand on web, action blue in the app. */
   bookTone: { bg: string; ink: string };
+  /** Opens the booking page for this service. Absent when bookings are closed. */
   onBook?: () => void;
+  /** Shown but not bookable yet — the app before the customer has connected. */
   isDisabled?: boolean;
+  /**
+   * Basket mode. When set, the card carries − and + instead of Add, and shows
+   * what is on the ticket.
+   */
+  quantity?: number;
+  onAdd?: () => void;
+  onRemove?: () => void;
 }
 
 /** Whether the device has asked for less motion. */
@@ -61,11 +72,38 @@ function useReducedMotion(): boolean {
   return isReduced;
 }
 
+function Step({
+  label,
+  hint,
+  onPress,
+  ink,
+}: {
+  label: string;
+  hint: string;
+  onPress: () => void;
+  ink: string;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={hint}
+      onPress={onPress}
+      hitSlop={6}
+      style={({ pressed }) => [styles.step, pressed && styles.pressed]}
+    >
+      <Text style={[styles.stepText, { color: ink }]}>{label}</Text>
+    </Pressable>
+  );
+}
+
 export function ServiceTileCard({
   service,
   bookTone,
   onBook,
   isDisabled = false,
+  quantity,
+  onAdd,
+  onRemove,
 }: ServiceTileCardProps) {
   const [isHovered, setIsHovered] = React.useState(false);
   const [isPressed, setIsPressed] = React.useState(false);
@@ -77,8 +115,11 @@ export function ServiceTileCard({
   const scene = sceneFor(service.name, service.category);
   const photo = (service.image_url ?? '').trim();
   const hasPhoto = photo.length > 0 && !isPhotoBroken;
-  const isBookable = Boolean(onBook);
-  const isLive = isBookable && !isDisabled;
+
+  const isBasket = quantity !== undefined;
+  const held = quantity ?? 0;
+  const isBookable = Boolean(onBook) && !isBasket;
+  const isLive = !isDisabled && (isBookable || isBasket);
   const isEngaged = isLive && (isHovered || isPressed);
 
   const [lift] = React.useState(() => new Animated.Value(0));
@@ -99,57 +140,110 @@ export function ServiceTileCard({
   const objectStyle = {
     transform: [
       { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) },
-      { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] }) },
+      { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
     ],
   };
 
+  // In basket mode the card itself is not the button — the steppers are, and a
+  // card-wide press would fight them.
+  const Wrapper = isBasket ? View : Pressable;
+  const pressProps = isBasket
+    ? {}
+    : {
+        accessibilityRole: onBook ? ('button' as const) : undefined,
+        accessibilityLabel: onBook
+          ? `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`
+          : undefined,
+        accessibilityState: onBook ? { disabled: isDisabled } : undefined,
+        disabled: !onBook,
+        onPress: onBook,
+        onPressIn: () => setIsPressed(true),
+        onPressOut: () => setIsPressed(false),
+      };
+
   return (
-    <Pressable
-      accessibilityRole={isBookable ? 'button' : undefined}
-      accessibilityLabel={
-        isBookable ? `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}` : undefined
-      }
-      accessibilityState={isBookable ? { disabled: isDisabled } : undefined}
-      disabled={!isBookable}
-      onPress={onBook}
-      onPressIn={() => setIsPressed(true)}
-      onPressOut={() => setIsPressed(false)}
+    <Wrapper
+      {...pressProps}
       onHoverIn={() => setIsHovered(true)}
       onHoverOut={() => setIsHovered(false)}
-      style={({ pressed }) => [
+      // An array, never a function: a plain View silently ignores a function
+      // style, which in basket mode dropped every card style and collapsed the
+      // grid. The pressed state is already tracked, so nothing is lost.
+      style={[
         styles.card,
         isLive && isHovered && styles.cardHovered,
-        pressed && isBookable && styles.cardPressed,
+        isPressed && isBookable && styles.cardPressed,
       ]}
     >
-      {/* The name sits above the object, the way a shelf is labelled. */}
-      <Text style={[styles.name, { color: tone.ink }]} numberOfLines={2}>
-        {showcaseTitle(service.name)}
-      </Text>
+      {/* The object, bottom-right and large. Drawn first so the words sit over
+          it, and ignored by touch so it never eats a stepper press. */}
+      <Animated.View style={[styles.object, objectStyle]} pointerEvents="none">
+        {hasPhoto ? (
+          <Image
+            source={{ uri: photo }}
+            style={StyleSheet.absoluteFill}
+            contentFit="contain"
+            transition={180}
+            onError={() => setIsPhotoBroken(true)}
+            accessibilityIgnoresInvertColors
+          />
+        ) : (
+          <ServiceScene scene={scene} brand={tone.bg} surface="white" />
+        )}
+      </Animated.View>
 
-      <View style={styles.stage}>
-        <Animated.View style={[styles.object, objectStyle]} pointerEvents="none">
-          {hasPhoto ? (
-            <Image
-              source={{ uri: photo }}
-              style={styles.photo}
-              contentFit="contain"
-              transition={180}
-              onError={() => setIsPhotoBroken(true)}
-              accessibilityIgnoresInvertColors
-            />
-          ) : (
-            <ServiceScene scene={scene} brand={tone.bg} surface="white" />
-          )}
-        </Animated.View>
-      </View>
-
-      <View style={styles.foot}>
+      <View style={styles.words}>
+        <Text style={[styles.name, { color: tone.ink }]} numberOfLines={2}>
+          {showcaseTitle(service.name)}
+        </Text>
         <Text style={styles.figure} numberOfLines={1}>
           {price.figure}
           {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
         </Text>
-        {isBookable ? (
+        {price.minimum ? (
+          <Text style={styles.minimum} numberOfLines={1}>
+            {price.minimum}
+          </Text>
+        ) : null}
+      </View>
+
+      <View style={styles.action}>
+        {isBasket ? (
+          held > 0 ? (
+            <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
+              <Step
+                label="−"
+                hint={`Remove ${showcaseTitle(service.name)}`}
+                onPress={() => onRemove?.()}
+                ink={bookTone.bg}
+              />
+              <Text style={styles.held} numberOfLines={1}>
+                {service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)}
+              </Text>
+              {service.unit === 'flat' ? null : (
+                <Step
+                  label="+"
+                  hint={`Add more ${showcaseTitle(service.name)}`}
+                  onPress={() => onAdd?.()}
+                  ink={bookTone.bg}
+                />
+              )}
+            </View>
+          ) : (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Add ${showcaseTitle(service.name)}`}
+              onPress={() => onAdd?.()}
+              style={({ pressed }) => [
+                styles.add,
+                { backgroundColor: bookTone.bg },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.addText, { color: bookTone.ink }]}>Add</Text>
+            </Pressable>
+          )
+        ) : onBook ? (
           <View
             style={[
               styles.add,
@@ -162,20 +256,21 @@ export function ServiceTileCard({
           </View>
         ) : null}
       </View>
-
-      {price.minimum ? <Text style={styles.minimum}>{price.minimum}</Text> : null}
-    </Pressable>
+    </Wrapper>
   );
 }
+
+const CARD_HEIGHT = 178;
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
+    height: CARD_HEIGHT,
     padding: space.room,
-    gap: space.snug,
     ...CROWN,
     backgroundColor: colors.card,
+    overflow: 'hidden',
     ...elevation.rest,
     ...Platform.select({
       web: {
@@ -189,21 +284,37 @@ const styles = StyleSheet.create({
   cardHovered: { ...elevation.lift, transform: [{ translateY: -3 }] },
   cardPressed: { transform: [{ scale: 0.985 }] },
 
-  name: { ...type.label, fontFamily: fontFor(700), lineHeight: 19 },
-  /** The object gets the height; the words take what is left. */
-  stage: { height: 104, alignItems: 'center', justifyContent: 'center' },
-  object: { width: '100%', height: '100%' },
-  photo: { width: '100%', height: '100%' },
+  /**
+   * Anchored to the bottom-right corner and allowed to run past it. Big enough
+   * to be the thing you look at; the card clips whatever overruns.
+   */
+  object: { position: 'absolute', right: -10, bottom: -12, width: 122, height: 122 },
 
-  foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.snug },
-  figure: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
+  words: { gap: 1 },
+  name: { ...type.label, fontFamily: fontFor(800), fontSize: 15, lineHeight: 19 },
+  figure: { ...type.value, fontSize: 19, color: colors.text, fontVariant: ['tabular-nums'], marginTop: 4 },
   unit: { ...type.caption, color: colors.subtle },
-  minimum: { ...type.caption, color: colors.subtle, marginTop: -space.tight },
+  minimum: { ...type.caption, color: colors.subtle },
+
+  /** Bottom-left, clear of the object's corner. */
+  action: { position: 'absolute', left: space.room, bottom: space.room },
   add: {
-    minHeight: 32,
+    minHeight: 34,
     paddingHorizontal: space.room,
     borderRadius: RADII.pill,
     justifyContent: 'center',
   },
   addText: { ...type.caption, fontFamily: fontFor(700), letterSpacing: 0.3 },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.card,
+    overflow: 'hidden',
+  },
+  step: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  stepText: { ...type.section, fontSize: 18 },
+  held: { ...type.caption, fontFamily: fontFor(700), color: colors.text, minWidth: 44, textAlign: 'center' },
+  pressed: { opacity: 0.6 },
 });

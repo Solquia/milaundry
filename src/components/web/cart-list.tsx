@@ -1,20 +1,18 @@
 /**
- * The price list with a basket in it.
+ * The ordering step: the price list with a basket in it.
  *
- * Same sections as the read-only list, but every row can be added. A line
- * that is in the basket shows its quantity between − and +; one that is not
- * shows Add. Whole units only: the shop weighs the load anyway.
+ * The same grid of cards the price list uses, so a customer who chose from
+ * pictures a screen ago meets the same pictures here rather than a table of
+ * words. A card holding nothing shows Add; one already on the ticket shows
+ * what it holds between − and +. Whole units only: the shop weighs the load
+ * anyway.
  */
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { ServiceScene } from '@/components/service-scene';
-import { CROWN, RADII, colors, fontFor, space, type } from '@/components/ui-kit';
-import { formatMoneyCompact } from '@/lib/domain/money';
-import { formatQuantity, minimumLabel, unitCaption } from '@/lib/domain/price-label';
+import { ServiceTileCard } from '@/components/service-tile-card';
+import { colors, space, type } from '@/components/ui-kit';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
-import { sceneFor } from '@/lib/domain/service-scene';
-import { showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
 import { adjustLine, type Cart } from '@/lib/domain/web-cart';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -26,24 +24,44 @@ interface CartListProps {
   theme: StorefrontTheme;
 }
 
+/** Two to a row; an odd last card keeps its width with a blank beside it. */
+function pairs<T>(items: readonly T[]): (T | null)[][] {
+  const rows: (T | null)[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push([items[i], items[i + 1] ?? null]);
+  }
+  return rows;
+}
+
 export function CartList({ services, cart, onChange, theme }: CartListProps) {
   const groups = groupServicesByCategory(services);
+  const showLabels = groups.length > 1;
+  const bookTone = { bg: theme.brand, ink: theme.onBrand };
+
   return (
     <View style={styles.list}>
       {groups.map((group) => (
-        <View key={group.category} style={styles.section}>
-          <Text style={[styles.heading, { color: theme.brandInk }]}>
-            {CATEGORY_LABELS[group.category]}
-          </Text>
-          {group.services.map((service) => (
-            <CartRow
-              key={service.id}
-              service={service}
-              quantity={cart[service.id] ?? 0}
-              onAdd={() => onChange(adjustLine(cart, service, 1))}
-              onRemove={() => onChange(adjustLine(cart, service, -1))}
-              theme={theme}
-            />
+        <View key={group.category} style={styles.group}>
+          {showLabels ? (
+            <Text style={styles.label}>{CATEGORY_LABELS[group.category]}</Text>
+          ) : null}
+          {pairs(group.services).map((row, index) => (
+            <View key={index} style={styles.row}>
+              {row.map((service, column) =>
+                service ? (
+                  <ServiceTileCard
+                    key={service.id}
+                    service={service}
+                    bookTone={bookTone}
+                    quantity={cart[service.id] ?? 0}
+                    onAdd={() => onChange(adjustLine(cart, service, 1))}
+                    onRemove={() => onChange(adjustLine(cart, service, -1))}
+                  />
+                ) : (
+                  <View key={`blank-${column}`} style={styles.blank} />
+                )
+              )}
+            </View>
           ))}
         </View>
       ))}
@@ -51,114 +69,17 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
   );
 }
 
-interface CartRowProps {
-  service: StorefrontService;
-  quantity: number;
-  onAdd: () => void;
-  onRemove: () => void;
-  theme: StorefrontTheme;
-}
-
-function CartRow({ service, quantity, onAdd, onRemove, theme }: CartRowProps) {
-  const unit = unitCaption(service.unit);
-  const minimum = minimumLabel(service);
-  const isFlat = service.unit === 'flat';
-  const tone = showcaseTone(service.category);
-  return (
-    <View style={styles.row}>
-      {/* The same object the price list showed. A customer who chose from
-          pictures a screen ago should not be handed a list of words here. */}
-      <View style={styles.thumb}>
-        <ServiceScene
-          scene={sceneFor(service.name, service.category)}
-          brand={tone.bg}
-          surface="white"
-        />
-      </View>
-      <View style={styles.words}>
-        <Text style={styles.name}>{showcaseTitle(service.name)}</Text>
-        <Text style={styles.price}>
-          {formatMoneyCompact(service.price)}
-          {unit}
-          {minimum ? ` · ${minimum}` : ''}
-        </Text>
-      </View>
-      {quantity > 0 ? (
-        <View style={[styles.stepper, { borderColor: theme.brand }]}>
-          <StepButton label="−" hint={`Remove ${service.name}`} onPress={onRemove} ink={theme.brandInk} />
-          <Text style={styles.quantity}>{isFlat ? 'Added' : formatQuantity(service.unit, quantity)}</Text>
-          {isFlat ? null : (
-            <StepButton label="+" hint={`Add more ${service.name}`} onPress={onAdd} ink={theme.brandInk} />
-          )}
-        </View>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Add ${service.name}`}
-          onPress={onAdd}
-          style={({ pressed }) => [styles.add, { backgroundColor: theme.brandSoft }, pressed && styles.pressed]}
-        >
-          <Text style={[styles.addText, { color: theme.brandInk }]}>Add</Text>
-        </Pressable>
-      )}
-    </View>
-  );
-}
-
-function StepButton({ label, hint, onPress, ink }: { label: string; hint: string; onPress: () => void; ink: string }) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={hint}
-      onPress={onPress}
-      style={({ pressed }) => [styles.step, pressed && styles.pressed]}
-    >
-      <Text style={[styles.stepText, { color: ink }]}>{label}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
   list: { gap: space.section },
-  section: {
-    backgroundColor: colors.card,
-    ...CROWN,
-    overflow: 'hidden',
-    paddingTop: space.room,
-  },
-  heading: {
-    ...type.caption,
-    fontWeight: '700',
-    letterSpacing: 0.8,
+  group: { gap: space.cosy },
+  row: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
+  blank: { flex: 1 },
+  label: {
+    ...type.label,
+    color: colors.subtle,
+    letterSpacing: 0.4,
     textTransform: 'uppercase',
-    paddingHorizontal: space.room,
-    paddingBottom: space.snug,
+    fontSize: 12,
+    paddingHorizontal: space.tight,
   },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.cosy,
-    paddingHorizontal: space.room,
-    paddingVertical: space.cosy,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  /** Big enough to recognise the object, small enough to stay a list. */
-  thumb: { width: 54, height: 54 },
-  words: { flex: 1, gap: 2 },
-  name: { ...type.body, fontFamily: fontFor(700), color: colors.text },
-  price: { ...type.caption, color: colors.subtle },
-  add: { minHeight: 40, paddingHorizontal: space.room, borderRadius: RADII.pill, justifyContent: 'center' },
-  addText: { ...type.label },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: RADII.pill,
-    overflow: 'hidden',
-  },
-  step: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
-  stepText: { ...type.section },
-  quantity: { ...type.label, color: colors.text, minWidth: 56, textAlign: 'center' },
-  pressed: { opacity: 0.6 },
 });
