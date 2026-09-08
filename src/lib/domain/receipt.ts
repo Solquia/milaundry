@@ -128,8 +128,8 @@ export function buildReceipt(
     ...(order.notes ? [{ kind: 'rule' } as const, text(`Note: ${order.notes}`)] : []),
     { kind: 'feed', lines: 1 },
     { kind: 'qr', value: buildOrderQr(order.id, order.claim_token) },
-    text('Scan in the MiLaundry app to', { align: 'center' }),
-    text('follow this order on your phone', { align: 'center' }),
+    text('Scan with your phone camera', { align: 'center' }),
+    text('to follow this order online', { align: 'center' }),
     { kind: 'feed', lines: 3 },
     { kind: 'cut' },
   ];
