@@ -35,6 +35,7 @@
 | 2 | A wrong-role visitor is sent to the same screen inside their own group when it exists | `routeForRole: keeps the same screen…` | unit | PASS |
 | 3 | …and to their home when it does not | `routeForRole: falls back…` | unit | PASS |
 | 4 | The redirect target is never a bare path that could resolve into the wrong group | `never answers with a bare path…` | unit | PASS |
+| 5a | The screen a browser address names is its last non-group segment; the root is `index` | `screenFromPathname` | unit | PASS |
 | 5 | The screen table matches the files in `src/app/(customer|merchant|admin)` | `GROUP_SCREENS lists exactly…` | config | PASS |
 | 6 | Phones and narrow windows are never framed; wide web windows get a 480px column | `web-frame.test.ts` | unit | PASS |
 | 7 | Web uses a typed code, native uses the camera | `scanEntryMode` | unit | PASS |
@@ -45,6 +46,7 @@
 - `npm run test:coverage`: all files 77.42% statements (global figure, pre-existing untested API/hook modules). The three new domain modules are at 100%.
 - `WebFrame`, `TypedCodeForm`, the layout redirects, and the merchant tab-bar change have no unit tests, matching the repo's practice for screens; they were verified in Chrome as listed above.
 - The merchant layout fix (`src/app/(merchant)/_layout.tsx`) is **not committed**: that file carries earlier uncommitted work that introduced the factory, so the fix lives in the working tree with it.
+- A merchant refreshing `/settings` lands on Orders: the merchant settings tab is declared without a link (`href: null`), so it is not addressable by URL. Customer `/settings` and `/shops` refresh correctly. Left as is; the gear icon still opens settings.
 - Not exercised on the web in this run: placing a POS order (the test shop has no price list and seeding one would change real shop data), the Bluetooth printer (reports unsupported on web by design), and the map card (address-only on web by design).
 - Test accounts created for this run: customer `+639170000777` and owner `+639170000778` (owner of Sparkle Wash), both `@example.com` like the existing test users.
 
@@ -52,3 +54,4 @@
 
 - RED: `76dd4ad test: add reproducers for the app on the web`
 - GREEN: `9966eed feat: the app on the web, held to a phone-width column`
+- Follow-up (RED then GREEN in one cycle): `9c9621e fix: read the screen for a cross-group redirect from the pathname`
