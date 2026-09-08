@@ -106,15 +106,6 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
           serviceCount={services.length}
         />
         <View style={styles.body}>
-          {session ? (
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => router.push(`/s/${shop.slug}/orders` as never)}
-              style={[styles.ordersLink, { backgroundColor: theme.brandSoft }]}
-            >
-              <Text style={[styles.ordersLinkText, { color: theme.brandInk }]}>Your orders here ›</Text>
-            </Pressable>
-          ) : null}
           <Text style={styles.sectionTitle}>Prices</Text>
           <PriceList
             services={services}
@@ -126,6 +117,19 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
                 : undefined
             }
           />
+          {/* Below the prices on purpose. This link only exists for a customer
+              who has ordered here before, and putting it first made the page
+              open on a piece of navigation rather than on what the shop
+              sells. */}
+          {session ? (
+            <Pressable
+              accessibilityRole="link"
+              onPress={() => router.push(`/s/${shop.slug}/orders` as never)}
+              style={[styles.ordersLink, { backgroundColor: theme.brandSoft }]}
+            >
+              <Text style={[styles.ordersLinkText, { color: theme.brandInk }]}>Your orders here ›</Text>
+            </Pressable>
+          ) : null}
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>
