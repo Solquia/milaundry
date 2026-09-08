@@ -13,6 +13,7 @@ import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, ErrorText, Loading, colors, formatMoney, space, type } from '@/components/ui-kit';
+import { StepRail } from '@/components/step-rail';
 import { CartList } from '@/components/web/cart-list';
 import { GuestForm } from '@/components/web/guest-form';
 import { DEFAULT_SCHEDULE, SchedulePicker, type ScheduleValue } from '@/components/web/schedule-picker';
@@ -23,13 +24,22 @@ import { friendlyBookingError, isConnectionError } from '@/lib/domain/booking-er
 import { validateBookingSchedule, type BookingScheduleErrors } from '@/lib/domain/booking-schedule';
 import type { Slot } from '@/lib/domain/booking-slot';
 import { resolveAccent } from '@/lib/domain/shop-branding';
+import { previousStep } from '@/lib/domain/step-rail';
 import { cartCount, cartItems, cartLines, cartTotal, startingCart, type Cart } from '@/lib/domain/web-cart';
 import { storefrontTheme } from '@/lib/domain/web-theme';
 import type { Storefront } from '@/lib/types';
 
 type Step = 'items' | 'schedule' | 'contact';
 
-const STEPS: Step[] = ['items', 'schedule', 'contact'];
+/**
+ * The three questions, named for the rail. "Details" rather than "Contact"
+ * because that is what the step asks for and what fits a third of a phone.
+ */
+const STEPS = [
+  { key: 'items', label: 'Items' },
+  { key: 'schedule', label: 'Schedule' },
+  { key: 'contact', label: 'Details' },
+] as const satisfies readonly { key: Step; label: string }[];
 const STEP_TITLES: Record<Step, string> = {
   items: 'What are we washing?',
   schedule: 'When and where?',
@@ -153,6 +163,9 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
     });
   };
 
+  /** Where Back goes. Null on the first step, which is why it is not drawn. */
+  const back = previousStep(STEPS, step);
+
   const footer = (
     <View style={styles.footer}>
       <View style={styles.totalRow}>
@@ -170,10 +183,10 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
         </Pressable>
       ) : null}
       <View style={styles.buttons}>
-        {step !== 'items' ? (
+        {back ? (
           <FooterButton
             title="Back"
-            onPress={() => setStep(step === 'contact' ? 'schedule' : 'items')}
+            onPress={() => setStep(back)}
             fill={theme.brandSoft}
             ink={theme.brandInk}
             flex={1}
@@ -181,7 +194,7 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
         ) : null}
         {step === 'items' ? (
           <FooterButton
-            title="Next: schedule"
+            title="Continue"
             onPress={() => setStep('schedule')}
             disabled={count === 0}
             fill={theme.brand}
@@ -190,11 +203,11 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
           />
         ) : null}
         {step === 'schedule' ? (
-          <FooterButton title="Next: your details" onPress={goToContact} fill={theme.brand} ink={theme.onBrand} flex={2} />
+          <FooterButton title="Continue" onPress={goToContact} fill={theme.brand} ink={theme.onBrand} flex={2} />
         ) : null}
         {step === 'contact' && session ? (
           <FooterButton
-            title={isPlacing ? 'Booking…' : 'Book now'}
+            title={isPlacing ? 'Placing…' : 'Place order'}
             onPress={() => void placeBooking()}
             disabled={isPlacing}
             fill={theme.brand}
@@ -217,20 +230,18 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
             <Text style={[styles.bandBack, { color: theme.onBrand }]}>‹ {shop.name}</Text>
           </Pressable>
           <Text style={[styles.bandTitle, { color: theme.onBrand }]}>{STEP_TITLES[step]}</Text>
-          <View style={styles.progress}>
-            {STEPS.map((name, index) => (
-              <View
-                key={name}
-                style={[
-                  styles.progressBar,
-                  { backgroundColor: theme.onBrand, opacity: index <= STEPS.indexOf(step) ? 1 : 0.35 },
-                ]}
-              />
-            ))}
-          </View>
         </View>
 
         <View style={styles.body}>
+          {/* Numbered and named. Three bars on the band said only "there is
+              more"; this says how much more, what it asks, and that a step
+              already answered is still a door back to itself. */}
+          <StepRail
+            steps={STEPS}
+            current={step}
+            onGo={setStep}
+            tone={{ reached: theme.brandInk, ahead: colors.subtle, track: colors.border }}
+          />
           {step === 'items' ? (
             <>
               <Text style={styles.hint}>
@@ -259,7 +270,12 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
               ) : (
                 <>
                   <Text style={styles.cardTitle}>Your name and number</Text>
-                  <GuestForm submitLabel="Book now" busyLabel="Booking…" onSignedIn={placeBooking} theme={theme} />
+                  <GuestForm
+                    submitLabel="Place order"
+                    busyLabel="Placing…"
+                    onSignedIn={placeBooking}
+                    theme={theme}
+                  />
                 </>
               )}
             </View>
@@ -300,8 +316,6 @@ const styles = StyleSheet.create({
   band: { padding: space.room, gap: space.snug },
   bandBack: { ...type.caption, fontWeight: '600', opacity: 0.9 },
   bandTitle: { ...type.title },
-  progress: { flexDirection: 'row', gap: space.snug, marginTop: space.tight },
-  progressBar: { flex: 1, height: 3, borderRadius: 2 },
   body: { padding: space.room, gap: space.cosy },
   hint: { ...type.caption, color: colors.subtle },
   card: {
