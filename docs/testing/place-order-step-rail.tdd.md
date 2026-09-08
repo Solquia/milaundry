@@ -155,3 +155,20 @@ $ npx jest --coverage --collectCoverageFrom=src/lib/domain/step-rail.ts
 - **The reference's detergent and fabric-softener pickers were not adopted.**
   This shop's catalogue has no such options; adding empty controls to match a
   screenshot would be a form asking questions it cannot use.
+
+---
+
+## Update: the rail was removed from the web flow
+
+The storefront band already names the current step in full — *What are we
+washing?* / *When and where?* / *Who is this for?* — directly above where the
+rail sat, and the footer already carries Back and Continue. Three numbered tabs
+under a heading that says the same thing in a sentence is one statement too
+many, so the rail is gone from `s/[slug]/book.tsx`.
+
+The native booking screen keeps it. Its header carries the service name and
+price, not a step title, so there the rail is the only thing that says how many
+questions are left — it is not repeating anything.
+
+`STEPS` stays in the web file: `previousStep` reads it for the Back button, and
+it remains the one place the order of the three questions is written down.

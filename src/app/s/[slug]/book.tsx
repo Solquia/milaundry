@@ -13,7 +13,6 @@ import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, ErrorText, Loading, colors, formatMoney, space, type } from '@/components/ui-kit';
-import { StepRail } from '@/components/step-rail';
 import { CartList } from '@/components/web/cart-list';
 import { GuestForm } from '@/components/web/guest-form';
 import { DEFAULT_SCHEDULE, SchedulePicker, type ScheduleValue } from '@/components/web/schedule-picker';
@@ -32,8 +31,8 @@ import type { Storefront } from '@/lib/types';
 type Step = 'items' | 'schedule' | 'contact';
 
 /**
- * The three questions, named for the rail. "Details" rather than "Contact"
- * because that is what the step asks for and what fits a third of a phone.
+ * The three questions, in the order they are asked. The band names whichever
+ * one is current; this is what Back counts backwards through.
  */
 const STEPS = [
   { key: 'items', label: 'Items' },
@@ -233,15 +232,6 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
         </View>
 
         <View style={styles.body}>
-          {/* Numbered and named. Three bars on the band said only "there is
-              more"; this says how much more, what it asks, and that a step
-              already answered is still a door back to itself. */}
-          <StepRail
-            steps={STEPS}
-            current={step}
-            onGo={setStep}
-            tone={{ reached: theme.brandInk, ahead: colors.subtle, track: colors.border }}
-          />
           {step === 'items' ? (
             <>
               <Text style={styles.hint}>
