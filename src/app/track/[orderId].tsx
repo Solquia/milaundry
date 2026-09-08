@@ -33,12 +33,14 @@ import { isPasswordPending } from '@/lib/web-guest-state';
 const POLL_MS = 30_000;
 
 export default function TrackPage() {
-  const { orderId, welcome } = useLocalSearchParams<{ orderId: string; welcome?: string }>();
+  const { orderId } = useLocalSearchParams<{ orderId: string }>();
   const { session, isLoading: isAuthLoading } = useAuth();
   const queryClient = useQueryClient();
-  // Offered on the redirect out of booking, and on every later visit until a
-  // password exists: the link is this account's only key until then.
-  const isNewAccount = welcome === '1' || isPasswordPending();
+  // Offered on every visit until a password exists: the link is this
+  // account's only key until then. Remembered by the browser that made the
+  // guest account, so an account that already has a password is never asked
+  // to overwrite it.
+  const isNewAccount = isPasswordPending();
 
   const { data: order, isLoading, error } = useQuery({
     queryKey: ['order', orderId],

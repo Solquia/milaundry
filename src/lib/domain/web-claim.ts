@@ -7,12 +7,14 @@
  * and number are enough to put the load on an account and follow it.
  */
 
-export function claimHeadline(shopName: string): string {
-  return `Your laundry at ${shopName}`;
+/** The shop is unknown once the load is claimed: the peek stops answering. */
+export function claimHeadline(shopName: string | null): string {
+  return shopName ? `Your laundry at ${shopName}` : 'Your laundry receipt';
 }
 
-export function claimInvitation(shopName: string): string {
-  return `Enter your name and mobile number to follow this load from ${shopName} and see when it is ready. No app needed.`;
+export function claimInvitation(shopName: string | null): string {
+  const from = shopName ? ` from ${shopName}` : '';
+  return `Enter your name and mobile number to follow this load${from} and see when it is ready. No app needed.`;
 }
 
 /** Someone already signed in only needs to open it; a guest is following it for the first time. */

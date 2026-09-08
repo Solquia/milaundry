@@ -70,6 +70,11 @@ const BOOKING_OFFLINE = "We couldn't reach the shop. Check your connection and t
 const BOOKING_UNAVAILABLE =
   "This shop can't take online bookings yet. Please contact the shop to place your order.";
 
+/** Whether a failure means the request may never have reached the shop, or its answer never came back. */
+export function isConnectionError(rawMessage: string): boolean {
+  return CONNECTION_RE.test(rawMessage);
+}
+
 /**
  * Turns a backend failure into something the customer can act on, without
  * inventing a cause the system cannot know. A message that already reads like a

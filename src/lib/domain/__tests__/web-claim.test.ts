@@ -5,6 +5,11 @@ describe('claim page copy', () => {
     expect(claimHeadline('Sparkle Wash')).toBe('Your laundry at Sparkle Wash');
   });
 
+  it('still reads well when the shop is unknown, as it is for a claimed receipt', () => {
+    expect(claimHeadline(null)).toBe('Your laundry receipt');
+    expect(claimInvitation(null)).not.toContain('from ');
+  });
+
   it('tells a guest what a name and number get them', () => {
     expect(claimInvitation('Sparkle Wash')).toMatch(/name and mobile number/i);
     expect(claimInvitation('Sparkle Wash')).toContain('Sparkle Wash');

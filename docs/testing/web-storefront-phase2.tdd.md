@@ -81,8 +81,9 @@ now carries the shop's `slug` so the tracking page can link back.
   progress, sticky estimate footer. The contact step shows the guest form, or
   "Booking as <name>" for a session that already exists.
 - `src/app/track/[orderId].tsx`: headline, step list, items and bill, schedule,
-  payment rails once the bill is weighed, the password card on
-  `?welcome=1`, a guest form when there is no session. Polls every 30 s.
+  payment rails once the bill is weighed, the password card while the browser
+  remembers that no password was set (the `?welcome=1` flag was dropped in
+  phase 3), a guest form when there is no session. Polls every 30 s.
 - `src/app/s/[slug]/orders.tsx`: the visitor's orders at this shop.
 - `src/app/s/[slug]/index.tsx`: "Book online" leads the footer; "Your orders
   here" appears for a session.

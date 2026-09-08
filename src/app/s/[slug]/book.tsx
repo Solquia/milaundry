@@ -128,7 +128,7 @@ function BookingFlow({ storefront, slug }: { storefront: Storefront; slug: strin
         cartItems(cart).map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
         { ...result.value, notes: schedule.notes.trim() }
       );
-      router.replace(`/track/${order.id}?welcome=1` as never);
+      router.replace(`/track/${order.id}` as never);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       // A lost reply is not a failed order: place_order may have run. Say so

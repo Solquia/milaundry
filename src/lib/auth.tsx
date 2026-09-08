@@ -1,9 +1,11 @@
 import type { Session } from '@supabase/supabase-js';
+import { useQueryClient } from '@tanstack/react-query';
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
 
@@ -24,7 +26,9 @@ interface AuthContextValue {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<Session | null>(null);
+  const userIdRef = useRef<string | undefined>(undefined);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -48,16 +52,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
+      userIdRef.current = data.session?.user.id;
       setSession(data.session);
       loadProfile(data.session?.user.id).finally(() => setIsLoading(false));
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+      // Query keys name orders and shops, not the person asking. When the
+      // person changes (a shared phone, "use another number" on a shop's web
+      // page) the previous account's cached orders must not render for the
+      // next one, so the whole cache goes with the session.
+      // Only a change of person can leak the previous person's cache. With no
+      // previous user there is nothing to protect, and clearing then (on the
+      // session restore, a token refresh at start-up, or the guest's own
+      // sign-in) removes a page's first queries mid-flight.
+      if (userIdRef.current && userIdRef.current !== next?.user.id) {
+        queryClient.clear();
+      }
+      userIdRef.current = next?.user.id;
       setSession(next);
       loadProfile(next?.user.id);
     });
     return () => sub.subscription.unsubscribe();
-  }, [loadProfile]);
+  }, [loadProfile, queryClient]);
 
   // Phone sign-ups need a paid SMS provider on Supabase, so auth runs on a
   // synthetic email derived from the phone or a shop's branded username; the
