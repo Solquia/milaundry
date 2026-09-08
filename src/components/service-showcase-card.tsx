@@ -1,19 +1,23 @@
 /**
  * One service, shown off.
  *
- * A row says a name and a number. This says what the service *is*: a tile in
- * the colour of its kind with the glyph large on it, the name set as a title,
- * a line about it, and the price where the eye lands last — with the way to
- * book sitting on the tile like a sticker on a shop window. Both the app and
- * the web price list draw this one card, so a shop looks like itself on
- * either.
+ * A row says a name and a number. This says what the service *is*: a small
+ * diorama of the thing itself, lit from one corner and standing on its own
+ * shadow, the name set as a title, a line about it, and the price where the
+ * eye lands last — with the way to book sitting on the scene like a sticker on
+ * a shop window. Both the app and the web price list draw this one card, so a
+ * shop looks like itself on either.
+ *
+ * The scene lifts and settles when the card is touched or hovered. It is the
+ * only authored motion on the list, it runs on a spring rather than a curve so
+ * the object has weight, and it does not run at all for anyone who has asked
+ * their device for less motion.
  */
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatPriceLine } from '@/lib/domain/price-label';
-import { serviceIcon } from '@/lib/domain/service-icon';
+import { sceneFor } from '@/lib/domain/service-scene';
 import {
   showcaseBlurb,
   showcasePrice,
@@ -22,6 +26,7 @@ import {
   type ShowcaseService,
 } from '@/lib/domain/service-showcase';
 
+import { ServiceScene } from './service-scene';
 import { colors, elevation, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
@@ -38,8 +43,24 @@ interface ServiceShowcaseCardProps {
   isDisabled?: boolean;
 }
 
-const GLYPH = 38;
-const WATERMARK = 96;
+/** Whether the device has asked for less motion. Read once, then watched. */
+function useReducedMotion(): boolean {
+  const [isReduced, setIsReduced] = React.useState(false);
+
+  React.useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
+      if (alive) setIsReduced(value);
+    });
+    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setIsReduced);
+    return () => {
+      alive = false;
+      listener.remove();
+    };
+  }, []);
+
+  return isReduced;
+}
 
 export function ServiceShowcaseCard({
   service,
@@ -48,11 +69,38 @@ export function ServiceShowcaseCard({
   isDisabled = false,
 }: ServiceShowcaseCardProps) {
   const [isHovered, setIsHovered] = React.useState(false);
+  const [isPressed, setIsPressed] = React.useState(false);
+  const isReduced = useReducedMotion();
   const tone = showcaseTone(service.category);
   const price = showcasePrice(service);
-  const icon = serviceIcon(service.name, service.category) as never;
+  const scene = sceneFor(service.name, service.category);
   const isBookable = Boolean(onBook);
   const isLive = isBookable && !isDisabled;
+  const isEngaged = isLive && (isHovered || isPressed);
+
+  const [lift] = React.useState(() => new Animated.Value(0));
+  React.useEffect(() => {
+    if (isReduced) {
+      lift.setValue(0);
+      return;
+    }
+    Animated.spring(lift, {
+      toValue: isEngaged ? 1 : 0,
+      // Enough damping that it settles rather than wobbles, and enough mass
+      // that the object reads as solid rather than as a bouncing sprite.
+      damping: 14,
+      stiffness: 190,
+      mass: 0.9,
+      useNativeDriver: true,
+    }).start();
+  }, [isEngaged, isReduced, lift]);
+
+  const sceneStyle = {
+    transform: [
+      { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }) },
+      { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
+    ],
+  };
 
   return (
     <Pressable
@@ -65,6 +113,8 @@ export function ServiceShowcaseCard({
       accessibilityState={isBookable ? { disabled: isDisabled } : undefined}
       disabled={!isBookable}
       onPress={onBook}
+      onPressIn={() => setIsPressed(true)}
+      onPressOut={() => setIsPressed(false)}
       onHoverIn={() => setIsHovered(true)}
       onHoverOut={() => setIsHovered(false)}
       style={({ pressed }) => [
@@ -91,17 +141,9 @@ export function ServiceShowcaseCard({
 
       <View style={styles.tileColumn}>
         <View style={[styles.tile, { backgroundColor: tone.bg }]}>
-          {/* A block of the category's colour with the glyph in white — the
-              same glyph again, oversized and faint, bleeding off the corner so
-              the tile has depth instead of an icon centred in a square. */}
-          <Ionicons
-            name={icon}
-            size={WATERMARK}
-            color={colors.onAccent}
-            style={styles.watermark}
-            pointerEvents="none"
-          />
-          <Ionicons name={icon} size={GLYPH} color={colors.onAccent} />
+          <Animated.View style={[StyleSheet.absoluteFill, sceneStyle]} pointerEvents="none">
+            <ServiceScene scene={scene} brand={tone.bg} />
+          </Animated.View>
         </View>
         {isBookable ? (
           <View
@@ -156,7 +198,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
-  watermark: { position: 'absolute', right: -22, bottom: -24, opacity: 0.22 },
   /** Overlaps the tile's bottom edge, the way a price sticker sits on glass. */
   sticker: {
     marginTop: -16,

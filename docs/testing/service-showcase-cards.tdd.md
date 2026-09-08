@@ -46,3 +46,51 @@
 
 - RED: `54a75cd test: add reproducer for the service showcase cards`
 - GREEN: the feature commit that follows this file.
+
+---
+
+# Follow-up: isometric dioramas on the tiles (overdrive)
+
+**Request (2026-09-08):** "add a graphics on the tiles of the pricing making it more goodlooking and detailed looking connected to what services inside". Direction chosen by the user from three offered: isometric mini-diorama, with tile depth and a live touch.
+
+## What changed
+
+| Surface | Before | After |
+|---|---|---|
+| `src/lib/domain/service-scene.ts` (new) | — | `sceneFor` picks one of eight dioramas from the service name, then its category, in the same specificity order as `service-icon.ts`; `sceneFaces` derives one light source (top, left, right faces, floor shadow, tile gradient, rim) from the tile colour |
+| `src/components/service-scene.tsx` (new) | — | Eight scenes drawn in SVG on a shared 2:1 isometric projection: folded stack, iron on a board with steam, garment cover on a hanger, made bed, front-loader, slatted basket, a pair of shoes, curtains on a rail. Every solid is painted through one `box` helper and edged with a hairline so neighbouring forms separate |
+| `src/components/service-showcase-card.tsx` | A single Ionicons glyph plus a watermark on a flat tile | The diorama on a gradient tile with a lit top edge; the scene lifts and scales on a spring when the card is hovered or pressed, and holds still when the device asks for reduced motion |
+
+## Task report
+
+| Task | Test target | RED | GREEN |
+|---|---|---|---|
+| Scene choice and lighting | `src/lib/domain/__tests__/service-scene.test.ts` | `npx jest service-scene`: `Cannot find module '../service-scene'` (commit `test: add reproducer for the isometric service scenes`) | 10/10 pass; full suite 100 suites / 1122 tests |
+
+## Test specification
+
+| # | What is guaranteed | Test | Type | Result |
+|---|---|---|---|---|
+| 1 | The service's own name outranks its category, and the most specific word wins: "Wash, Dry & Fold" is a stack, "Dry cleaning — Barong / Suit" a suit, "Wash and press" an iron | `sceneFor` (3 tests) | unit | PASS |
+| 2 | Every category resolves to a known scene, and the name match ignores case | `sceneFor` (2 tests) | unit | PASS |
+| 3 | Every face is a hex colour; the top face is lighter than the left, the left lighter than the right, so a box reads as a solid | `sceneFaces` (2 tests) | unit | PASS |
+| 4 | The tile gradient is lighter at the top than at the foot; the ramp is deterministic and survives an unreadable colour | `sceneFaces` (3 tests) | unit | PASS |
+
+## Defects found and fixed during visual review
+
+1. **Every tile after the first painted itself with the first tile's gradient.** SVG ids share one document-wide namespace on web, and all scenes declared `id="sky"`, so the bedding tile rendered blue. The id is now keyed to the tile colour.
+2. **The bed read as an open crate.** Its parts were painted near-to-far, putting the headboard in front of the pillows. In this projection a larger x + y is nearer, so the parts are now painted far to near.
+3. **The shoes, basket, suit and iron read as generic boxes.** Redrawn with the detail that identifies each: a tapering cover and hanger, a rim lip and slats, a sole and tapered toe, a sole plate jutting past the body.
+4. **Neighbouring pale faces merged into one mass.** Every solid now carries a hairline edge in the deep tile colour.
+
+## Coverage and known gaps
+
+- `service-scene.ts` is fully exercised by its suite. The drawing component has no unit test, matching repo practice; it was verified in Chrome against all eight scenes at 104px and 168px.
+- The spring uses the JS `Animated` driver with `useNativeDriver: true`; reduced motion is read once and watched via `AccessibilityInfo`.
+- A temporary `/scene-preview` route was used for the eight-scene review and removed before commit.
+- Verified on web only. The app screen draws the same component and typechecks, but was not rendered on a device this session.
+
+## Merge evidence
+
+- RED: `test: add reproducer for the isometric service scenes`
+- GREEN: the feature commit that follows this file.
