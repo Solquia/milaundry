@@ -5,9 +5,6 @@ import {
   cartItems,
   cartLines,
   cartTotal,
-  cartFromParams,
-  decodeCart,
-  encodeCart,
   startingCart,
   type CartService,
 } from '../web-cart';
@@ -103,50 +100,5 @@ describe('startingCart', () => {
     expect(startingCart(undefined, catalog)).toBe(EMPTY_CART);
     expect(startingCart('', catalog)).toBe(EMPTY_CART);
     expect(startingCart('gone', catalog)).toBe(EMPTY_CART);
-  });
-});
-
-describe('encodeCart / decodeCart', () => {
-  it('round-trips a basket through one query value', () => {
-    const cart = { wash: 4, shirt: 2 };
-    expect(decodeCart(encodeCart(cart), catalog)).toEqual(cart);
-  });
-
-  it('encodes nothing for an empty basket', () => {
-    expect(encodeCart(EMPTY_CART)).toBe('');
-  });
-
-  it('drops lines the shop no longer sells and anything that is not a whole positive number', () => {
-    expect(decodeCart('wash:3,gone:2,shirt:0,pickup:x', catalog)).toEqual({ wash: 3 });
-  });
-
-  it('holds a per-kg line to the shop minimum and the weight cap', () => {
-    expect(decodeCart('wash:1', catalog)).toEqual({ wash: 3 });
-    expect(decodeCart(`wash:${MAX_WEIGHT_KG + 50}`, catalog)).toEqual({ wash: MAX_WEIGHT_KG });
-  });
-
-  it('keeps a flat line at one', () => {
-    expect(decodeCart('pickup:5', catalog)).toEqual({ pickup: 1 });
-  });
-
-  it('opens empty for a missing, blank, or nonsense value', () => {
-    expect(decodeCart(undefined, catalog)).toBe(EMPTY_CART);
-    expect(decodeCart('', catalog)).toBe(EMPTY_CART);
-    expect(decodeCart('???', catalog)).toBe(EMPTY_CART);
-  });
-});
-
-describe('cartFromParams', () => {
-  it('prefers a whole basket over a single tapped service', () => {
-    expect(cartFromParams({ cart: 'shirt:2', service: 'wash' }, catalog)).toEqual({ shirt: 2 });
-  });
-
-  it('falls back to the tapped service, then to empty', () => {
-    expect(cartFromParams({ service: 'wash' }, catalog)).toEqual({ wash: 3 });
-    expect(cartFromParams({}, catalog)).toBe(EMPTY_CART);
-  });
-
-  it('takes the first value when the router repeats a key', () => {
-    expect(cartFromParams({ cart: ['shirt:1', 'wash:3'] }, catalog)).toEqual({ shirt: 1 });
   });
 });

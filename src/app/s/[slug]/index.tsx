@@ -9,8 +9,8 @@
 import { useQuery } from '@tanstack/react-query';
 import Head from 'expo-router/head';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import React from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { PriceList } from '@/components/web/price-list';
@@ -20,20 +20,10 @@ import { StorefrontHero } from '@/components/web/storefront-hero';
 import { WebShell } from '@/components/web/web-shell';
 import { getStorefront } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { bookButtonLabel } from '@/lib/domain/basket-copy';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
-import {
-  EMPTY_CART,
-  adjustLine,
-  cartCount,
-  cartLines,
-  cartTotal,
-  encodeCart,
-  type Cart,
-} from '@/lib/domain/web-cart';
 import { storefrontTheme } from '@/lib/domain/web-theme';
-import type { Storefront, StorefrontService } from '@/lib/types';
+import type { Storefront } from '@/lib/types';
 
 export default function StorefrontPage() {
   const { slug } = useLocalSearchParams<{ slug: string }>();
@@ -62,18 +52,6 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
   const router = useRouter();
   const { session } = useAuth();
   const canBook = services.length > 0;
-  // The basket lives on the page: the price list fills it, the footer books it.
-  const [cart, setCart] = useState<Cart>(EMPTY_CART);
-  const adjust = (service: StorefrontService, direction: 1 | -1) =>
-    setCart((current) => adjustLine(current, service, direction));
-  const count = cartCount(cart);
-  const total = cartTotal(cartLines(cart, services));
-  const openBooking = () =>
-    router.push(
-      (count > 0
-        ? { pathname: `/s/${shop.slug}/book`, params: { cart: encodeCart(cart) } }
-        : `/s/${shop.slug}/book`) as never
-    );
   const theme = storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
   const reputation = shopReputation(reviews);
   const cheapest = startingPrice(services);
@@ -87,14 +65,12 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
     canBook || phone || maps ? (
       <View style={styles.actions}>
         {canBook ? (
-          <BumpOnChange watch={total}>
-            <ActionButton
-              title={bookButtonLabel(count, total)}
-              onPress={openBooking}
-              fill={theme.brand}
-              ink={theme.onBrand}
-            />
-          </BumpOnChange>
+          <ActionButton
+            title="Book online"
+            onPress={() => router.push(`/s/${shop.slug}/book` as never)}
+            fill={theme.brand}
+            ink={theme.onBrand}
+          />
         ) : null}
         {phone ? (
           <ActionButton
@@ -143,8 +119,12 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
           <PriceList
             services={services}
             theme={theme}
-            cart={canBook ? cart : undefined}
-            onAdjust={canBook ? adjust : undefined}
+            onBook={
+              canBook
+                ? (serviceId) =>
+                    router.push({ pathname: `/s/${shop.slug}/book`, params: { service: serviceId } } as never)
+                : undefined
+            }
           />
           {reputation && reviews.length > 0 ? (
             <>
@@ -158,21 +138,6 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
       </WebShell>
     </>
   );
-}
-
-/** A short spring on its child whenever the watched value changes: the total lands. */
-function BumpOnChange({ watch, children }: { watch: number; children: React.ReactNode }) {
-  const [scale] = useState(() => new Animated.Value(1));
-  const isFirstRef = useRef(true);
-  useEffect(() => {
-    if (isFirstRef.current) {
-      isFirstRef.current = false;
-      return;
-    }
-    scale.setValue(1.06);
-    Animated.spring(scale, { toValue: 1, friction: 5, tension: 160, useNativeDriver: true }).start();
-  }, [watch, scale]);
-  return <Animated.View style={{ flex: 1, transform: [{ scale }] }}>{children}</Animated.View>;
 }
 
 interface ActionButtonProps {
