@@ -15,7 +15,7 @@
 import React from 'react';
 import Svg, { Defs, Ellipse, LinearGradient, Path, Polygon, Rect, Stop } from 'react-native-svg';
 
-import { sceneFaces, type SceneKey } from '@/lib/domain/service-scene';
+import { sceneFaces, type SceneKey, type SceneSurface } from '@/lib/domain/service-scene';
 
 const SIZE = 120;
 /** cos 30 and sin 30: the 2:1 isometric the whole set is drawn on. */
@@ -419,28 +419,61 @@ const SHADOWS: Record<SceneKey, readonly [number, number, number, number]> = {
   curtain: [-5, -23, 10, 46],
 };
 
-export function ServiceScene({ scene, brand }: { scene: SceneKey; brand: string }) {
+export function ServiceScene({
+  scene,
+  brand,
+  surface = 'tile',
+}: {
+  scene: SceneKey;
+  brand: string;
+  /** A coloured tile, or floating on the white of the card. */
+  surface?: SceneSurface;
+}) {
   // SVG ids live in one document-wide namespace on web, so a shared `sky` id
   // made every tile after the first paint itself with the first tile's
   // gradient — the bedding tile came out blue. Keying the id to the colour
   // gives each tone its own gradient, and lets two tiles of one colour share.
-  const skyId = `sky${brand.replace(/[^a-zA-Z0-9]/g, '')}`;
-  const faces = sceneFaces(brand);
+  const skyId = `sky${surface}${brand.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const faces = sceneFaces(brand, surface);
+  const isOnWhite = surface === 'white';
   const Drawing = SCENES[scene] ?? SCENES.basket;
   const [sx, sy, sw, sd] = SHADOWS[scene] ?? SHADOWS.basket;
 
   return (
-    <Svg width="100%" height="100%" viewBox={`0 0 ${SIZE} ${SIZE}`}>
+    // On a tile the drawing is inset, so the object sits in a field of
+    // colour. On a white card there is no field to sit in and the margin is
+    // just dead space, so the frame crops in to the object's own bounds.
+    <Svg
+      width="100%"
+      height="100%"
+      viewBox={isOnWhite ? '20 10 80 80' : `0 0 ${SIZE} ${SIZE}`}
+    >
       <Defs>
         <LinearGradient id={skyId} x1="0" y1="0" x2="0.35" y2="1">
           <Stop offset="0" stopColor={faces.skyTop} />
           <Stop offset="1" stopColor={faces.skyFoot} />
         </LinearGradient>
       </Defs>
-      <Rect x="0" y="0" width={SIZE} height={SIZE} fill={`url(#${skyId})`} />
-      {/* The light lands on the top edge of the tile. */}
-      <Rect x="0" y="0" width={SIZE} height="1.5" fill={faces.rim} opacity={0.5} />
-      <Polygon points={floorPatch(sx, sy, sw, sd)} fill={faces.shadow} opacity={0.32} />
+      {/* On a white card there is no tile and no rim: the object stands on the
+          page, and the only thing under it is the pool it casts. */}
+      {isOnWhite ? null : (
+        <>
+          <Rect x="0" y="0" width={SIZE} height={SIZE} fill={`url(#${skyId})`} />
+          <Rect x="0" y="0" width={SIZE} height="1.5" fill={faces.rim} opacity={0.5} />
+        </>
+      )}
+      {isOnWhite ? (
+        <Ellipse
+          cx={SIZE / 2}
+          cy={CY + (sw + sd) / 4 + 4}
+          rx={(sw + sd) * 0.42}
+          ry={(sw + sd) * 0.13}
+          fill={faces.shadow}
+          opacity={0.22}
+        />
+      ) : (
+        <Polygon points={floorPatch(sx, sy, sw, sd)} fill={faces.shadow} opacity={0.32} />
+      )}
       <Drawing faces={faces} />
     </Svg>
   );

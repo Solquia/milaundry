@@ -1,22 +1,22 @@
 /**
- * The price list as a showcase.
+ * The price list as a grid of service cards.
  *
- * Every service is a card with a face: a tile in the colour of its kind, the
- * name as a title, a line about it, the price, and a Book sticker in the
- * shop's own colour. The web page has nothing under the list but the shop's
- * details, so every card is open — a customer who arrived from a search reads
- * every price without a tap. Categories are quiet labels between the cards,
- * there for a long list and invisible in a short one.
+ * Two to a row, each a white card with the thing itself standing on it. A
+ * customer arriving from a search is choosing what to bring, not reading a
+ * table, and a grid answers that faster than a column of rows: eight services
+ * fit in two thumbs of scrolling and each one is a picture before it is a
+ * price.
  *
- * A card is the fastest way to book: tapping it opens the booking page with
- * that service already in the basket. When the shop cannot take bookings the
- * cards are just cards, and the sticker is not there to promise otherwise.
+ * Categories are quiet labels between the rows, there for a long list and
+ * invisible in a short one. Tapping a card opens the booking page with that
+ * service already in the basket; when the shop cannot take bookings the cards
+ * are just cards.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { ServiceShowcaseCard } from '@/components/service-showcase-card';
-import { CROWN, colors, space, type } from '@/components/ui-kit';
+import { ServiceTileCard } from '@/components/service-tile-card';
+import { colors, space, type } from '@/components/ui-kit';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -26,6 +26,15 @@ interface PriceListProps {
   theme: StorefrontTheme;
   /** Books this service; absent when the shop is not taking bookings. */
   onBook?: (serviceId: string) => void;
+}
+
+/** Two to a row; an odd last card keeps its width with a blank beside it. */
+function pairs<T>(items: readonly T[]): (T | null)[][] {
+  const rows: (T | null)[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push([items[i], items[i + 1] ?? null]);
+  }
+  return rows;
 }
 
 export function PriceList({ services, theme, onBook }: PriceListProps) {
@@ -49,13 +58,21 @@ export function PriceList({ services, theme, onBook }: PriceListProps) {
           {showLabels ? (
             <Text style={styles.label}>{CATEGORY_LABELS[group.category]}</Text>
           ) : null}
-          {group.services.map((service) => (
-            <ServiceShowcaseCard
-              key={service.id}
-              service={service}
-              bookTone={bookTone}
-              onBook={onBook ? () => onBook(service.id) : undefined}
-            />
+          {pairs(group.services).map((row, index) => (
+            <View key={index} style={styles.row}>
+              {row.map((service, column) =>
+                service ? (
+                  <ServiceTileCard
+                    key={service.id}
+                    service={service}
+                    bookTone={bookTone}
+                    onBook={onBook ? () => onBook(service.id) : undefined}
+                  />
+                ) : (
+                  <View key={`blank-${column}`} style={styles.blank} />
+                )
+              )}
+            </View>
           ))}
         </View>
       ))}
@@ -67,6 +84,8 @@ export function PriceList({ services, theme, onBook }: PriceListProps) {
 const styles = StyleSheet.create({
   list: { gap: space.section },
   group: { gap: space.cosy },
+  row: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
+  blank: { flex: 1 },
   label: {
     ...type.label,
     color: colors.subtle,
@@ -78,7 +97,7 @@ const styles = StyleSheet.create({
   footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight },
   empty: {
     backgroundColor: colors.card,
-    ...CROWN,
+    borderRadius: 26,
     padding: space.section,
     gap: space.tight,
   },

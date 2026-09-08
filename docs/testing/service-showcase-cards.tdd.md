@@ -94,3 +94,50 @@
 
 - RED: `test: add reproducer for the isometric service scenes`
 - GREEN: the feature commit that follows this file.
+
+---
+
+# Follow-up: the price list as a grid of white cards
+
+**Request (2026-09-08):** the user supplied a reference of a services menu — white cards in a grid, each holding a cut-out object standing on the page with its name above it — and asked for that style. An earlier ask in the same session was for real photographs.
+
+## The photograph question, answered honestly
+
+The user asked me to source a licensed stock set. I searched Wikimedia Commons, the one library reachable from this machine with clean, verifiable licences, and built a contact sheet of 32 candidates across eight categories. Roughly eight were usable: ironing returned 1940s archival photographs, dry cleaning a Navy fire drill and a designer garment bag on a floor, bedding a 19th-century oil painting, and the laundry basket category's best result was a cat. Beyond the individual misses, the set had no coherence — mixing an archival photograph with a product shot on one screen would read as less finished than the drawings.
+
+The photograph path is therefore **built but unfed**: a tile renders `image_url` whenever a service has one, with the drawing as the fallback and a broken URL falling back to it too. No service carries an image yet; storing and uploading one is the outstanding step.
+
+## What changed
+
+| Surface | Before | After |
+|---|---|---|
+| `service-scene.ts` | `sceneFaces(brand)` — one lighting, for a coloured tile | `sceneFaces(brand, surface)`. On `'white'` the object carries the hue itself and the tile is dropped, because a near-white object on a white card is a hole |
+| `service-scene.tsx` | Always painted a gradient tile, a rim and an isometric floor patch | On white: no tile, no rim, a soft contact ellipse under the object, and the frame crops to the object's bounds so it fills the card |
+| `service-tile-card.tsx` (new) | — | The card from the reference: name above, object standing on white with its shadow, price and an Add button below. Replaces `service-showcase-card.tsx`, which is deleted |
+| `web/price-list.tsx` and the app shop screen | A column of horizontal rows | Two cards to a row, with the app's entrance cascade counting cards across the columns |
+
+## Task report
+
+| Task | Test target | RED | GREEN |
+|---|---|---|---|
+| Scene tones on a white card | `service-scene.test.ts` | `npx jest service-scene`: 2 failures — the white variant still painted a tile and returned near-white faces (commit `test: add reproducer for scenes drawn on a white card`) | 14/14 pass; full suite 101 suites / 1137 tests |
+
+## Test specification
+
+| # | What is guaranteed | Test | Type | Result |
+|---|---|---|---|---|
+| 1 | The white variant keeps the same light source: top lit, right shaded | `sceneFaces on a white card` | unit | PASS |
+| 2 | The object is painted in its own colour rather than near-white, so it does not vanish | `sceneFaces on a white card` | unit | PASS |
+| 3 | Nothing paints a panel behind the object on a white card | `sceneFaces on a white card` | unit | PASS |
+| 4 | Every face that paints returns a hex colour | `sceneFaces on a white card` | unit | PASS |
+
+## Coverage and known gaps
+
+- Verified in Chrome at phone width on the public shop page. Typecheck, lint, and the Impeccable detector are clean.
+- The app shop screen renders the same grid and typechecks, but was not viewed on a device this pass.
+- The objects remain drawings, not photographs. The reference's images are photographic cut-outs; matching that needs real image files, which no reachable library supplied at an acceptable quality.
+
+## Merge evidence
+
+- RED: `test: add reproducer for scenes drawn on a white card`
+- GREEN: the feature commit that follows this file.

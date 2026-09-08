@@ -69,8 +69,15 @@ export function sceneFor(name: string, category: ServiceCategory): SceneKey {
   return CATEGORY_SCENES[category] ?? CATEGORY_SCENES.other;
 }
 
+/**
+ * Where the object stands. On a coloured tile it is painted near-white and
+ * the tile carries the hue; on a white card that reads as a hole, so the
+ * object has to carry the hue itself.
+ */
+export type SceneSurface = 'tile' | 'white';
+
 export interface SceneFaces {
-  /** The tile behind the scene: lighter at the top, deeper at the foot. */
+  /** The tile behind the scene, or `transparent` on a white card. */
   skyTop: string;
   skyFoot: string;
   /** The three faces of every solid in the scene, lit from the upper left. */
@@ -114,8 +121,23 @@ function shift(rgb: readonly [number, number, number], amount: number): string {
  * pure white: a diorama in one hue reads as a made object, and pure white on
  * every face would flatten it back into a sticker.
  */
-export function sceneFaces(brand: string): SceneFaces {
+export function sceneFaces(brand: string, surface: SceneSurface = 'tile'): SceneFaces {
   const rgb = channels(brand);
+
+  if (surface === 'white') {
+    return {
+      skyTop: 'transparent',
+      skyFoot: 'transparent',
+      top: shift(rgb, 0.3),
+      left: shift(rgb, 0.02),
+      right: shift(rgb, -0.26),
+      // Neutral, not tinted: a coloured pool under an object standing on white
+      // reads as spilled paint rather than as shadow.
+      shadow: '#8A93A0',
+      rim: shift(rgb, 0.45),
+    };
+  }
+
   return {
     skyTop: shift(rgb, 0.1),
     skyFoot: shift(rgb, -0.22),
