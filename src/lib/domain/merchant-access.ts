@@ -50,3 +50,25 @@ export function describeShopAccess(role: ShopAccountRole): string {
     ? 'Owner account'
     : 'Staff account · orders, new orders and prices';
 }
+
+/**
+ * Where to send someone who asked for a screen their role cannot open, or
+ * null to let them through.
+ *
+ * Hiding the tab is the whole guard on a phone, where the only way to a screen
+ * is to tap something. The web has an address bar: a typed path or an old
+ * bookmark is a second door, and `href: null` does not close it — it just
+ * leaves the browser showing /analytics with a different screen underneath,
+ * which is a worse answer than either showing it or refusing it.
+ *
+ * Staff go to the first tab they do have rather than to a message. Nothing has
+ * gone wrong: they asked for a room that is not theirs, and the answer is the
+ * room that is.
+ */
+export function redirectForMerchantScreen(
+  role: ShopAccountRole,
+  screen: string
+): string | null {
+  if (canOpenMerchantRoute(role, screen)) return null;
+  return `/(merchant)/${STAFF_TABS[0].name}`;
+}
