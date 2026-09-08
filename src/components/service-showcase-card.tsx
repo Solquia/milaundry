@@ -13,6 +13,7 @@
  * the object has weight, and it does not run at all for anyone who has asked
  * their device for less motion.
  */
+import { Image } from 'expo-image';
 import React from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -31,6 +32,12 @@ import { CROWN, RADII, colors, elevation, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
   name: string;
+  /**
+   * A photograph of this service, when the shop has one. A picture of the
+   * shop's own work beats any drawing, so it wins the tile whenever it
+   * exists; the diorama is what a service wears until then.
+   */
+  image_url?: string | null;
 }
 
 interface ServiceShowcaseCardProps {
@@ -74,6 +81,11 @@ export function ServiceShowcaseCard({
   const tone = showcaseTone(service.category);
   const price = showcasePrice(service);
   const scene = sceneFor(service.name, service.category);
+  const photo = (service.image_url ?? '').trim();
+  // A URL that fails to load must not leave a coloured hole where the picture
+  // was, so a broken photo falls back to the drawing rather than to nothing.
+  const [isPhotoBroken, setIsPhotoBroken] = React.useState(false);
+  const hasPhoto = photo.length > 0 && !isPhotoBroken;
   const isBookable = Boolean(onBook);
   const isLive = isBookable && !isDisabled;
   const isEngaged = isLive && (isHovered || isPressed);
@@ -142,7 +154,18 @@ export function ServiceShowcaseCard({
       <View style={styles.tileColumn}>
         <View style={[styles.tile, { backgroundColor: tone.bg }]}>
           <Animated.View style={[StyleSheet.absoluteFill, sceneStyle]} pointerEvents="none">
-            <ServiceScene scene={scene} brand={tone.bg} />
+            {hasPhoto ? (
+              <Image
+                source={{ uri: photo }}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+                transition={180}
+                onError={() => setIsPhotoBroken(true)}
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <ServiceScene scene={scene} brand={tone.bg} />
+            )}
           </Animated.View>
         </View>
         {isBookable ? (
