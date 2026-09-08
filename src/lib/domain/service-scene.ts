@@ -148,3 +148,51 @@ export function sceneFaces(brand: string, surface: SceneSurface = 'tile'): Scene
     rim: shift(rgb, 0.55),
   };
 }
+
+/**
+ * The colours an object is actually made of.
+ *
+ * Every scene used to be painted from its category's tone, so a stack of
+ * laundry, a washing machine and a pair of shoes were all the same blue with
+ * the same three shades. That reads as a diagram of a thing rather than as
+ * the thing. A washing machine is white steel with a dark glass door; a
+ * hiking shoe is navy and orange; folded laundry is a pile of different
+ * colours, which is the whole reason it looks like laundry.
+ *
+ * Five roles per object, ordered by luminance so form reads without any
+ * per-drawing guesswork: `light` catches the lamp, `base` is the body,
+ * `shade` turns away, `deep` is the darkest crease, and `accent` is the one
+ * colour the object is remembered by.
+ */
+export interface ScenePalette {
+  light: string;
+  base: string;
+  shade: string;
+  deep: string;
+  /** The colour the object is remembered by — kept vivid on purpose. */
+  accent: string;
+}
+
+const PALETTES: Record<SceneKey, ScenePalette> = {
+  // Folded laundry: warm neutrals for the linen, with the coloured garments
+  // in the pile carrying the vibrancy.
+  stack: { light: '#FBFAF7', base: '#DCE3EC', shade: '#9FB0C4', deep: '#5B6B80', accent: '#2E86DE' },
+  // A modern iron: white and steel, with the plastic in a vivid green.
+  iron: { light: '#FFFFFF', base: '#D7DEE7', shade: '#94A2B4', deep: '#42505F', accent: '#7ED321' },
+  // A garment cover: charcoal with a cool sheen, and a warm zip.
+  suit: { light: '#8A94A3', base: '#59636F', shade: '#39424D', deep: '#1E252D', accent: '#E8A33D' },
+  // Bedding: cream and sand, the warmest object in the set.
+  bed: { light: '#FDF8EF', base: '#EAD9BE', shade: '#C4A87F', deep: '#7A6647', accent: '#C97B4A' },
+  // A front-loader: white steel, a dark door, and the water behind the glass.
+  machine: { light: '#FFFFFF', base: '#E2E7ED', shade: '#A3AEBC', deep: '#3D4753', accent: '#28A9E0' },
+  // A woven basket in tan, with the wash inside it bright.
+  basket: { light: '#F3DFC0', base: '#D9B383', shade: '#A9834F', deep: '#6B5030', accent: '#E2574C' },
+  // A trainer: pale mesh over a navy body, with an orange flash.
+  shoes: { light: '#F2F5F8', base: '#8FA3BA', shade: '#4C6280', deep: '#22303F', accent: '#F5821F' },
+  // Curtains: a soft warm fabric, the folds carrying the light.
+  curtain: { light: '#FBF2E4', base: '#E4CDAA', shade: '#B79A72', deep: '#6F5C41', accent: '#4EA391' },
+};
+
+export function scenePalette(scene: SceneKey): ScenePalette {
+  return PALETTES[scene] ?? PALETTES.basket;
+}

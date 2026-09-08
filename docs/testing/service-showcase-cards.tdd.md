@@ -141,3 +141,57 @@ The photograph path is therefore **built but unfed**: a tile renders `image_url`
 
 - RED: `test: add reproducer for scenes drawn on a white card`
 - GREEN: the feature commit that follows this file.
+
+---
+
+# Follow-up: the objects redrawn semi-realistically (overdrive)
+
+**Request (2026-09-08):** "change the graphics just the graphics only on the middle make a realistic look of whats in the middle in a vibrant color of a realistic look and not too realistic but also not simple... apply to all both app and website in the price list."
+
+Read as: keep the card, the grid and the copy exactly as they are; replace only the object in the middle, in each object's own vibrant colours, rendered with enough form to look like a thing and not so much that it stops reading at 100px.
+
+## What changed
+
+| Surface | Before | After |
+|---|---|---|
+| `service-scene.ts` | Colour derived from the category tone, so every object was one hue in three flat shades | `scenePalette` gives each object its real materials: white steel and dark glass for a washer, navy and orange for a trainer, cream and sand for bedding, a pile of five different colours for laundry |
+| `service-scene.tsx` | Isometric boxes built from a projection helper, hard corners, flat faces | Rounded silhouettes with a vertical gradient for the lamp above, a lit plane where form turns up and a dark one where it turns away, an edge highlight, and a soft radial pool underneath |
+
+The shading stops at two or three stops rather than a continuous ramp, deliberately. At the size these render, a photographic gradient turns to mush.
+
+## Task report
+
+| Task | Test target | RED | GREEN |
+|---|---|---|---|
+| Per-object palettes | `service-scene.test.ts` | `npx jest service-scene`: `scenePalette is not a function` (commit `test: add reproducer for per-object scene palettes`) | 19/19 pass; full suite 101 suites / 1154 tests |
+
+One test caught a corrupted hex I had typed into the shoes palette (`#4C6ortcut`). The luminance-ordering test failed on it rather than the colour silently rendering black.
+
+## Test specification
+
+| # | What is guaranteed | Test | Type | Result |
+|---|---|---|---|---|
+| 1 | Every scene has a palette, and the objects do not all share one hue | `scenePalette` (2 tests) | unit | PASS |
+| 2 | Every colour in every palette is a valid hex | `scenePalette` | unit | PASS |
+| 3 | Each palette runs light to base to shade to deep by luminance, so form reads without per-drawing guesswork | `scenePalette` | unit | PASS |
+| 4 | The accent colours stay vivid rather than washing out to grey | `scenePalette` | unit | PASS |
+
+## Defects found in visual review
+
+Three objects failed the first pass and two failed the second. All were proportion, not detail:
+
+1. **The iron read as a kettle**, twice. A tall body under a high round handle is a kettle in any palette. Redrawn in strict profile: roughly twice as wide as tall, a long pointed soleplate drawn clear of the laundry, and a flat handle that hugs the body.
+2. **The garment cover read as a backpack**, twice. Rounded shoulders are a bag whatever the hem does. Redrawn with straight diagonals from the neck to two shoulder points, which is the coat-hanger silhouette nothing else shares.
+3. **The bedding read as a stack of pancakes.** Folded fabric is read at its edge, so the fold edge now carries three visible plies and the pillow has a turned corner.
+
+## Coverage and known gaps
+
+- Verified in Chrome across all eight objects at 150px and 96px, then on the live shop page. Typecheck, lint and the Impeccable detector are clean.
+- The app shop screen draws the same component and typechecks, but was not viewed on a device this pass.
+- These remain illustrations. The photograph path is still live: a real image wins the frame whenever a service has one.
+- A temporary `/scene-preview` route was used for the review and removed before commit.
+
+## Merge evidence
+
+- RED: `test: add reproducer for per-object scene palettes`
+- GREEN: the feature commit that follows this file.
