@@ -1,14 +1,13 @@
-import { useQueryClient } from '@tanstack/react-query';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { StyleSheet } from 'react-native';
 
 import { Button, ErrorText, Screen, Subtle, Title } from '@/components/ui-kit';
-import { claimOrder, registerWithShop } from '@/lib/api';
-import { parseQrPayload, type QrPayload } from '@/lib/domain/qr';
+import { parseQrPayload } from '@/lib/domain/qr';
 import { routeAfterScan, scanFailure, scanHint } from '@/lib/domain/scan-outcome';
 import { SCAN_RETRY_MS, scanProblem } from '@/lib/domain/welcome-flow';
+import { useSignedInScan } from '@/lib/use-signed-in-scan';
 
 /**
  * The raised button in the middle of the tab bar. One camera, two codes: the
@@ -18,7 +17,7 @@ import { SCAN_RETRY_MS, scanProblem } from '@/lib/domain/welcome-flow';
  */
 export default function ScanQr() {
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const finish = useSignedInScan();
   const [permission, requestPermission] = useCameraPermissions();
   const [error, setError] = useState('');
   const isHandlingRef = useRef(false);
@@ -29,20 +28,6 @@ export default function ScanQr() {
     setTimeout(() => {
       isHandlingRef.current = false;
     }, SCAN_RETRY_MS);
-  };
-
-  const finish = async (scan: QrPayload) => {
-    if (scan.type === 'shop') {
-      await registerWithShop(scan.id, scan.token);
-      await queryClient.invalidateQueries({ queryKey: ['registered-shops'] });
-      return;
-    }
-    await claimOrder(scan.id, scan.token);
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ['my-orders'] }),
-      queryClient.invalidateQueries({ queryKey: ['registered-shops'] }),
-      queryClient.invalidateQueries({ queryKey: ['order', scan.id] }),
-    ]);
   };
 
   const handleScanned = async ({ data }: { data: string }) => {

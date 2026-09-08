@@ -1,3 +1,4 @@
+/// <reference types="node" />
 /**
  * The OS opens the app for a printed link only if the native config and the
  * files on the web host both claim the same paths. These tests keep the three

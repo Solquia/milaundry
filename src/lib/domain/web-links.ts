@@ -51,3 +51,11 @@ export function joinUrl(shopId: string, token: string, host: string = webHost())
 export function claimUrl(orderId: string, token: string, host: string = webHost()): string {
   return `https://${host}/claim/${orderId}?token=${encodeURIComponent(token)}`;
 }
+
+/**
+ * The path segments the app claims on the web host. Android and iOS open the
+ * app for these and leave every other path (`/s`, `/track`) to the browser.
+ * `app.json` and `public/.well-known` must list exactly these; a test holds
+ * the three together.
+ */
+export const WEB_LINK_PATHS = ['join', 'claim'] as const;
