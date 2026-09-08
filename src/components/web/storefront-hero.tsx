@@ -22,6 +22,8 @@ import type { StorefrontShop } from '@/lib/types';
 /** The app's deep navy: the photo darkens into brand, not into black. */
 const SCRIM = '#04203F';
 const HERO_HEIGHT = 300;
+/** Matches the app shopfront's foot, so one shop reads the same on either. */
+const HERO_SWEEP = 28;
 const LOGO_SIZE = 72;
 
 interface StorefrontHeroProps {
@@ -96,7 +98,24 @@ export function StorefrontHero({
 }
 
 const styles = StyleSheet.create({
-  hero: { minHeight: HERO_HEIGHT, justifyContent: 'flex-end', overflow: 'hidden' },
+  /**
+   * The brand block ends in a curve, not a cut.
+   *
+   * A full-bleed rectangle of colour at the top of a page is the most
+   * institutional shape an interface can make, and the app's own shopfront
+   * already rounds its foot by 28 — the web page was the one surface still
+   * squaring it off. The radius is generous enough to read as a deliberate
+   * sweep at phone width and to leave the field colour visible at both
+   * shoulders, which is what makes the block sit *on* the page rather than
+   * being clipped by it.
+   */
+  hero: {
+    minHeight: HERO_HEIGHT,
+    justifyContent: 'flex-end',
+    borderBottomLeftRadius: HERO_SWEEP,
+    borderBottomRightRadius: HERO_SWEEP,
+    overflow: 'hidden',
+  },
   foot: { padding: space.section, gap: space.snug },
   logoRing: {
     alignSelf: 'flex-start',
