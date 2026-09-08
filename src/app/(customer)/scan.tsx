@@ -1,10 +1,12 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
+import { TypedCodeForm } from '@/components/typed-code-form';
 import { Button, ErrorText, Screen, Subtle, Title } from '@/components/ui-kit';
 import { parseQrPayload } from '@/lib/domain/qr';
+import { scanEntryMode } from '@/lib/domain/scan-entry';
 import { routeAfterScan, scanFailure, scanHint } from '@/lib/domain/scan-outcome';
 import { SCAN_RETRY_MS, scanProblem } from '@/lib/domain/welcome-flow';
 import { useSignedInScan } from '@/lib/use-signed-in-scan';
@@ -48,6 +50,15 @@ export default function ScanQr() {
       fail(scanFailure(scan, err));
     }
   };
+
+  // The browser cannot decode a code, so the link under it is typed instead.
+  if (scanEntryMode(Platform.OS) === 'typed') {
+    return (
+      <Screen>
+        <TypedCodeForm onCode={(raw) => void handleScanned({ data: raw })} problem={error} />
+      </Screen>
+    );
+  }
 
   if (!permission) return null;
 

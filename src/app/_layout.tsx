@@ -5,6 +5,7 @@ import { Stack } from 'expo-router';
 import * as SystemUI from 'expo-system-ui';
 
 import { Loading } from '@/components/ui-kit';
+import { WebFrame } from '@/components/web-frame';
 import { AuthProvider } from '@/lib/auth';
 import { AppSettingsProvider } from '@/lib/use-app-settings';
 import { ViewAsShopProvider } from '@/lib/view-as-shop-context';
@@ -37,7 +38,9 @@ export default function RootLayout() {
             haptic, and the answer has to be the same everywhere. */}
         <AppSettingsProvider>
           <ViewAsShopProvider>
-            <Stack screenOptions={{ headerShown: false }} />
+            <WebFrame>
+              <Stack screenOptions={{ headerShown: false }} />
+            </WebFrame>
           </ViewAsShopProvider>
         </AppSettingsProvider>
       </AuthProvider>

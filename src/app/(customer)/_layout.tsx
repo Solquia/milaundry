@@ -1,9 +1,10 @@
-import { Redirect, Tabs } from 'expo-router';
+import { Redirect, Tabs , useSegments } from 'expo-router';
 import React from 'react';
 
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
+import { routeForRole } from '@/lib/domain/route-groups';
 import { CUSTOMER_TABS } from '@/lib/domain/tab-config';
 
 // Defined once so the tab bar isn't remounted on every auth state change.
@@ -13,10 +14,13 @@ const renderTabBar = (props: TabBarProps) => (
 
 export default function CustomerLayout() {
   const { session, profile, isLoading } = useAuth();
+  const segments = useSegments();
 
   if (isLoading) return <Loading />;
   if (!session) return <Redirect href="/sign-in" />;
-  if (profile && profile.role !== 'customer') return <Redirect href="/" />;
+  if (profile && profile.role !== 'customer') {
+    return <Redirect href={routeForRole(profile.role, segments[1]) as never} />;
+  }
 
   return (
     <Tabs
