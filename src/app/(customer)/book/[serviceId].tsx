@@ -13,6 +13,7 @@ import {
 
 import { PieceCounter, WeightScale } from '@/components/quantity-picker';
 import { Reveal } from '@/components/reveal';
+import { SlotCalendar } from '@/components/slot-calendar';
 import { StepRail } from '@/components/step-rail';
 import {
   Button,
@@ -52,9 +53,7 @@ import {
 } from '@/lib/domain/price-label';
 import type { OrderEstimate } from '@/lib/domain/pricing';
 import {
-  dayLabel,
-  deliveryDayOffsets,
-  hourLabel,
+  BOOKING_WINDOW_DAYS,
   keepDeliveryAfterPickup,
   slotSummary,
   turnaroundLabel,
@@ -64,9 +63,6 @@ import {
 import type { Fulfillment } from '@/lib/domain/walk-in-order';
 
 const QUICK_WEIGHTS_KG = [3, 5, 8, 12];
-const SLOT_HOURS = [8, 10, 12, 14, 16, 18];
-/** Bookable days ahead. Two per row, so four never orphans a fifth. */
-const DAY_OFFSETS = [0, 1, 2, 3];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /** A concrete Date from "N days from today at H o'clock". */
@@ -105,7 +101,7 @@ function ScheduleLeg({
   label,
   icon,
   value,
-  dayOffsets,
+  minOffset,
   isOpen,
   onToggle,
   onChange,
@@ -113,8 +109,8 @@ function ScheduleLeg({
   label: string;
   icon: string;
   value: SlotValue;
-  /** Which days this leg offers. Delivery counts from pickup, not from today. */
-  dayOffsets: number[];
+  /** Earliest day this leg offers. Delivery counts from pickup, not today. */
+  minOffset: number;
   isOpen: boolean;
   onToggle: () => void;
   onChange: (next: SlotValue) => void;
@@ -147,33 +143,14 @@ function ScheduleLeg({
 
       {isOpen && (
         <Reveal style={styles.legPanel}>
-          {/* Fixed columns, not a free wrap: four days fill 2×2 and six hours
-              2×3, so no chip is ever orphaned alone on a trailing line. */}
-          <Text style={styles.chipGroupLabel}>Day</Text>
-          <View style={styles.chipGrid}>
-            {dayOffsets.map((offset) => (
-              <Chip
-                key={offset}
-                label={dayLabel(offset, now)}
-                isSelected={value.dayOffset === offset}
-                onPress={() => onChange({ ...value, dayOffset: offset })}
-                style={styles.dayChip}
-              />
-            ))}
-          </View>
-          {/* Nothing used to say this row was a time. "8 AM" had to give it away. */}
-          <Text style={styles.chipGroupLabel}>Time</Text>
-          <View style={styles.chipGrid}>
-            {SLOT_HOURS.map((hour) => (
-              <Chip
-                key={hour}
-                label={hourLabel(hour)}
-                isSelected={value.hour === hour}
-                onPress={() => onChange({ ...value, hour })}
-                style={styles.hourChip}
-              />
-            ))}
-          </View>
+          <SlotCalendar
+            label={label}
+            value={value}
+            onChange={onChange}
+            minOffset={minOffset}
+            maxOffset={minOffset + BOOKING_WINDOW_DAYS}
+            now={now}
+          />
         </Reveal>
       )}
     </View>
@@ -312,7 +289,7 @@ export default function BookService() {
   const [pickupSlot, setPickupSlot] = useState<SlotValue>({ dayOffset: 0, hour: 16 });
   const [deliverSlot, setDeliverSlot] = useState<SlotValue>({ dayOffset: 1, hour: 16 });
   /** Which leg is open for editing. Null — the default — is both settled. */
-  const [openLeg, setOpenLeg] = useState<LegName | null>(null);
+  const [openLeg, setOpenLeg] = useState<LegName | null>('pickup');
   const [fieldErrors, setFieldErrors] = useState<BookingScheduleErrors>({});
 
   const {
@@ -612,7 +589,7 @@ export default function BookService() {
                     label="Pickup"
                     icon="arrow-up-circle-outline"
                     value={pickupSlot}
-                    dayOffsets={DAY_OFFSETS}
+                    minOffset={0}
                     isOpen={openLeg === 'pickup'}
                     onToggle={() =>
                       setOpenLeg((open) => (open === 'pickup' ? null : 'pickup'))
@@ -627,7 +604,7 @@ export default function BookService() {
                     label="Delivered back"
                     icon="arrow-down-circle-outline"
                     value={deliverSlot}
-                    dayOffsets={deliveryDayOffsets(pickupSlot)}
+                    minOffset={pickupSlot.dayOffset}
                     isOpen={openLeg === 'deliver'}
                     onToggle={() =>
                       setOpenLeg((open) => (open === 'deliver' ? null : 'deliver'))
@@ -718,10 +695,6 @@ const styles = StyleSheet.create({
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   /** Four quick sizes on one row, so none strands alone on a second line. */
   quickChip: { flexBasis: '22%', flexGrow: 1 },
-  /** Two per row: variable-width day labels stay on a predictable grid. */
-  dayChip: { flexBasis: '47%', flexGrow: 1 },
-  /** Three per row: six hours fill two full lines exactly. */
-  hourChip: { flexBasis: '30%', flexGrow: 1 },
   chip: {
     borderRadius: 999,
     borderWidth: 1,
@@ -766,15 +739,6 @@ const styles = StyleSheet.create({
     paddingBottom: space.cosy,
     backgroundColor: colors.actionSurface,
   },
-  /** Names the row beneath it. Without these, "8 AM" was the only clue that the
-      second row of chips was a time at all. */
-  chipGroupLabel: {
-    ...type.caption,
-    fontWeight: '600',
-    color: colors.subtle,
-    marginTop: space.tight,
-  },
-
   /** The wait, stated once for the pair: the label carries it, the sentence
       spends the rest of the line explaining what it means. */
   turnaroundRow: {

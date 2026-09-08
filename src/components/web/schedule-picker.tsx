@@ -1,28 +1,24 @@
 /**
  * How the laundry travels: dropped off, or collected and brought back.
  *
- * The same days and hours the app offers, as plain chips. Pickup and delivery
- * are each a row of days and a row of hours; delivery counts its days from
- * pickup so it can never be offered before it.
+ * Both legs use the same calendar the app does, tinted with the shop's own
+ * accent. Delivery counts its earliest day from pickup rather than from today,
+ * so it can never be offered before the collection it depends on.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { SlotCalendar } from '@/components/slot-calendar';
 import { ErrorText, Field, colors, space, type } from '@/components/ui-kit';
 import type { BookingScheduleErrors } from '@/lib/domain/booking-schedule';
 import {
-  dayLabel,
-  deliveryDayOffsets,
-  hourLabel,
+  BOOKING_WINDOW_DAYS,
   keepDeliveryAfterPickup,
   turnaroundNote,
   type Slot,
 } from '@/lib/domain/booking-slot';
 import type { Fulfillment } from '@/lib/domain/walk-in-order';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
-
-export const SLOT_HOURS = [8, 10, 12, 14, 16, 18];
-export const DAY_OFFSETS = [0, 1, 2, 3];
 
 export interface ScheduleValue {
   fulfillment: Fulfillment;
@@ -50,6 +46,13 @@ interface SchedulePickerProps {
 export function SchedulePicker({ value, onChange, errors, theme }: SchedulePickerProps) {
   const now = new Date();
   const set = (patch: Partial<ScheduleValue>) => onChange({ ...value, ...patch });
+  // The calendar takes the shop's accent; its neutrals stay the app's, so a
+  // pale brand cannot make an unbookable day look bookable.
+  const tone = {
+    accent: theme.brand,
+    onAccent: theme.onBrand,
+    accentSoft: theme.brandSoft,
+  };
 
   return (
     <View style={styles.stack}>
@@ -79,24 +82,26 @@ export function SchedulePicker({ value, onChange, errors, theme }: SchedulePicke
           />
           <ErrorText>{errors.deliveryAddress}</ErrorText>
 
-          <Leg
-            title="Pickup"
-            slot={value.pickup}
-            dayOffsets={DAY_OFFSETS}
-            now={now}
+          <SlotCalendar
+            label="Pickup"
+            value={value.pickup}
             onChange={(pickup) =>
               set({ pickup, deliver: keepDeliveryAfterPickup(value.deliver, pickup) })
             }
-            theme={theme}
+            minOffset={0}
+            maxOffset={BOOKING_WINDOW_DAYS}
+            now={now}
+            tone={tone}
           />
           <ErrorText>{errors.pickupAt}</ErrorText>
-          <Leg
-            title="Delivered back"
-            slot={value.deliver}
-            dayOffsets={deliveryDayOffsets(value.pickup)}
-            now={now}
+          <SlotCalendar
+            label="Delivered back"
+            value={value.deliver}
             onChange={(deliver) => set({ deliver })}
-            theme={theme}
+            minOffset={value.pickup.dayOffset}
+            maxOffset={value.pickup.dayOffset + BOOKING_WINDOW_DAYS}
+            now={now}
+            tone={tone}
           />
           <Text style={styles.note}>{turnaroundNote(value.pickup, value.deliver)}</Text>
           <ErrorText>{errors.deliverBy}</ErrorText>
@@ -118,63 +123,11 @@ export function SchedulePicker({ value, onChange, errors, theme }: SchedulePicke
   );
 }
 
-interface LegProps {
-  title: string;
-  slot: Slot;
-  dayOffsets: number[];
-  now: Date;
-  onChange: (next: Slot) => void;
-  theme: StorefrontTheme;
-}
-
-function Leg({ title, slot, dayOffsets, now, onChange, theme }: LegProps) {
-  return (
-    <View style={styles.leg}>
-      <Text style={styles.legTitle}>{title}</Text>
-      <View style={styles.chips}>
-        {dayOffsets.map((offset) => (
-          <Chip
-            key={offset}
-            label={dayLabel(offset, now)}
-            isSelected={slot.dayOffset === offset}
-            onPress={() => onChange({ ...slot, dayOffset: offset })}
-            theme={theme}
-          />
-        ))}
-      </View>
-      <View style={styles.chips}>
-        {SLOT_HOURS.map((hour) => (
-          <Chip
-            key={hour}
-            label={hourLabel(hour)}
-            isSelected={slot.hour === hour}
-            onPress={() => onChange({ ...slot, hour })}
-            theme={theme}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
 interface ChipProps {
   label: string;
   isSelected: boolean;
   onPress: () => void;
   theme: StorefrontTheme;
-}
-
-function Chip({ label, isSelected, onPress, theme }: ChipProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: isSelected }}
-      onPress={onPress}
-      style={[styles.chip, isSelected && { backgroundColor: theme.brand, borderColor: theme.brand }]}
-    >
-      <Text style={[styles.chipText, isSelected && { color: theme.onBrand }]}>{label}</Text>
-    </Pressable>
-  );
 }
 
 function Choice({ label, isSelected, onPress, theme }: ChipProps) {
@@ -204,18 +157,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   choiceText: { ...type.label, color: colors.text },
-  leg: { gap: space.snug },
-  legTitle: { ...type.label, color: colors.text },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
-  chip: {
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: space.cosy,
-    minHeight: 36,
-    justifyContent: 'center',
-    backgroundColor: colors.card,
-  },
-  chipText: { ...type.caption, fontWeight: '600', color: colors.text },
   note: { ...type.caption, color: colors.subtle },
 });
