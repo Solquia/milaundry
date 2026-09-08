@@ -115,3 +115,54 @@ export function startingCart(
   const service = catalog.find((item) => item.id === id);
   return service ? adjustLine(EMPTY_CART, service, 1) : EMPTY_CART;
 }
+
+/**
+ * The basket as one query value, `id:qty,id:qty`, so the price list can
+ * hand a whole basket to the booking page in the address. Empty encodes to
+ * nothing, so the page's own link stays clean.
+ */
+export function encodeCart(cart: Cart): string {
+  return cartItems(cart)
+    .map((item) => `${item.serviceId}:${item.quantity}`)
+    .join(',');
+}
+
+/** The largest quantity a line may carry: the weight cap for kilos, one for flat. */
+function cappedQuantity(service: CartService, quantity: number): number {
+  if (service.unit === 'flat') return 1;
+  const floor = startingQuantity(service);
+  const capped = service.unit === 'per_kg' ? Math.min(quantity, MAX_WEIGHT_KG) : quantity;
+  return Math.max(capped, floor);
+}
+
+/**
+ * A basket read back from the address and held to the shop's rules: unknown
+ * services are dropped, non-numbers are dropped, minimums and the weight cap
+ * are applied, a flat line is one. A hand-edited link cannot book a line the
+ * shop would refuse.
+ */
+export function decodeCart(raw: string | string[] | undefined, catalog: readonly CartService[]): Cart {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (!value) return EMPTY_CART;
+  const entries = value
+    .split(',')
+    .map((pair) => pair.split(':'))
+    .filter((pair): pair is [string, string] => pair.length === 2)
+    .map(([id, qty]) => [catalog.find((service) => service.id === id), Number(qty)] as const)
+    .filter((pair): pair is readonly [CartService, number] => {
+      const [service, qty] = pair;
+      return service !== undefined && Number.isInteger(qty) && qty > 0;
+    })
+    .map(([service, qty]) => [service.id, cappedQuantity(service, qty)] as const);
+  return entries.length === 0 ? EMPTY_CART : Object.fromEntries(entries);
+}
+
+/** What the booking page opens with: a whole basket, else one tapped service, else nothing. */
+export function cartFromParams(
+  params: { cart?: string | string[]; service?: string | string[] },
+  catalog: readonly CartService[]
+): Cart {
+  const fromCart = decodeCart(params.cart, catalog);
+  if (fromCart !== EMPTY_CART) return fromCart;
+  return startingCart(params.service, catalog);
+}
