@@ -1,18 +1,20 @@
-import { File } from 'expo-file-system';
-
+import { isImagekitFilePath } from './domain/imagekit';
+import { STAFF_ONLY_ROLE } from './domain/staff-invite';
 import type { OrderStatus } from './domain/order-status';
-import {
-  ensurePhotoBytes,
-  photoContentType,
-  photoObjectPath,
-  type PhotoKind,
-} from './domain/photo-upload';
+import type { PhotoKind } from './domain/photo-upload';
+import { signedOrderPhotoUrl, uploadImage } from './imagekit';
+import type { ShopPin as ShopLocationPin } from './domain/shop-location';
 import type { ShopPaymentDetails } from './domain/shop-payment';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
+import { parseGuestSessionResponse } from './domain/guest-identity';
+import { phoneToAuthEmail } from './domain/phone-email';
 import type { ShopFormValues } from './domain/shop-form';
+import type { QrPayloadType } from './domain/qr';
+import type { ScannedShop } from './domain/welcome-flow';
 import { supabase } from './supabase';
+import { clearPasswordPending, markPasswordPending } from './web-guest-state';
 import type {
   OrderItemRow,
   OrderRow,
@@ -23,6 +25,7 @@ import type {
   ShopCustomer,
   ShopMemberRow,
   StatusHistoryRow,
+  Storefront,
 } from './types';
 
 export interface OrderWithDetails extends OrderRow {
@@ -31,6 +34,7 @@ export interface OrderWithDetails extends OrderRow {
         Shop,
         | 'id'
         | 'name'
+        | 'slug'
         | 'brand_accent'
         // The rails ride along so the customer's pay screen can say where the
         // money actually goes without a second fetch racing the first.
@@ -49,7 +53,7 @@ export interface OrderWithDetails extends OrderRow {
 // Without it the order screen falls back to the id hash, and a laundry that had
 // chosen teal would be teal everywhere in the app except on its own orders.
 const ORDER_SELECT =
-  '*, shop:shops(id, name, brand_accent, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
+  '*, shop:shops(id, name, slug, brand_accent, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
 
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
@@ -66,9 +70,27 @@ export async function getRegisteredShops(): Promise<Shop[]> {
   return unwrap(result).map((row: any) => row.shop as Shop);
 }
 
+/** One shop the signed-in merchant belongs to, with their role inside it. */
+export interface ShopMembership {
+  role: ShopAccountRole;
+  shop: Shop;
+}
+
+export async function getMyShopMemberships(): Promise<ShopMembership[]> {
+  // The membership policy lets a member read every membership of their shop
+  // (the owner console lists them), so without this filter a staff login
+  // could read the owner's row first and be dressed as an owner in the app.
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return [];
+  const result = await supabase
+    .from('shop_members')
+    .select('role, shop:shops(*)')
+    .eq('profile_id', auth.user.id);
+  return unwrap(result).map((row: any) => ({ role: row.role, shop: row.shop as Shop }));
+}
+
 export async function getMyMerchantShops(): Promise<Shop[]> {
-  const result = await supabase.from('shop_members').select('shop:shops(*)');
-  return unwrap(result).map((row: any) => row.shop as Shop);
+  return (await getMyShopMemberships()).map((membership) => membership.shop);
 }
 
 export async function getAllShops(): Promise<Shop[]> {
@@ -194,42 +216,35 @@ export async function placeOrder(
 }
 
 // ── weighing & settlement ────────────────────────────────────────────────
-/** How long a signed link to a private order photo stays good. */
+/** How long a signed link to an order photo left in the old bucket stays good. */
 const PHOTO_LINK_TTL_SECONDS = 60 * 60;
 
 /**
- * Uploads into the private `order-photos` bucket and returns the storage
- * *path*, not a URL. Unlike `shop-logos`, this bucket is not public: a photo of
- * someone's laundry and a receipt carrying their name are only ever served
- * through a short-lived signed link.
+ * Uploads an order photo to ImageKit and returns its *path*, not a URL. Unlike
+ * a shop's logo these go up as private files: a photo of someone's laundry and
+ * a receipt carrying their name are only ever served through a short-lived
+ * signed link. See `lib/imagekit.ts`.
  */
 async function uploadOrderPhoto(
   orderId: string,
   kind: PhotoKind,
   localUri: string
 ): Promise<string> {
-  // `fetch(file://…).arrayBuffer()` used to read this, and on a real device it
-  // silently returned a 14-byte stub: the upload succeeded, the order carried
-  // a valid-looking path, and the customer's ticket showed an empty frame.
-  // expo-file-system's `File` reads the file natively rather than through the
-  // fetch polyfill, and the guard below makes any future failure loud.
-  const body = await new File(localUri).arrayBuffer();
-  ensurePhotoBytes(body.byteLength);
-
-  const path = photoObjectPath(orderId, kind, localUri, Date.now());
-
-  const { error } = await supabase.storage.from('order-photos').upload(path, body, {
-    contentType: photoContentType(localUri),
-    upsert: true,
-  });
-  if (error) throw new Error(error.message);
-
-  return path;
+  const { filePath } = await uploadImage({ purpose: 'order', orderId, kind }, localUri);
+  return filePath;
 }
 
-/** A viewable link for a private order photo, or null when there is none. */
+/**
+ * A viewable link for a private order photo, or null when there is none.
+ *
+ * Orders taken before the move to ImageKit carry a Supabase object key and are
+ * still signed by Storage; there is no migration and none is needed, because
+ * the two path shapes tell themselves apart.
+ */
 export async function orderPhotoUrl(path: string | null): Promise<string | null> {
   if (!path) return null;
+  if (isImagekitFilePath(path)) return signedOrderPhotoUrl(path);
+
   const { data, error } = await supabase.storage
     .from('order-photos')
     .createSignedUrl(path, PHOTO_LINK_TTL_SECONDS);
@@ -333,12 +348,92 @@ export async function updateOrderStatus(
 }
 
 // ── QR flows ─────────────────────────────────────────────────────────────
+/**
+ * What a code points at, for someone who is not signed in yet. Token-gated on
+ * the server, so a guest learns a laundry's name only from the code printed at
+ * its counter. Resolves to null for a code the server would refuse later — an
+ * inactive shop, a wrong token, an order already claimed — so the welcome can
+ * say so before asking anyone to create an account.
+ */
+export async function peekScan(
+  type: QrPayloadType,
+  id: string,
+  token: string
+): Promise<ScannedShop | null> {
+  const { data, error } = await supabase.rpc('peek_scan', {
+    p_type: type,
+    p_id: id,
+    p_token: token,
+  });
+  if (error) throw new Error(error.message);
+  const row = (data as ScannedShop[] | null)?.[0];
+  return row ?? null;
+}
+
 export async function registerWithShop(shopId: string, token: string): Promise<void> {
   const { error } = await supabase.rpc('register_with_shop', {
     p_shop_id: shopId,
     p_token: token,
   });
   if (error) throw new Error(error.message);
+}
+
+/**
+ * A session for someone who typed only a name and a number on a shop's web
+ * page. Resolves to 'signed-in' with a session in hand, or 'needs-password'
+ * when the number already has an account, in which case the caller asks for
+ * the password and uses signInGuest. See supabase/functions/web-guest-session.
+ */
+export async function startGuestSession(
+  phone: string,
+  fullName: string
+): Promise<'signed-in' | 'needs-password'> {
+  const { data, error } = await supabase.functions.invoke('web-guest-session', {
+    body: { phone, full_name: fullName },
+  });
+  if (error) {
+    const detail = await readFunctionError(error);
+    throw new Error(detail ?? error.message);
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error));
+  }
+
+  const answer = parseGuestSessionResponse(data);
+  if (answer.kind === 'needs-password') return 'needs-password';
+
+  const verified = await supabase.auth.verifyOtp({
+    token_hash: answer.tokenHash,
+    type: 'magiclink',
+  });
+  if (verified.error) throw new Error(verified.error.message);
+  markPasswordPending();
+  return 'signed-in';
+}
+
+/** The password path for a number that already has an account. */
+export async function signInGuest(phone: string, password: string): Promise<void> {
+  const { error } = await supabase.auth.signInWithPassword({
+    email: phoneToAuthEmail(phone),
+    password,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Gives a guest account a password it can use in the app. */
+export async function setOwnPassword(password: string): Promise<void> {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error(error.message);
+  clearPasswordPending();
+}
+
+/**
+ * Connects the signed-in customer to the shop whose web page they are on.
+ * Idempotent, and refused for a shop that is inactive or off the web.
+ */
+export async function registerWithShopBySlug(slug: string): Promise<string> {
+  const result = await supabase.rpc('register_with_shop_by_slug', { p_slug: slug });
+  return unwrap(result) as string;
 }
 
 export async function claimOrder(orderId: string, token: string): Promise<OrderRow> {
@@ -463,62 +558,102 @@ export async function adminUpdateShop(
   return unwrap(result) as Shop;
 }
 
+// ── shop branding ────────────────────────────────────────────────────────
 /**
- * Uploads a picked logo image into the public shop-logos bucket and returns
- * its public URL. Superadmin-only by storage policy (0008_shop_branding.sql).
- */
-export async function uploadShopLogo(slug: string, localUri: string): Promise<string> {
-  const response = await fetch(localUri);
-  const body = await response.arrayBuffer();
-  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const path = `${slug}-${Date.now()}.${extension}`;
-
-  const { error } = await supabase.storage.from('shop-logos').upload(path, body, {
-    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
-    upsert: true,
-  });
-  if (error) throw new Error(error.message);
-
-  return supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl;
-}
-
-// ── shop branding (merchant self-serve) ──────────────────────────────────
-/**
- * Uploads a logo the shop chose for itself.
+ * Uploads a shop's logo, whether the shop chose it or a superadmin did.
  *
- * Keyed `<shop_id>/<ts>.<ext>`, unlike `uploadShopLogo`'s flat `<slug>-<ts>`:
- * the folder is what the storage policy checks, so one shop's owner cannot
- * overwrite another's logo. The superadmin path keeps its flat keys because a
- * superadmin is already trusted across every shop.
+ * There used to be two of these, because the two wrote different keys into the
+ * bucket and only one of the key shapes could be policed. ImageKit files both
+ * under `/shops/<shop_id>`, and the folder is signed into the upload token, so
+ * one shop's owner still cannot overwrite another's logo — and a superadmin
+ * passes the same check. One function is now enough.
  */
-export async function uploadBrandLogo(shopId: string, localUri: string): Promise<string> {
-  const response = await fetch(localUri);
-  const body = await response.arrayBuffer();
-  const extension = localUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-  const path = `${shopId}/${Date.now()}.${extension}`;
-
-  const { error } = await supabase.storage.from('shop-logos').upload(path, body, {
-    contentType: extension === 'png' ? 'image/png' : 'image/jpeg',
-    upsert: true,
-  });
-  if (error) throw new Error(error.message);
-
-  return supabase.storage.from('shop-logos').getPublicUrl(path).data.publicUrl;
+export function uploadBrandLogo(shopId: string, localUri: string): Promise<string> {
+  return uploadShopAsset(shopId, localUri, 'logo');
 }
 
 /**
- * The face the shop shows its customers. A null `logoUrl` leaves the existing
- * logo alone, so saving a colour never wipes a logo uploaded earlier.
+ * Uploads the photo of the shop itself, the one behind its name on the
+ * shopfront. Same folder as the logo, so the same policy covers it.
+ */
+export function uploadShopCover(shopId: string, localUri: string): Promise<string> {
+  return uploadShopAsset(shopId, localUri, 'cover');
+}
+
+/**
+ * One shop image into ImageKit, filed `/shops/<shop_id>/<kind>-<ts>.<ext>` and
+ * public — a shopfront is meant to be looked at. A fresh name per upload means
+ * a fresh URL, so no image cache anywhere can keep showing the old picture.
+ *
+ * Shops branded before the move keep their Supabase URL in the same column and
+ * go on being served from there; the row holds a whole URL, so nothing has to
+ * know which of the two it came from.
+ */
+async function uploadShopAsset(
+  shopId: string,
+  localUri: string,
+  kind: 'logo' | 'cover'
+): Promise<string> {
+  const { url } = await uploadImage({ purpose: 'shop', shopId, kind }, localUri);
+  return url;
+}
+
+/**
+ * The face the shop shows its customers. A null `logoUrl` or `coverUrl` leaves
+ * the existing image alone, so saving a colour never wipes a photo uploaded
+ * earlier.
  */
 export async function setShopBranding(
   shopId: string,
-  branding: { accent: number | null; tagline: string; logoUrl?: string | null }
+  branding: {
+    accent: number | null;
+    tagline: string;
+    logoUrl?: string | null;
+    coverUrl?: string | null;
+  }
 ): Promise<Shop> {
   const result = await supabase.rpc('set_shop_branding', {
     p_shop_id: shopId,
     p_brand_accent: branding.accent,
     p_tagline: branding.tagline,
     p_logo_url: branding.logoUrl ?? null,
+    p_cover_url: branding.coverUrl ?? null,
+  });
+  return unwrap(result) as Shop;
+}
+
+/**
+ * Where the shop is on the map. Unlike branding, null here means "remove the
+ * pin": clearing a wrong pin is a real thing a shop needs to do.
+ */
+export async function setShopLocation(
+  shopId: string,
+  pin: ShopLocationPin | null
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_location', {
+    p_shop_id: shopId,
+    p_latitude: pin?.latitude ?? null,
+    p_longitude: pin?.longitude ?? null,
+  });
+  return unwrap(result) as Shop;
+}
+
+/**
+ * The shop's public web page, or null when there is no such page: an unknown
+ * slug, an inactive shop, and a shop that switched its page off all answer
+ * the same way, so the page cannot be used to tell them apart.
+ */
+export async function getStorefront(slug: string): Promise<Storefront | null> {
+  const { data, error } = await supabase.rpc('get_storefront', { p_slug: slug });
+  if (error) throw new Error(error.message);
+  return (data as Storefront | null) ?? null;
+}
+
+/** Turns the shop's public web page on or off. */
+export async function setShopWebEnabled(shopId: string, isEnabled: boolean): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_web_enabled', {
+    p_shop_id: shopId,
+    p_enabled: isEnabled,
   });
   return unwrap(result) as Shop;
 }
@@ -587,6 +722,37 @@ async function readFunctionError(error: unknown): Promise<string | null> {
     return typeof body?.error === 'string' ? body.error : null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * An owner cutting a key for their own counter.
+ *
+ * Same Edge Function as the superadmin path — creating an auth user needs the
+ * service_role key either way — but there is no role to choose. The function
+ * refuses anything but staff from a merchant caller, and
+ * owner_attach_shop_staff (0022) takes no role argument at all.
+ */
+export async function createShopStaff(
+  shopId: string,
+  account: { fullName: string; phone: string; password: string }
+): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('admin-create-shop-account', {
+    body: {
+      shop_id: shopId,
+      full_name: account.fullName,
+      phone: account.phone,
+      password: account.password,
+      role: STAFF_ONLY_ROLE,
+    },
+  });
+
+  if (error) {
+    const detail = await readFunctionError(error);
+    throw new Error(detail ?? error.message);
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    throw new Error(String((data as { error: unknown }).error));
   }
 }
 

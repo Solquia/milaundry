@@ -67,24 +67,3 @@ export function validateStaffDraft(draft: StaffDraft): StaffDraftResult {
 
   return { ok: true, value: { fullName, phone: phone as string } };
 }
-
-export interface StaffCredentials {
-  fullName: string;
-  phone: string;
-  password: string;
-}
-
-/**
- * The handoff, as something an owner reads down a phone line or copies into a
- * message. The password is generated in the browser and never stored anywhere
- * this app can read it back, so the card has to say that out loud — an owner
- * who closes it without copying has to reset instead of look it up.
- */
-export function describeStaffHandoff(credentials: StaffCredentials): string {
-  return [
-    `${credentials.fullName} can sign in at the shop login with:`,
-    `Username: ${credentials.phone}`,
-    `Password: ${credentials.password}`,
-    'Write this down now — it is not shown again.',
-  ].join('\n');
-}

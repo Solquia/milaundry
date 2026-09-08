@@ -1,9 +1,13 @@
 // Creates a login account for a laundry shop and attaches it to that shop.
 //
 // Creating an auth user needs the service_role key, which can never ship in
-// the Expo bundle — so it happens here. The caller's own JWT is checked first
-// (superadmin only), and the user is only created once that check passes, so a
-// rejected request can never leave an orphaned auth user behind.
+// the Expo bundle — so it happens here. The caller's own JWT is checked first,
+// and the user is only created once that check passes, so a rejected request
+// can never leave an orphaned auth user behind.
+//
+// Two callers are allowed: a superadmin, who may attach either role to any
+// shop, and a shop owner, who may attach staff to their own shop and nothing
+// else.
 //
 // Accounts sign in with either a branded username (auto-generated with the
 // shop, e.g. sparklewash) or an E.164 mobile number; at least one is required.
@@ -111,7 +115,7 @@ Deno.serve(async (request: Request) => {
     return json({ error: valid }, 400);
   }
 
-  // Acts as the calling superadmin, so RLS and my_role() apply to them.
+  // Acts as the calling user, so RLS and my_role() apply to them.
   const asCaller = createClient(supabaseUrl, anonKey, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
@@ -122,7 +126,22 @@ Deno.serve(async (request: Request) => {
   if (roleError) {
     return json({ error: roleError.message }, 401);
   }
-  if (callerRole !== 'superadmin') {
+
+  const isSuperadmin = callerRole === 'superadmin';
+
+  // A shop owner may cut a key for their own counter, and only ever a staff
+  // key. Another owner, or any other shop, stays superadmin work. The role is
+  // tested here and hardcoded again inside owner_attach_shop_staff, so neither
+  // layer is load-bearing on its own.
+  let isShopOwner = false;
+  if (!isSuperadmin && valid.role === 'staff') {
+    const { data: canManage } = await asCaller.rpc('can_manage_shop', {
+      p_shop_id: valid.shopId,
+    });
+    isShopOwner = canManage === true;
+  }
+
+  if (!isSuperadmin && !isShopOwner) {
     return json({ error: 'not allowed' }, 403);
   }
 
@@ -148,13 +167,19 @@ Deno.serve(async (request: Request) => {
     return json({ error: createError?.message ?? 'Could not create the account' }, 400);
   }
 
-  // Attaching runs as the caller, so admin_attach_shop_account re-checks the
-  // superadmin role in the database rather than trusting this function.
-  const { error: attachError } = await asCaller.rpc('admin_attach_shop_account', {
-    p_shop_id: valid.shopId,
-    p_profile_id: created.user.id,
-    p_role: valid.role,
-  });
+  // Attaching runs as the caller, so the database re-checks who is asking
+  // rather than trusting this function. The owner path takes no role argument
+  // at all — that is the guarantee, not a check.
+  const { error: attachError } = isSuperadmin
+    ? await asCaller.rpc('admin_attach_shop_account', {
+        p_shop_id: valid.shopId,
+        p_profile_id: created.user.id,
+        p_role: valid.role,
+      })
+    : await asCaller.rpc('owner_attach_shop_staff', {
+        p_shop_id: valid.shopId,
+        p_profile_id: created.user.id,
+      });
 
   if (attachError) {
     // Roll back so a failed attach does not strand a login with no shop.

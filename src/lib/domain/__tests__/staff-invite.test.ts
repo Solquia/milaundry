@@ -1,7 +1,6 @@
 import {
   STAFF_ONLY_ROLE,
   canAddStaff,
-  describeStaffHandoff,
   validateStaffDraft,
 } from '../staff-invite';
 
@@ -60,29 +59,5 @@ describe('validateStaffDraft', () => {
       expect(result.errors.fullName).toBeTruthy();
       expect(result.errors.phone).toBeTruthy();
     }
-  });
-});
-
-describe('describeStaffHandoff', () => {
-  it('is something an owner can read down a phone line', () => {
-    const lines = describeStaffHandoff({
-      fullName: 'Ana Cruz',
-      phone: '+639171234567',
-      password: 'Kf7mQr2xTuVw',
-    });
-    expect(lines).toContain('Ana Cruz');
-    expect(lines).toContain('+639171234567');
-    expect(lines).toContain('Kf7mQr2xTuVw');
-  });
-
-  it('says the password will not be shown again', () => {
-    // It is never stored anywhere this app can read, so an owner who closes
-    // the card without copying it has to reset it.
-    const lines = describeStaffHandoff({
-      fullName: 'Ana Cruz',
-      phone: '+639171234567',
-      password: 'Kf7mQr2xTuVw',
-    });
-    expect(lines.toLowerCase()).toContain('again');
   });
 });
