@@ -60,7 +60,7 @@ function nationalPhone(phone: string): string {
 }
 
 export function welcomeBackNotice(phone: string): string {
-  return `${nationalPhone(phone)} already has a MiLaundry account. Enter its password to book with it.`;
+  return `${nationalPhone(phone)} already has a MiLaundry account. Enter its password to continue.`;
 }
 
 const RATE_LIMIT_RE = /429|too many|rate limit/i;
