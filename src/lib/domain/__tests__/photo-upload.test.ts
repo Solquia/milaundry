@@ -2,7 +2,8 @@ import {
   MIN_PHOTO_BYTES,
   ensurePhotoBytes,
   photoContentType,
-  photoObjectPath,
+  photoReaderFor,
+  resolvePhotoContentType,
 } from '../photo-upload';
 
 describe('ensurePhotoBytes', () => {
@@ -48,40 +49,40 @@ describe('photoContentType', () => {
   });
 });
 
-describe('photoObjectPath', () => {
-  it('files the photo under its own order, which is what storage checks', () => {
-    const path = photoObjectPath('order-1', 'weigh', 'file:///tmp/a.jpg', 1000);
-
-    // Both storage policies match on the first path segment being the order
-    // id; a path that does not start with it is unreadable by anyone.
-    expect(path.startsWith('order-1/')).toBe(true);
-    expect(path).toContain('weigh');
-    expect(path.endsWith('.jpg')).toBe(true);
+describe('photoReaderFor', () => {
+  it('reads a picked image in the browser with fetch', () => {
+    // The web picker hands back a blob: URL. expo-file-system's File cannot
+    // open one at all — it throws "this.validatePath is not a function", which
+    // is what broke Save branding on the website.
+    expect(photoReaderFor('web')).toBe('fetch');
   });
 
-  it('never overwrites an earlier weighing of the same order', () => {
-    const first = photoObjectPath('order-1', 'weigh', 'file:///tmp/a.jpg', 1000);
-    const second = photoObjectPath('order-1', 'weigh', 'file:///tmp/a.jpg', 2000);
-
-    expect(first).not.toBe(second);
+  it('reads a file on a device with expo-file-system, never fetch', () => {
+    // fetch('file://…') on a device goes through a polyfill that once returned
+    // the 14-byte string "File not found" instead of a photo, which is the
+    // whole reason MIN_PHOTO_BYTES exists.
+    expect(photoReaderFor('ios')).toBe('file-system');
+    expect(photoReaderFor('android')).toBe('file-system');
   });
+});
 
-  it('keeps a receipt and a weighing apart', () => {
-    const weigh = photoObjectPath('order-1', 'weigh', 'file:///tmp/a.jpg', 1000);
-    const proof = photoObjectPath('order-1', 'proof', 'file:///tmp/a.jpg', 1000);
-
-    expect(weigh).not.toBe(proof);
-  });
-
-  it('does not let a query-string on the picker URI into the object key', () => {
-    const path = photoObjectPath(
-      'order-1',
-      'weigh',
-      'file:///tmp/a.jpg?width=100',
-      1000
+describe('resolvePhotoContentType', () => {
+  it(`trusts the blob own type, because a blob: URL has no extension`, () => {
+    expect(resolvePhotoContentType('blob:http://localhost:8081/a-b-c', 'image/png')).toBe(
+      'image/png'
     );
+  });
 
-    expect(path).not.toContain('?');
-    expect(path.endsWith('.jpg')).toBe(true);
+  it('ignores a blob type that is not an image', () => {
+    // Some browsers hand back an empty string or application/octet-stream for
+    // a picked file; the extension rule is a better guess than either.
+    expect(resolvePhotoContentType('shot.png', 'application/octet-stream')).toBe(
+      'image/png'
+    );
+    expect(resolvePhotoContentType('shot.png', '')).toBe('image/png');
+  });
+
+  it('falls back to the extension when there is no blob at all', () => {
+    expect(resolvePhotoContentType('/var/mobile/photo.jpg')).toBe('image/jpeg');
   });
 });
