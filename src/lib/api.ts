@@ -1,5 +1,12 @@
 import { isImagekitFilePath } from './domain/imagekit';
+import { ensurePhotoBytes, extensionOf } from './domain/photo-upload';
+import {
+  SHOP_ASSET_BUCKET,
+  shopAssetPath,
+  type ShopAssetKind,
+} from './domain/shop-asset';
 import { STAFF_ONLY_ROLE } from './domain/staff-invite';
+import { readImage } from './read-image';
 import type { OrderStatus } from './domain/order-status';
 import type { PhotoKind } from './domain/photo-upload';
 import { signedOrderPhotoUrl, uploadImage } from './imagekit';
@@ -581,21 +588,37 @@ export function uploadShopCover(shopId: string, localUri: string): Promise<strin
 }
 
 /**
- * One shop image into ImageKit, filed `/shops/<shop_id>/<kind>-<ts>.<ext>` and
- * public — a shopfront is meant to be looked at. A fresh name per upload means
- * a fresh URL, so no image cache anywhere can keep showing the old picture.
+ * One shop image into the public `shop-logos` bucket, filed
+ * `<shop_id>/<kind>-<ts>.<ext>`. A fresh name per upload means a fresh URL, so
+ * no image cache between here and the customer's phone can keep showing the
+ * picture the shop just replaced.
  *
- * Shops branded before the move keep their Supabase URL in the same column and
- * go on being served from there; the row holds a whole URL, so nothing has to
- * know which of the two it came from.
+ * This went to ImageKit briefly, and that broke branding outright for a project
+ * without an ImageKit account: the Edge Function answers
+ * `Function is not configured` and nothing can be saved from anywhere. A
+ * shopfront is public, so there was never anything to sign — order photos are
+ * the ones that need ImageKit, and they still use it.
+ *
+ * The path shape is load-bearing: the bucket policy reads
+ * `storage.foldername(name)[1]` and checks it against a shop the caller may
+ * manage, so `shopAssetPath` builds it and the database refuses anything else.
  */
 async function uploadShopAsset(
   shopId: string,
   localUri: string,
-  kind: 'logo' | 'cover'
+  kind: ShopAssetKind
 ): Promise<string> {
-  const { url } = await uploadImage({ purpose: 'shop', shopId, kind }, localUri);
-  return url;
+  const { bytes, contentType } = await readImage(localUri);
+  ensurePhotoBytes(bytes.byteLength);
+
+  const path = shopAssetPath(shopId, kind, extensionOf(localUri));
+  const { error } = await supabase.storage
+    .from(SHOP_ASSET_BUCKET)
+    .upload(path, bytes, { contentType, upsert: true });
+  if (error) throw new Error(error.message);
+
+  const { data } = supabase.storage.from(SHOP_ASSET_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 /**

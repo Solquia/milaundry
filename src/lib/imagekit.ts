@@ -18,7 +18,6 @@
  * `domain/photo-upload.ts`.
  */
 
-import { File } from 'expo-file-system';
 import { Platform } from 'react-native';
 
 import {
@@ -30,12 +29,8 @@ import {
   type ImageTarget,
   type UploadedImage,
 } from './domain/imagekit';
-import {
-  ensurePhotoBytes,
-  extensionOf,
-  photoReaderFor,
-  resolvePhotoContentType,
-} from './domain/photo-upload';
+import { ensurePhotoBytes, extensionOf } from './domain/photo-upload';
+import { readImage } from './read-image';
 import { supabase } from './supabase';
 
 /** Uploads one image and reports where it landed. */
@@ -85,32 +80,6 @@ export async function uploadImage(
     );
   }
   return parseUploadResponse(body);
-}
-
-/**
- * The bytes, read by whichever reader this platform can actually use, and the
- * type to file them under. Which reader, and why each one is wrong on the
- * other platform, is `domain/photo-upload.ts`.
- */
-async function readImage(
-  localUri: string
-): Promise<{ bytes: ArrayBuffer; contentType: string }> {
-  if (photoReaderFor(Platform.OS) === 'file-system') {
-    return {
-      bytes: await new File(localUri).arrayBuffer(),
-      contentType: resolvePhotoContentType(localUri),
-    };
-  }
-
-  const response = await fetch(localUri);
-  if (!response.ok) {
-    throw new Error('That image could not be read. Please pick it again.');
-  }
-  const blob = await response.blob();
-  return {
-    bytes: await blob.arrayBuffer(),
-    contentType: resolvePhotoContentType(localUri, blob.type),
-  };
 }
 
 /**
