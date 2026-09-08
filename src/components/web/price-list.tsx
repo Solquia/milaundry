@@ -1,25 +1,22 @@
 /**
- * The price list, all of it open, on one sheet.
+ * The price list as a showcase.
  *
- * The app folds categories into an accordion because a phone screen has a
- * booking form under the list. The web page has nothing under it but the
- * shop's details, and a customer who arrived from a search wants every price
- * without tapping. So: one white sheet, each category a plain heading, each
- * service one row with the figure on the right. Nothing is said twice — the
- * heading no longer announces a "from" price that the first row states a
- * line later.
+ * Every service is a card with a face: a tile in the colour of its kind, the
+ * name as a title, a line about it, the price, and a Book sticker in the
+ * shop's own colour. The web page has nothing under the list but the shop's
+ * details, so every card is open — a customer who arrived from a search reads
+ * every price without a tap. Categories are quiet labels between the cards,
+ * there for a long list and invisible in a short one.
  *
- * A row is the fastest way to book: tapping it opens the booking page with
+ * A card is the fastest way to book: tapping it opens the booking page with
  * that service already in the basket. When the shop cannot take bookings the
- * rows are just rows.
+ * cards are just cards, and the sticker is not there to promise otherwise.
  */
-import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 
+import { ServiceShowcaseCard } from '@/components/service-showcase-card';
 import { colors, space, type } from '@/components/ui-kit';
-import { formatMoneyCompact } from '@/lib/domain/money';
-import { minimumLabel, unitCaption } from '@/lib/domain/price-label';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -33,27 +30,32 @@ interface PriceListProps {
 
 export function PriceList({ services, theme, onBook }: PriceListProps) {
   const groups = groupServicesByCategory(services);
+  const showLabels = groups.length > 1;
+  const bookTone = { bg: theme.brand, ink: theme.onBrand };
 
   if (groups.length === 0) {
     return (
-      <View style={styles.sheet}>
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No prices posted yet</Text>
-          <Text style={styles.emptyBody}>Call the shop and they will quote you.</Text>
-        </View>
+      <View style={styles.empty}>
+        <Text style={styles.emptyTitle}>No prices posted yet</Text>
+        <Text style={styles.emptyBody}>Call the shop and they will quote you.</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.sheet}>
-      {groups.map((group, index) => (
-        <View key={group.category}>
-          <Text style={[styles.heading, index > 0 && styles.headingAfterGroup]}>
-            {CATEGORY_LABELS[group.category]}
-          </Text>
+    <View style={styles.list}>
+      {groups.map((group) => (
+        <View key={group.category} style={styles.group}>
+          {showLabels ? (
+            <Text style={styles.label}>{CATEGORY_LABELS[group.category]}</Text>
+          ) : null}
           {group.services.map((service) => (
-            <ServiceRow key={service.id} service={service} theme={theme} onBook={onBook} />
+            <ServiceShowcaseCard
+              key={service.id}
+              service={service}
+              bookTone={bookTone}
+              onBook={onBook ? () => onBook(service.id) : undefined}
+            />
           ))}
         </View>
       ))}
@@ -62,96 +64,26 @@ export function PriceList({ services, theme, onBook }: PriceListProps) {
   );
 }
 
-interface ServiceRowProps {
-  service: StorefrontService;
-  theme: StorefrontTheme;
-  onBook?: (serviceId: string) => void;
-}
-
-function ServiceRow({ service, theme, onBook }: ServiceRowProps) {
-  const unit = unitCaption(service.unit);
-  const minimum = minimumLabel(service);
-  const [isHovered, setIsHovered] = React.useState(false);
-  const isBookable = Boolean(onBook);
-
-  return (
-    <Pressable
-      accessibilityRole={isBookable ? 'button' : undefined}
-      accessibilityLabel={isBookable ? `Book ${service.name}` : undefined}
-      disabled={!isBookable}
-      onPress={() => onBook?.(service.id)}
-      onHoverIn={() => setIsHovered(true)}
-      onHoverOut={() => setIsHovered(false)}
-      style={({ pressed }) => [
-        styles.row,
-        isBookable && (pressed || isHovered) && { backgroundColor: theme.brandSoft },
-      ]}
-    >
-      <View style={styles.words}>
-        <Text style={styles.name}>{service.name}</Text>
-        {service.description ? <Text style={styles.description}>{service.description}</Text> : null}
-        {minimum ? <Text style={styles.minimum}>{minimum}</Text> : null}
-      </View>
-      <View style={styles.figure}>
-        <Text style={[styles.price, { color: theme.brandInk }]}>
-          {formatMoneyCompact(service.price)}
-          {unit ? <Text style={styles.unit}>{unit}</Text> : null}
-        </Text>
-      </View>
-      {isBookable ? (
-        <Ionicons
-          name="chevron-forward"
-          size={18}
-          color={isHovered ? theme.brandInk : colors.border}
-          style={styles.chevron}
-        />
-      ) : null}
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  sheet: {
+  list: { gap: space.section },
+  group: { gap: space.cosy },
+  label: {
+    ...type.label,
+    color: colors.subtle,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    fontSize: 12,
+    paddingHorizontal: space.tight,
+  },
+  footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight },
+  empty: {
     backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: space.snug,
-    overflow: 'hidden',
+    padding: space.section,
+    gap: space.tight,
   },
-  heading: {
-    ...type.section,
-    color: colors.text,
-    paddingHorizontal: space.room,
-    paddingTop: space.cosy,
-    paddingBottom: space.tight,
-  },
-  headingAfterGroup: { paddingTop: space.section, borderTopWidth: 1, borderTopColor: colors.border },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.cosy,
-    paddingHorizontal: space.room,
-    paddingVertical: space.cosy,
-    minHeight: 56,
-    ...Platform.select({ web: { cursor: 'pointer', transitionDuration: '120ms' } as object, default: {} }),
-  },
-  words: { flex: 1, gap: 2 },
-  name: { ...type.body, fontWeight: '600', color: colors.text },
-  description: { ...type.caption, color: colors.subtle },
-  minimum: { ...type.caption, color: colors.subtle },
-  figure: { alignItems: 'flex-end', minWidth: 72 },
-  price: { ...type.value, fontVariant: ['tabular-nums'] },
-  unit: { ...type.caption, fontWeight: '400', color: colors.subtle },
-  chevron: { marginLeft: -space.tight },
-  footnote: {
-    ...type.caption,
-    color: colors.subtle,
-    paddingHorizontal: space.room,
-    paddingTop: space.cosy,
-    paddingBottom: space.tight,
-  },
-  empty: { padding: space.section, gap: space.tight },
   emptyTitle: { ...type.section, color: colors.text },
   emptyBody: { ...type.body, color: colors.subtle },
 });
