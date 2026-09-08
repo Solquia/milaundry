@@ -1,5 +1,5 @@
 import { CATEGORY_ORDER } from '../service-catalog';
-import { SCENE_KEYS, sceneFaces, sceneFor } from '../service-scene';
+import { SCENE_KEYS, sceneFaces, sceneFor, scenePalette } from '../service-scene';
 
 describe('sceneFor', () => {
   it('reads the scene from the service name before its category', () => {
@@ -94,5 +94,54 @@ describe('sceneFaces on a white card', () => {
     for (const key of ['top', 'left', 'right', 'shadow', 'rim'] as const) {
       expect(onWhite[key]).toMatch(/^#[0-9a-f]{6}$/i);
     }
+  });
+});
+
+describe('scenePalette', () => {
+  it('gives every scene its own palette', () => {
+    for (const key of SCENE_KEYS) {
+      expect(() => scenePalette(key)).not.toThrow();
+    }
+  });
+
+  it('paints each object in its own colours, not one shared hue', () => {
+    // A stack of laundry is not the same colour as a washing machine. The
+    // category tone used to drive every object, which is what made the set
+    // read as diagrams rather than as things.
+    const bases = SCENE_KEYS.map((key) => scenePalette(key).base);
+    expect(new Set(bases).size).toBeGreaterThan(SCENE_KEYS.length / 2);
+  });
+
+  it('returns hex for every colour in every palette', () => {
+    for (const key of SCENE_KEYS) {
+      const palette = scenePalette(key);
+      for (const value of [palette.base, palette.light, palette.shade, palette.accent, palette.deep]) {
+        expect(value).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+    }
+  });
+
+  it('orders each palette from light through base to shade, so form reads', () => {
+    const lum = (hex: string) =>
+      parseInt(hex.slice(1, 3), 16) * 0.299 +
+      parseInt(hex.slice(3, 5), 16) * 0.587 +
+      parseInt(hex.slice(5, 7), 16) * 0.114;
+    for (const key of SCENE_KEYS) {
+      const p = scenePalette(key);
+      expect(lum(p.light)).toBeGreaterThan(lum(p.base));
+      expect(lum(p.base)).toBeGreaterThan(lum(p.shade));
+      expect(lum(p.shade)).toBeGreaterThan(lum(p.deep));
+    }
+  });
+
+  it('keeps the colours vibrant rather than washed to grey', () => {
+    const chroma = (hex: string) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return Math.max(r, g, b) - Math.min(r, g, b);
+    };
+    const vivid = SCENE_KEYS.filter((key) => chroma(scenePalette(key).accent) >= 60);
+    expect(vivid.length).toBeGreaterThanOrEqual(SCENE_KEYS.length - 1);
   });
 });
