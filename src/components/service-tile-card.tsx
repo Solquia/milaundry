@@ -118,7 +118,7 @@ export function ServiceTileCard({
 
   const isBasket = quantity !== undefined;
   const held = quantity ?? 0;
-  const isBookable = Boolean(onBook) && !isBasket;
+  const isBookable = (isBasket ? held === 0 : Boolean(onBook)) && !isDisabled;
   const isLive = !isDisabled && (isBookable || isBasket);
   const isEngaged = isLive && (isHovered || isPressed);
 
@@ -144,22 +144,27 @@ export function ServiceTileCard({
     ],
   };
 
-  // In basket mode the card itself is not the button — the steppers are, and a
-  // card-wide press would fight them.
-  const Wrapper = isBasket ? View : Pressable;
-  const pressProps = isBasket
-    ? {}
-    : {
-        accessibilityRole: onBook ? ('button' as const) : undefined,
-        accessibilityLabel: onBook
-          ? `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`
-          : undefined,
-        accessibilityState: onBook ? { disabled: isDisabled } : undefined,
-        disabled: !onBook,
-        onPress: onBook,
+  /**
+   * The card is the button, which is why there is no Add on it. In basket
+   * mode that holds only until something is on the ticket: once the steppers
+   * appear a card-wide press would fight them, so the card goes inert and the
+   * − and + take over.
+   */
+  const cardPress = isBasket ? (held === 0 ? onAdd : undefined) : onBook;
+  const Wrapper = cardPress ? Pressable : View;
+  const pressProps = cardPress
+    ? {
+        accessibilityRole: 'button' as const,
+        accessibilityLabel: isBasket
+          ? `Add ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`
+          : `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`,
+        accessibilityState: { disabled: isDisabled },
+        disabled: isDisabled,
+        onPress: cardPress,
         onPressIn: () => setIsPressed(true),
         onPressOut: () => setIsPressed(false),
-      };
+      }
+    : {};
 
   return (
     <Wrapper
@@ -207,55 +212,27 @@ export function ServiceTileCard({
         ) : null}
       </View>
 
-      <View style={styles.action}>
-        {isBasket ? (
-          held > 0 ? (
-            <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
-              <Step
-                label="−"
-                hint={`Remove ${showcaseTitle(service.name)}`}
-                onPress={() => onRemove?.()}
-                ink={bookTone.bg}
-              />
-              <Text style={styles.held} numberOfLines={1}>
-                {service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)}
-              </Text>
-              {service.unit === 'flat' ? null : (
-                <Step
-                  label="+"
-                  hint={`Add more ${showcaseTitle(service.name)}`}
-                  onPress={() => onAdd?.()}
-                  ink={bookTone.bg}
-                />
-              )}
-            </View>
-          ) : (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${showcaseTitle(service.name)}`}
+      {isBasket && held > 0 ? (
+        <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
+          <Step
+            label="−"
+            hint={`Remove ${showcaseTitle(service.name)}`}
+            onPress={() => onRemove?.()}
+            ink={bookTone.bg}
+          />
+          <Text style={styles.held} numberOfLines={1}>
+            {service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)}
+          </Text>
+          {service.unit === 'flat' ? null : (
+            <Step
+              label="+"
+              hint={`Add more ${showcaseTitle(service.name)}`}
               onPress={() => onAdd?.()}
-              style={({ pressed }) => [
-                styles.add,
-                { backgroundColor: bookTone.bg },
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text style={[styles.addText, { color: bookTone.ink }]}>Add</Text>
-            </Pressable>
-          )
-        ) : onBook ? (
-          <View
-            style={[
-              styles.add,
-              { backgroundColor: isDisabled ? colors.borderStrong : bookTone.bg },
-            ]}
-          >
-            <Text style={[styles.addText, { color: isDisabled ? colors.card : bookTone.ink }]}>
-              Add
-            </Text>
-          </View>
-        ) : null}
-      </View>
+              ink={bookTone.bg}
+            />
+          )}
+        </View>
+      ) : null}
     </Wrapper>
   );
 }
@@ -288,7 +265,7 @@ const styles = StyleSheet.create({
    * Anchored to the bottom-right corner and allowed to run past it. Big enough
    * to be the thing you look at; the card clips whatever overruns.
    */
-  object: { position: 'absolute', right: -10, bottom: -12, width: 122, height: 122 },
+  object: { position: 'absolute', right: -12, bottom: -14, width: 150, height: 150 },
 
   words: { gap: 1 },
   name: { ...type.label, fontFamily: fontFor(800), fontSize: 15, lineHeight: 19 },
@@ -297,15 +274,10 @@ const styles = StyleSheet.create({
   minimum: { ...type.caption, color: colors.subtle },
 
   /** Bottom-left, clear of the object's corner. */
-  action: { position: 'absolute', left: space.room, bottom: space.room },
-  add: {
-    minHeight: 34,
-    paddingHorizontal: space.room,
-    borderRadius: RADII.pill,
-    justifyContent: 'center',
-  },
-  addText: { ...type.caption, fontFamily: fontFor(700), letterSpacing: 0.3 },
   stepper: {
+    position: 'absolute',
+    left: space.room,
+    bottom: space.room,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
