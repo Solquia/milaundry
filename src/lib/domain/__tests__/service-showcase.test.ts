@@ -77,15 +77,33 @@ describe('showcaseBlurb', () => {
 
 describe('showcasePrice', () => {
   it('splits a per-kg price into figure, unit and minimum', () => {
-    expect(showcasePrice(washFold)).toEqual({ figure: '₱176', unit: '/kg', minimum: '2 kg minimum' });
+    expect(showcasePrice(washFold)).toEqual({
+      figure: '₱176',
+      symbol: '₱',
+      amount: '176',
+      unit: '/kg',
+      minimum: '2 kg minimum',
+    });
   });
 
   it('gives a per-item price its unit and no minimum', () => {
-    expect(showcasePrice(bedding)).toEqual({ figure: '₱123', unit: '/piece', minimum: null });
+    expect(showcasePrice(bedding)).toEqual({
+      figure: '₱123',
+      symbol: '₱',
+      amount: '123',
+      unit: '/piece',
+      minimum: null,
+    });
   });
 
   it('shows a flat price as a bare figure, ignoring a stray minimum', () => {
-    expect(showcasePrice(selfWash)).toEqual({ figure: '₱75', unit: null, minimum: null });
+    expect(showcasePrice(selfWash)).toEqual({
+      figure: '₱75',
+      symbol: '₱',
+      amount: '75',
+      unit: null,
+      minimum: null,
+    });
   });
 });
 

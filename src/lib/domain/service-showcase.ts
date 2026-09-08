@@ -66,6 +66,18 @@ export function showcaseBlurb(service: ShowcaseService): string {
 export interface ShowcasePrice {
   /** `₱176` — the figure, no centavos it never had. */
   figure: string;
+  /**
+   * The currency mark on its own.
+   *
+   * Figtree ships no peso glyph, so the platform substitutes another face for
+   * it. Set at the same size and weight as the digits beside it, that
+   * substitution reads as a mistake — a taller, thinner sign floating off the
+   * baseline. Split out, a card can set it smaller and quieter, which is how
+   * a currency mark should be set anyway: the number is the information.
+   */
+  symbol: string;
+  /** `176`, or `2,841`, or `60.50` — everything the symbol is not. */
+  amount: string;
   /** `/kg`, `/piece`, or null for a flat price that needs no unit. */
   unit: string | null;
   /** `2 kg minimum`, or null when the shop set none. */
@@ -74,8 +86,12 @@ export interface ShowcasePrice {
 
 /** The price in its three parts, so a card can size each one differently. */
 export function showcasePrice(service: ShowcaseService): ShowcasePrice {
+  const figure = formatMoneyCompact(service.price);
+  const mark = figure.indexOf('₱');
   return {
-    figure: formatMoneyCompact(service.price),
+    figure,
+    symbol: mark === -1 ? '' : '₱',
+    amount: mark === -1 ? figure : figure.slice(mark + 1),
     unit: unitCaption(service.unit),
     minimum: minimumLabel(service),
   };

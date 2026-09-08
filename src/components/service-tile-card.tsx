@@ -235,7 +235,8 @@ export function ServiceTileCard({
           {showcaseTitle(service.name)}
         </Text>
         <Text style={styles.figure} numberOfLines={1}>
-          {price.figure}
+          <Text style={styles.peso}>{price.symbol}</Text>
+          {price.amount}
           {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
         </Text>
         {price.minimum ? (
@@ -315,6 +316,18 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontVariant: ['tabular-nums'],
     marginTop: 2,
+  },
+  /**
+   * The currency mark, set down rather than matched to the digits. Figtree has
+   * no peso glyph, so the platform substitutes another face; at full size and
+   * weight that substitution reads as a mistake. Smaller and quieter it reads
+   * as a deliberate mark, and the number keeps the emphasis it deserves.
+   */
+  peso: {
+    fontFamily: fontFor(600),
+    fontSize: 16,
+    letterSpacing: 0,
+    color: colors.subtle,
   },
   unit: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
   /**
