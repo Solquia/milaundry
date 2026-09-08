@@ -156,30 +156,32 @@ under §3, the booking pages under §7. Plan status updated.
 Reviewed by the code-reviewer agent (opus) after the browser walk-through. No
 critical findings; four high, eight medium, two low.
 
-**Fixed before the feature commit** (, eslint, and the full jest
-suite re-run clean; function redeployed as version 2 and smoke-tested):
+**Fixed before the feature commit** (`npx tsc --noEmit`, eslint, and the full
+jest suite re-run clean; function redeployed as version 2 and smoke-tested: a
+fresh number with a spoofed `x-forwarded-for` still got a token, the retry got
+`exists`, and the preflight answered):
 
 - The address bucket read the *first* X-Forwarded-For hop, which the caller
   writes. It now prefers the proxy's own header, falls back to the last hop,
-  and a  key (120/min) bounds the function as a whole.
--  was also returned for any error containing "already"; now
-  only for , everything else is logged and refused.
-- CORS:  secret allowlists the storefront host(s); unset
-  keeps  for previews.
+  and a `global` key (120/min) bounds the function as a whole.
+- `{exists:true}` was also returned for any error containing "already"; now
+  only for the `email_exists` code, everything else is logged and refused.
+- CORS: an `ALLOWED_ORIGINS` secret allowlists the storefront host(s); unset
+  keeps `*` for previews.
 - Guest form: changing the number clears the password prompt, the typed
-  password, and any error; password fields carry .
-- A lost reply after  no longer invites a second booking: a ref
+  password, and any error; password fields carry `autoComplete`.
+- A lost reply after `place_order` no longer invites a second booking: a ref
   blocks re-entry, and a connection failure shows "your booking may have gone
   through" with a link to the orders list.
 - Sign-out failure on the contact step is shown, not swallowed; the orders
   page distinguishes a failed load from an empty list.
 - The React Query cache is cleared whenever the signed-in user changes
-  (), so "use another number" on a shared phone cannot show
+  (`src/lib/auth.tsx`), so "use another number" on a shared phone cannot show
   the previous person's orders.
 - The rate-limit table sweep runs on ~2% of calls with an index on
-  , instead of a full delete on every sign-in.
+  `window_start`, instead of a full delete on every sign-in.
 - The "set a password" offer is remembered in the browser
-  () and shown on every tracking view until a
+  (`src/lib/web-guest-state.ts`) and shown on every tracking view until a
   password is set.
 
 **Accepted or deferred:**
@@ -190,10 +192,10 @@ suite re-run clean; function redeployed as version 2 and smoke-tested):
   a provisional-account flag with shop-mediated recovery. Owner decision.
 - *No recovery path for a guest who never set a password* beyond the
   remembered offer above. Same decision.
--  navigations render without  on the web (no middle-click,
+- `Pressable` navigations render without `href` on the web (no middle-click,
   nothing for crawlers). Phase 4 with the link-preview work.
-- Enter does not submit the guest form ( has no submit prop).
--  does not refuse merchant accounts (low).
+- Enter does not submit the guest form (`PhoneField` has no submit prop).
+- `register_with_shop_by_slug` does not refuse merchant accounts (low).
 
 ## Merge evidence
 
