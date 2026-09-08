@@ -15,9 +15,55 @@ describe('QR payload build/parse', () => {
     expect(parseQrPayload(url)).toEqual({ type: 'order', id: ORDER_ID, token: TOKEN });
   });
 
-  it('uses the milaundry deep-link scheme', () => {
-    expect(buildShopQr(SHOP_ID, TOKEN)).toMatch(/^milaundry:\/\/shop\//);
-    expect(buildOrderQr(ORDER_ID, TOKEN)).toMatch(/^milaundry:\/\/order\//);
+  it('prints the shop code as a web link a phone camera can open', () => {
+    expect(buildShopQr(SHOP_ID, TOKEN)).toBe(
+      `https://milaundry.app/join/${SHOP_ID}?token=${TOKEN}`
+    );
+  });
+
+  it('prints the receipt code as a web link a phone camera can open', () => {
+    expect(buildOrderQr(ORDER_ID, TOKEN)).toBe(
+      'https://milaundry.app/claim/' + ORDER_ID + '?token=' + TOKEN
+    );
+  });
+
+  it('still reads the deep-link shop codes already printed', () => {
+    expect(parseQrPayload(`milaundry://shop/${SHOP_ID}?token=${TOKEN}`)).toEqual({
+      type: 'shop',
+      id: SHOP_ID,
+      token: TOKEN,
+    });
+  });
+
+  it('reads the web claim and join paths as order and shop codes', () => {
+    expect(parseQrPayload(`https://milaundry.app/claim/${ORDER_ID}?token=${TOKEN}`)).toEqual({
+      type: 'order',
+      id: ORDER_ID,
+      token: TOKEN,
+    });
+    expect(parseQrPayload(`https://milaundry.app/join/${SHOP_ID}?token=${TOKEN}`)).toEqual({
+      type: 'shop',
+      id: SHOP_ID,
+      token: TOKEN,
+    });
+  });
+
+  it('accepts a code printed for a configured host', () => {
+    expect(
+      parseQrPayload(`https://laundry.example.ph/join/${SHOP_ID}?token=${TOKEN}`, [
+        'laundry.example.ph',
+        'milaundry.app',
+      ])
+    ).toEqual({ type: 'shop', id: SHOP_ID, token: TOKEN });
+  });
+
+  it('refuses a web path the app does not own', () => {
+    expect(parseQrPayload(`https://milaundry.app/s/sparkle-wash?token=${TOKEN}`)).toBeNull();
+  });
+
+  it('refuses a path that only exists on Object.prototype', () => {
+    expect(parseQrPayload('https://milaundry.app/constructor/' + SHOP_ID + '?token=' + TOKEN)).toBeNull();
+    expect(parseQrPayload('milaundry://toString/' + SHOP_ID + '?token=' + TOKEN)).toBeNull();
   });
 
   it('parses https fallback links too', () => {

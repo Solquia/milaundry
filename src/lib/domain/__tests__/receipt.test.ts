@@ -133,10 +133,12 @@ describe('buildReceipt', () => {
 
   it('ends with the claim QR, an instruction, and a cut', () => {
     const qr = lines.find((l) => l.kind === 'qr');
-    expect(qr).toEqual({ kind: 'qr', value: 'milaundry://order/a1b2c3d4-0000-4000-8000-9f8e7d6c5b4a?token=tok%2Fen%2B1' });
+    expect(qr).toEqual({ kind: 'qr', value: 'https://milaundry.app/claim/a1b2c3d4-0000-4000-8000-9f8e7d6c5b4a?token=tok%2Fen%2B1' });
     const qrIndex = lines.indexOf(qr!);
     const after = lines.slice(qrIndex + 1);
     expect(after.some((l) => l.kind === 'text' && /scan/i.test(l.text))).toBe(true);
+    // No app needed any more: the slip must say a phone camera will do.
+    expect(after.some((l) => l.kind === 'text' && /camera/i.test(l.text))).toBe(true);
     expect(after[after.length - 1]).toEqual({ kind: 'cut' });
   });
 
