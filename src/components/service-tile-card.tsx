@@ -6,11 +6,9 @@
  * scannable — every name starts in the same place, so a column reads like a
  * list, while the objects fill the space the words do not need.
  *
- * The card is not white. Each one is grounded in its category's own colour: a
- * wash that deepens toward the foot, and a bloom of the object's accent behind
- * the object itself, so a price list of six services is six colours rather
- * than six white rectangles. The tint stays under a tenth of full strength, so
- * every word on top of it keeps its contrast.
+ * The card stays white. Colour on it would compete with the object, which is
+ * the one thing on the card worth looking at; the name in the category's ink
+ * and the object's own palette carry all the colour this needs.
  *
  * The same card serves the price list and the ordering step. Pass `quantity`
  * and the steppers and it becomes a basket row. The card itself is the button
@@ -19,10 +17,9 @@
 import { Image } from 'expo-image';
 import React from 'react';
 import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
-import Svg, { Defs, Ellipse, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
-import { sceneFor, scenePalette } from '@/lib/domain/service-scene';
+import { sceneFor } from '@/lib/domain/service-scene';
 import {
   showcasePrice,
   showcaseTitle,
@@ -74,36 +71,6 @@ function useReducedMotion(): boolean {
   return isReduced;
 }
 
-/**
- * The colour under the card: a wash that deepens toward the foot, and a bloom
- * of the object's own accent behind where the object stands.
- *
- * Drawn in SVG rather than as stacked tinted views because a flat tint reads
- * as a filled box, and a box is the thing this card spent three passes
- * escaping. Ids are keyed to the colour: SVG ids share one namespace per
- * document, so a shared id would hand every card the first card's gradient.
- */
-function CardGround({ wash, bloom }: { wash: string; bloom: string }) {
-  const id = `g${wash}${bloom}`.replace(/[^a-zA-Z0-9]/g, '');
-  return (
-    <Svg style={StyleSheet.absoluteFill} width="100%" height="100%" viewBox="0 0 100 100" preserveAspectRatio="none">
-      <Defs>
-        <LinearGradient id={`${id}w`} x1="0" y1="0" x2="0.3" y2="1">
-          <Stop offset="0" stopColor={wash} stopOpacity="0.07" />
-          <Stop offset="1" stopColor={wash} stopOpacity="0.28" />
-        </LinearGradient>
-        <RadialGradient id={`${id}b`} cx="0.5" cy="0.5" r="0.5">
-          <Stop offset="0" stopColor={bloom} stopOpacity="0.42" />
-          <Stop offset="1" stopColor={bloom} stopOpacity="0" />
-        </RadialGradient>
-      </Defs>
-      <Rect x="0" y="0" width="100" height="100" fill={`url(#${id}w)`} />
-      {/* Behind the object's corner, so the object sits in its own light. */}
-      <Ellipse cx="78" cy="76" rx="46" ry="40" fill={`url(#${id}b)`} />
-    </Svg>
-  );
-}
-
 function Step({
   label,
   hint,
@@ -145,7 +112,6 @@ export function ServiceTileCard({
   const tone = showcaseTone(service.category);
   const price = showcasePrice(service);
   const scene = sceneFor(service.name, service.category);
-  const palette = scenePalette(scene);
   const photo = (service.image_url ?? '').trim();
   const hasPhoto = photo.length > 0 && !isPhotoBroken;
 
@@ -211,8 +177,6 @@ export function ServiceTileCard({
         held > 0 && { borderColor: bookTone.bg },
       ]}
     >
-      <CardGround wash={tone.bg} bloom={palette.accent} />
-
       {/* Drawn before the words so they sit over it, and ignored by touch so
           it never eats a stepper press. */}
       <Animated.View style={[styles.object, objectStyle]} pointerEvents="none">
@@ -331,16 +295,16 @@ const styles = StyleSheet.create({
   },
   unit: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
   /**
-   * The shop's rule, said as a chip rather than as small print. White on the
-   * tinted ground, with the category's ink on it — the first pass put grey
-   * text on the category colour at full strength, which no one could read.
+   * The shop's rule, said as a chip rather than as small print. The card is
+   * white, so the chip takes the sunken tone to read as a chip at all, and
+   * the category's ink to say which service it belongs to.
    */
   minimum: {
     marginTop: 4,
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
-    backgroundColor: colors.card,
+    backgroundColor: colors.sunken,
   },
   minimumText: { ...type.caption, fontSize: 11, fontFamily: fontFor(600) },
 
