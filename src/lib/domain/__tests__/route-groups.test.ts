@@ -2,7 +2,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-import { GROUP_SCREENS, groupForRole, routeForRole } from '../route-groups';
+import { GROUP_SCREENS, groupForRole, routeForRole, screenFromPathname } from '../route-groups';
 
 const APP_DIR = path.resolve(__dirname, '../../../app');
 
@@ -47,5 +47,19 @@ describe('GROUP_SCREENS', () => {
       .map((f) => f.replace(/\.tsx$/, ''))
       .sort();
     expect([...GROUP_SCREENS[group as keyof typeof GROUP_SCREENS]].sort()).toEqual(files);
+  });
+});
+
+describe('screenFromPathname', () => {
+  it('reads the last path segment as the screen, with or without a group', () => {
+    expect(screenFromPathname('/settings')).toBe('settings');
+    expect(screenFromPathname('/(admin)/shops')).toBe('shops');
+    expect(screenFromPathname('/shops/')).toBe('shops');
+  });
+
+  it('treats the root as the index screen', () => {
+    expect(screenFromPathname('/')).toBe('index');
+    expect(screenFromPathname('')).toBe('index');
+    expect(screenFromPathname('/(admin)')).toBe('index');
   });
 });

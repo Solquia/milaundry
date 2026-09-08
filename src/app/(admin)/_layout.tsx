@@ -1,21 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Redirect, Tabs , useSegments } from 'expo-router';
+import { Redirect, Tabs , usePathname } from 'expo-router';
 
 import { adminColors } from '@/components/admin-ui';
 import { Loading } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
-import { routeForRole } from '@/lib/domain/route-groups';
+import { routeForRole, screenFromPathname } from '@/lib/domain/route-groups';
 
 export default function AdminLayout() {
   const { session, profile, isLoading } = useAuth();
-  const segments = useSegments();
+  const pathname = usePathname();
 
   if (isLoading) return <Loading />;
   if (!session) return <Redirect href="/sign-in" />;
   // A bare `/` would resolve back into this group and loop; the role's own
   // group is named outright.
   if (profile && profile.role !== 'superadmin') {
-    return <Redirect href={routeForRole(profile.role, segments[1]) as never} />;
+    return <Redirect href={routeForRole(profile.role, screenFromPathname(pathname)) as never} />;
   }
 
   return (

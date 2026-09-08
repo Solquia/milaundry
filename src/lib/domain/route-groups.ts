@@ -38,3 +38,12 @@ export function routeForRole(role: Role | null | undefined, screen: string | und
   }
   return homeRouteForRole(role);
 }
+
+/**
+ * The screen a browser address names: the last path segment, with any group
+ * ignored. The root is the index screen.
+ */
+export function screenFromPathname(pathname: string): string {
+  const parts = pathname.split('/').filter((part) => part.length > 0 && !part.startsWith('('));
+  return parts.length > 0 ? parts[parts.length - 1] : 'index';
+}
