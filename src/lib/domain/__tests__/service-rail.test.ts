@@ -1,6 +1,7 @@
 import {
   categoryPresentation,
   railLineCount,
+  resolvePick,
   selectedRailCategory,
 } from '../service-rail';
 
@@ -69,5 +70,39 @@ describe('categoryPresentation', () => {
 
   it('has nothing to measure in an empty category', () => {
     expect(categoryPresentation(0)).toBe('choose');
+  });
+});
+
+describe('resolvePick', () => {
+  const ONE = { category: 'wash_fold', services: [{ id: 'a' }] };
+  const MANY = { category: 'special_items', services: [{ id: 'b' }, { id: 'c' }] };
+
+  it('picks the only service in a category, so opening it is one tap not two', () => {
+    // A list of one is not a choice. Making the customer tap it before the
+    // scale appears is a step that exists only because the code has a slot
+    // for it.
+    expect(resolvePick(ONE, null)).toBe('a');
+  });
+
+  it('picks nothing when there is a real choice to make', () => {
+    expect(resolvePick(MANY, null)).toBeNull();
+  });
+
+  it('keeps what the customer picked', () => {
+    expect(resolvePick(MANY, 'c')).toBe('c');
+  });
+
+  it('drops a pick that belongs to a different category', () => {
+    // Opening Bedding while a Wash & Fold service is remembered must not
+    // leave the controls set to something the list no longer shows.
+    expect(resolvePick(MANY, 'a')).toBeNull();
+  });
+
+  it('still falls to the only service when the stale pick is dropped', () => {
+    expect(resolvePick(ONE, 'zzz')).toBe('a');
+  });
+
+  it('picks nothing at all when there is no category open', () => {
+    expect(resolvePick(undefined, 'a')).toBeNull();
   });
 });
