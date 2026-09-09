@@ -106,7 +106,7 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
           serviceCount={services.length}
         />
         <View style={styles.body}>
-          <Text style={styles.sectionTitle}>Prices</Text>
+          <Text style={styles.sectionTitle}>Services</Text>
           <PriceList
             services={services}
             theme={theme}
