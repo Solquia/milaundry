@@ -1,4 +1,8 @@
-import { railLineCount, selectedRailCategory } from '../service-rail';
+import {
+  categoryPresentation,
+  railLineCount,
+  selectedRailCategory,
+} from '../service-rail';
 
 const GROUPS = [
   { category: 'wash_fold', services: [{ id: 'a' }, { id: 'b' }] },
@@ -46,5 +50,24 @@ describe('railLineCount', () => {
 
   it('is zero for a category nothing has been taken from', () => {
     expect(railLineCount({ a: 3 }, GROUPS[1].services)).toBe(0);
+  });
+});
+
+describe('categoryPresentation', () => {
+  it('measures when the category holds a single service', () => {
+    // With nothing to choose between, a picture is decoration. The question
+    // is "how much?", so the screen should be the app's scale or piece picker.
+    expect(categoryPresentation(1)).toBe('measure');
+  });
+
+  it('shows pictures once there is a choice to make', () => {
+    // Two or more services and the picture is the whole point: it is what the
+    // customer picks between before they say how much.
+    expect(categoryPresentation(2)).toBe('choose');
+    expect(categoryPresentation(6)).toBe('choose');
+  });
+
+  it('has nothing to measure in an empty category', () => {
+    expect(categoryPresentation(0)).toBe('choose');
   });
 });
