@@ -72,3 +72,24 @@ export type CategoryPresentation = 'measure' | 'choose';
 export function categoryPresentation(serviceCount: number): CategoryPresentation {
   return serviceCount === 1 ? 'measure' : 'choose';
 }
+
+/**
+ * Which service the controls should be set to, given the open category and
+ * whatever was picked last.
+ *
+ * A list of one is not a choice, so a category holding a single service picks
+ * it outright — making the customer tap it before the scale appears is a step
+ * that exists only because the code has a slot for it.
+ *
+ * A pick belonging to a category that is no longer open is dropped rather than
+ * carried, or opening Bedding would leave the controls set to a wash-and-fold
+ * the list beside them is no longer showing.
+ */
+export function resolvePick<T extends RailService>(
+  group: RailGroup<T> | undefined,
+  picked: string | null
+): string | null {
+  if (!group) return null;
+  if (group.services.some((service) => service.id === picked)) return picked;
+  return group.services.length === 1 ? group.services[0].id : null;
+}
