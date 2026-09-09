@@ -115,3 +115,17 @@ export function startingCart(
   const service = catalog.find((item) => item.id === id);
   return service ? adjustLine(EMPTY_CART, service, 1) : EMPTY_CART;
 }
+
+/**
+ * A line set to an exact quantity, the way a dragged ruler names one.
+ *
+ * `adjustLine` steps; this states. It keeps a quantity below the shop's
+ * minimum rather than snapping up to it, which is what the app's scale does
+ * too: `minimumChargeNotice` explains what will actually be charged, and a
+ * ruler that jumps back under the finger reads as a broken control rather than
+ * as a rule.
+ */
+export function setLine(cart: Cart, service: CartService, quantity: number): Cart {
+  if (!Number.isFinite(quantity) || quantity <= 0) return without(cart, service.id);
+  return { ...cart, [service.id]: quantity };
+}

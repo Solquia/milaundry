@@ -20,12 +20,18 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { PieceCounter, WeightScale } from '@/components/quantity-picker';
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { RADII, colors, space, type } from '@/components/ui-kit';
-import { railLineCount, selectedRailCategory } from '@/lib/domain/service-rail';
+import { formatPriceLine, minimumChargeNotice } from '@/lib/domain/price-label';
+import {
+  categoryPresentation,
+  railLineCount,
+  selectedRailCategory,
+} from '@/lib/domain/service-rail';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import { categoryIcon } from '@/lib/domain/shop-home';
-import { adjustLine, type Cart } from '@/lib/domain/web-cart';
+import { adjustLine, setLine, type Cart } from '@/lib/domain/web-cart';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
 
@@ -118,7 +124,16 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
           <Text style={styles.gridLabel}>{CATEGORY_LABELS[shown.category]}</Text>
         ) : null}
 
-        {shown
+        {shown && categoryPresentation(shown.services.length) === 'measure' ? (
+          <MeasurePanel
+            service={shown.services[0]}
+            quantity={cart[shown.services[0].id] ?? 0}
+            onChange={(next) => onChange(setLine(cart, shown.services[0], next))}
+            theme={theme}
+          />
+        ) : null}
+
+        {shown && categoryPresentation(shown.services.length) === 'choose'
           ? pairs(shown.services).map((row, index) => (
               <View key={index} style={styles.row}>
                 {row.map((service, column) =>
@@ -139,6 +154,47 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
             ))
           : null}
       </View>
+    </View>
+  );
+}
+
+
+/**
+ * One service, measured rather than pictured.
+ *
+ * The app's own controls, on the web: a ruler you drag for kilos, a row of
+ * counts for pieces. Both are the whole width, because with nothing to choose
+ * between, "how much" is the only question left on the screen.
+ */
+function MeasurePanel({
+  service,
+  quantity,
+  onChange,
+  theme,
+}: {
+  service: StorefrontService;
+  quantity: number;
+  onChange: (next: number) => void;
+  theme: StorefrontTheme;
+}) {
+  const notice = minimumChargeNotice(service, quantity);
+
+  return (
+    <View style={styles.measure}>
+      <View style={styles.measureHead}>
+        <Text style={[styles.measureName, { color: theme.brandInk }]}>
+          {service.name}
+        </Text>
+        <Text style={styles.measurePrice}>{formatPriceLine(service)}</Text>
+      </View>
+
+      {service.unit === 'per_kg' ? (
+        <WeightScale valueKg={quantity} onChange={onChange} />
+      ) : (
+        <PieceCounter value={quantity} onChange={onChange} label={service.name} />
+      )}
+
+      {notice ? <Text style={styles.measureNotice}>{notice}</Text> : null}
     </View>
   );
 }
@@ -185,4 +241,18 @@ const styles = StyleSheet.create({
   },
   row: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
   blank: { flex: 1 },
+
+  /** The measured card: one service with the whole width to be measured in. */
+  measure: {
+    gap: space.cosy,
+    padding: space.room,
+    borderRadius: RADII.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  measureHead: { gap: space.tight },
+  measureName: { ...type.section },
+  measurePrice: { ...type.body, color: colors.subtle },
+  measureNotice: { ...type.caption, color: colors.moneyOut },
 });
