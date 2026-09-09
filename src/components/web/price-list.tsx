@@ -1,23 +1,23 @@
 /**
- * The price list as a grid of service cards.
+ * The price list: one grid, every service in it.
  *
- * Two to a row, each a white card with the thing itself standing on it. A
- * customer arriving from a search is choosing what to bring, not reading a
- * table, and a grid answers that faster than a column of rows: eight services
- * fit in two thumbs of scrolling and each one is a picture before it is a
- * price.
+ * The list used to carry a heading per category, which on a shop with one or
+ * two services per group meant a label, a card, a gap, another label — the
+ * cards never formed a grid at all, they read as a column of lonely boxes
+ * with a lot of air between them. Each card wears its own category in its
+ * corner now, so the headings are gone and the cards close up into a single
+ * block. The order still follows the category order, so related services
+ * remain neighbours.
  *
- * Categories are quiet labels between the rows, there for a long list and
- * invisible in a short one. Tapping a card opens the booking page with that
- * service already in the basket; when the shop cannot take bookings the cards
- * are just cards.
+ * Tapping a card opens the booking page with that service already in the
+ * basket; when the shop cannot take bookings the cards are just cards.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { colors, space, type } from '@/components/ui-kit';
-import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
+import { CATEGORY_SHORT, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
 
@@ -39,10 +39,14 @@ function pairs<T>(items: readonly T[]): (T | null)[][] {
 
 export function PriceList({ services, theme, onBook }: PriceListProps) {
   const groups = groupServicesByCategory(services);
-  const showLabels = groups.length > 1;
   const bookTone = { bg: theme.brand, ink: theme.onBrand };
+  // Flattened, but still in category order, so the grid reads as one block
+  // without scattering the services that belong together.
+  const ordered = groups.flatMap((group) =>
+    group.services.map((service) => ({ service, label: CATEGORY_SHORT[group.category] }))
+  );
 
-  if (groups.length === 0) {
+  if (ordered.length === 0) {
     return (
       <View style={styles.empty}>
         <Text style={styles.emptyTitle}>No prices posted yet</Text>
@@ -53,27 +57,21 @@ export function PriceList({ services, theme, onBook }: PriceListProps) {
 
   return (
     <View style={styles.list}>
-      {groups.map((group) => (
-        <View key={group.category} style={styles.group}>
-          {showLabels ? (
-            <Text style={styles.label}>{CATEGORY_LABELS[group.category]}</Text>
-          ) : null}
-          {pairs(group.services).map((row, index) => (
-            <View key={index} style={styles.row}>
-              {row.map((service, column) =>
-                service ? (
-                  <ServiceTileCard
-                    key={service.id}
-                    service={service}
-                    bookTone={bookTone}
-                    onBook={onBook ? () => onBook(service.id) : undefined}
-                  />
-                ) : (
-                  <View key={`blank-${column}`} style={styles.blank} />
-                )
-              )}
-            </View>
-          ))}
+      {pairs(ordered).map((row, index) => (
+        <View key={index} style={styles.row}>
+          {row.map((entry, column) =>
+            entry ? (
+              <ServiceTileCard
+                key={entry.service.id}
+                service={entry.service}
+                categoryLabel={entry.label}
+                bookTone={bookTone}
+                onBook={onBook ? () => onBook(entry.service.id) : undefined}
+              />
+            ) : (
+              <View key={`blank-${column}`} style={styles.blank} />
+            )
+          )}
         </View>
       ))}
       {onBook ? <Text style={styles.footnote}>Tap a service to book it.</Text> : null}
@@ -82,19 +80,11 @@ export function PriceList({ services, theme, onBook }: PriceListProps) {
 }
 
 const styles = StyleSheet.create({
-  list: { gap: space.section },
-  group: { gap: space.cosy },
-  row: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
+  /** Tight: the cards are one block, not a list of separated panels. */
+  list: { gap: space.snug },
+  row: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
   blank: { flex: 1 },
-  label: {
-    ...type.label,
-    color: colors.subtle,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    fontSize: 12,
-    paddingHorizontal: space.tight,
-  },
-  footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight },
+  footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight, marginTop: space.tight },
   empty: {
     backgroundColor: colors.card,
     borderRadius: 26,

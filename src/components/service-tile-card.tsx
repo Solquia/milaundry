@@ -48,6 +48,11 @@ interface ServiceTileCardProps {
   onBook?: () => void;
   /** Shown but not bookable yet — the app before the customer has connected. */
   isDisabled?: boolean;
+  /**
+   * The category, worn in the card's own corner. Given one, the list above no
+   * longer needs a heading per group, which is what let the cards close up.
+   */
+  categoryLabel?: string;
   /** Basket mode: the card carries − and + and shows what is on the ticket. */
   quantity?: number;
   onAdd?: () => void;
@@ -99,6 +104,7 @@ export function ServiceTileCard({
   service,
   bookTone,
   onBook,
+  categoryLabel,
   isDisabled = false,
   quantity,
   onAdd,
@@ -194,7 +200,15 @@ export function ServiceTileCard({
         )}
       </Animated.View>
 
-      <View style={styles.words}>
+      {categoryLabel ? (
+        <View style={styles.tag}>
+          <Text style={[styles.tagText, { color: tone.ink }]} numberOfLines={1}>
+            {categoryLabel}
+          </Text>
+        </View>
+      ) : null}
+
+      <View style={[styles.words, categoryLabel ? styles.wordsUnderTag : null]}>
         <Text style={[styles.name, { color: tone.ink }]} numberOfLines={2}>
           {showcaseTitle(service.name)}
         </Text>
@@ -270,6 +284,24 @@ const styles = StyleSheet.create({
   object: { position: 'absolute', right: -12, bottom: -14, width: 150, height: 150 },
 
   words: { gap: 2, alignItems: 'flex-start' },
+  /** Clears the tag, so a long name wraps instead of running under it. */
+  wordsUnderTag: { paddingTop: 22 },
+  /**
+   * The category, top-right. Not an eyebrow over the name — it is a tag in the
+   * card's own corner, which is where a shelf label goes and where nothing
+   * else on this card wants to be.
+   */
+  tag: {
+    position: 'absolute',
+    top: space.cosy,
+    right: space.cosy,
+    paddingHorizontal: space.snug,
+    paddingVertical: 2,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.sunken,
+    maxWidth: '62%',
+  },
+  tagText: { ...type.caption, fontSize: 10.5, fontFamily: fontFor(700), letterSpacing: 0.3 },
   name: { ...type.label, fontFamily: fontFor(800), fontSize: 15, lineHeight: 19 },
   /** The figure is the reason the card exists, so it is the largest thing on it. */
   figure: {

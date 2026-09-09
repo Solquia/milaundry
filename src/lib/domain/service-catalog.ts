@@ -20,6 +20,22 @@ export const CATEGORY_LABELS: Record<ServiceCategory, string> = {
   other: 'Other Services',
 };
 
+/**
+ * The same categories, short enough to wear as a chip.
+ *
+ * The full labels run to "Bedding & Heavy Items", which wraps twice in the
+ * corner of a card sitting two to a row on a phone. These are for the corner
+ * of a card; `CATEGORY_LABELS` stays the name a heading uses.
+ */
+export const CATEGORY_SHORT: Record<ServiceCategory, string> = {
+  wash_fold: 'Wash & Fold',
+  ironing: 'Ironing',
+  dry_cleaning: 'Dry Clean',
+  special_items: 'Bedding',
+  self_service: 'Self-Serve',
+  other: 'Other',
+};
+
 export interface CategorizedService {
   category: ServiceCategory;
 }
