@@ -16,21 +16,21 @@
  * minimum never shows "1 kg" and gets billed as three. A per-kg line counts
  * kilos and a per-piece line counts pieces, in the same words the app uses.
  */
-import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { PieceCounter, WeightScale } from '@/components/quantity-picker';
+import { ServiceScene } from '@/components/service-scene';
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { RADII, colors, space, type } from '@/components/ui-kit';
 import { formatPriceLine, minimumChargeNotice } from '@/lib/domain/price-label';
+import { sceneFor } from '@/lib/domain/service-scene';
 import {
   categoryPresentation,
   railLineCount,
   selectedRailCategory,
 } from '@/lib/domain/service-rail';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
-import { categoryIcon } from '@/lib/domain/shop-home';
 import { adjustLine, setLine, type Cart } from '@/lib/domain/web-cart';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
@@ -91,11 +91,18 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
                   style={[styles.railEdge, isOn && { backgroundColor: theme.brand }]}
                 />
                 <View style={styles.railBody}>
-                  <Ionicons
-                    name={categoryIcon(group.category) as never}
-                    size={22}
-                    color={isOn ? theme.brandInk : colors.subtle}
-                  />
+                  {/* The same illustrated object the cards carry, not a line
+                      icon: the rail is a row of things, and a thing drawn in
+                      its own colours is quicker to recognise than an outline
+                      of one. `sceneFor` with no name gives the category's
+                      own scene rather than any one service's. */}
+                  <View style={styles.railArt}>
+                    <ServiceScene
+                      scene={sceneFor('', group.category)}
+                      brand={theme.brand}
+                      surface="white"
+                    />
+                  </View>
                   <Text
                     numberOfLines={2}
                     style={[styles.railText, isOn && { color: theme.brandInk }]}
@@ -220,6 +227,8 @@ const styles = StyleSheet.create({
     paddingVertical: space.cosy,
     paddingHorizontal: space.snug,
   },
+  /** Square, so the scene's own 100-unit viewBox is never squashed. */
+  railArt: { width: 44, height: 44 },
   railText: { ...type.caption, color: colors.subtle, textAlign: 'center' },
   railBadge: {
     minWidth: 20,
