@@ -1,11 +1,4 @@
-import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
-  STARTER_SERVICES,
-  groupServicesByCategory,
-  splitServicesByStatus,
-  type ServiceCategory,
-} from '../service-catalog';
+import { CATEGORY_LABELS, CATEGORY_ORDER, CATEGORY_SHORT, STARTER_SERVICES, groupServicesByCategory, splitServicesByStatus, type ServiceCategory } from '../service-catalog';
 
 describe('service categories', () => {
   it('defines a canonical category order with labels', () => {
@@ -105,5 +98,26 @@ describe('starter price list', () => {
   it('has unique service names', () => {
     const names = STARTER_SERVICES.map((s) => s.name);
     expect(new Set(names).size).toBe(names.length);
+  });
+});
+
+describe('CATEGORY_SHORT', () => {
+  it('names every category', () => {
+    for (const category of CATEGORY_ORDER) {
+      expect(CATEGORY_SHORT[category]).toBeTruthy();
+    }
+  });
+
+  it('is short enough to sit in a chip on a card', () => {
+    // The full labels run to "Bedding & Heavy Items", which wraps twice in the
+    // corner of a card two-to-a-row on a phone.
+    for (const category of CATEGORY_ORDER) {
+      expect(CATEGORY_SHORT[category].length).toBeLessThanOrEqual(12);
+    }
+  });
+
+  it('never loses which category it names', () => {
+    const shorts = CATEGORY_ORDER.map((c) => CATEGORY_SHORT[c]);
+    expect(new Set(shorts).size).toBe(CATEGORY_ORDER.length);
   });
 });
