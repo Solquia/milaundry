@@ -1,0 +1,14 @@
+# Vercel installs dependencies and runs the build itself; only source needs to
+# travel. Without this the CLI packs node_modules and the native folders and
+# tries to upload gigabytes.
+node_modules
+.git
+.expo
+dist
+coverage
+android
+ios
+build-android*.log
+.impeccable
+supabase/.temp
+assets/**/*.psd
