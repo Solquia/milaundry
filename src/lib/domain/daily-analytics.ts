@@ -19,6 +19,14 @@ export interface DailyMoney {
   receivables: number;
   /** Orders created today, excluding cancelled ones. */
   ordersToday: number;
+  /**
+   * Payments received today, excluding cancelled orders. Counted separately
+   * from `ordersToday` because the two key off different timestamps: an order
+   * taken yesterday and paid this morning is a payment today and an order
+   * yesterday. The screen shows both so the pair never reads as a
+   * contradiction.
+   */
+  paymentsToday: number;
 }
 
 const roundMoney = (value: number): number =>
@@ -45,6 +53,7 @@ export function computeDailyMoney(
   let outstandingToday = 0;
   let receivables = 0;
   let ordersToday = 0;
+  let paymentsToday = 0;
 
   for (const order of orders) {
     const isCancelled = order.status === 'cancelled';
@@ -53,6 +62,7 @@ export function computeDailyMoney(
     // Cancelled orders never count as collected, even if paid before voiding.
     if (!isCancelled && isPaid && isSameLocalDay(order.paid_at, now)) {
       collectedToday += orderValue(order);
+      paymentsToday += 1;
     }
     if (!isCancelled && !isPaid) {
       receivables += orderValue(order);
@@ -70,5 +80,6 @@ export function computeDailyMoney(
     projectedToday: roundMoney(collectedToday + outstandingToday),
     receivables: roundMoney(receivables),
     ordersToday,
+    paymentsToday,
   };
 }

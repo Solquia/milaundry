@@ -44,3 +44,10 @@ example
 
 coverage/
 .env
+
+# build logs
+build-android*.log
+
+# local tool caches
+.impeccable/
+supabase/.temp/

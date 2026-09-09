@@ -1,83 +1,181 @@
 import { useQuery } from '@tanstack/react-query';
-import React from 'react';
-import { Share, Text, View } from 'react-native';
-import QRCode from 'react-native-qrcode-svg';
+import { Redirect, useRouter } from 'expo-router';
+import React, { useMemo, useState } from 'react';
+import { FlatList, StyleSheet, View } from 'react-native';
 
+import { ChipRow } from '@/components/chip-row';
+import { CustomerRow } from '@/components/customer-row';
+import { SearchField } from '@/components/search-field';
+import { ShopQrCard } from '@/components/shop-qr-card';
+import { StatGrid, StatTile } from '@/components/stat-tile';
+import { EmptyState, ErrorState, Loading, Screen, formatMoney, space } from '@/components/ui-kit';
+import { getShopCustomers, getShopOrders } from '@/lib/api';
 import {
-  Button,
-  Card,
-  EmptyState,
-  ErrorText,
-  Loading,
-  Screen,
-  Subtle,
-  Title,
-  formatDate,
-  formatMoney,
-} from '@/components/ui-kit';
-import { getShopCustomers } from '@/lib/api';
-import { buildShopQr } from '@/lib/domain/qr';
+  CUSTOMER_SEGMENTS,
+  CUSTOMER_SORTS,
+  buildCustomerBook,
+  filterCustomers,
+  sortCustomers,
+  type CustomerSegment,
+  type CustomerSort,
+} from '@/lib/domain/customer-insights';
+import { friendlyMerchantError } from '@/lib/domain/merchant-error';
+import { canOpenMerchantRoute } from '@/lib/domain/merchant-access';
 import { useActiveShop } from '@/lib/use-active-shop';
 
-export default function MerchantCustomers() {
-  const { shop, isLoading: isShopLoading } = useActiveShop();
+function emptyCopy(segment: CustomerSegment, hasQuery: boolean, total: number): string {
+  if (hasQuery) return 'Nobody matches that search.';
+  if (total === 0) {
+    return 'No customers yet. Every order you take adds the person to this book, and anyone who scans your QR lands here too.';
+  }
+  switch (segment) {
+    case 'new':
+      return 'No first-time customers in the last month.';
+    case 'regular':
+      return 'Nobody has reached three orders yet.';
+    case 'owing':
+      return 'Nobody owes you money.';
+    case 'lapsed':
+      return 'Everyone has been in recently.';
+    case 'all':
+      return 'No customers yet.';
+  }
+}
 
-  const { data: customers, isLoading, error } = useQuery({
+export default function MerchantCustomers() {
+  const router = useRouter();
+  const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
+  const now = useMemo(() => new Date(), []);
+  const [query, setQuery] = useState('');
+  const [segment, setSegment] = useState<CustomerSegment>('all');
+  const [sort, setSort] = useState<CustomerSort>('value');
+
+  const {
+    data: orders,
+    isLoading: isOrdersLoading,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['shop-orders', shop?.id],
+    queryFn: () => getShopOrders(shop!.id),
+    enabled: Boolean(shop),
+  });
+  const { data: registered } = useQuery({
     queryKey: ['shop-customers', shop?.id],
     queryFn: () => getShopCustomers(shop!.id),
     enabled: Boolean(shop),
   });
 
-  if (isShopLoading || isLoading) return <Loading />;
-  if (!shop) return <EmptyState message="No shop assigned to your account yet." />;
+  const book = useMemo(
+    () => buildCustomerBook(orders ?? [], registered ?? [], now),
+    [orders, registered, now]
+  );
+  const visible = useMemo(
+    () => sortCustomers(filterCustomers(book.customers, segment, query), sort),
+    [book, segment, query, sort]
+  );
+  const segments = useMemo(
+    () =>
+      CUSTOMER_SEGMENTS.map((option) => ({
+        ...option,
+        count: filterCustomers(book.customers, option.key, '').length,
+      })),
+    [book]
+  );
 
-  const shopQr = buildShopQr(shop.id, shop.qr_token);
+  if (isShopLoading || isOrdersLoading) return <Loading />;
+  // Owner-only. A staff login has no tab for this screen, but a stale link or
+  // a typed web address can still land here; the RPCs behind it would refuse
+  // them, so send them back to the counter instead of showing an error.
+  if (!canOpenMerchantRoute(shopRole, 'customers')) {
+    return <Redirect href="/(merchant)/orders" />;
+  }
+  if (!shop) {
+    return (
+      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+    );
+  }
+
+  const { summary } = book;
 
   return (
-    <Screen>
-      <Card>
-        <Title>Your shop QR</Title>
-        <Subtle>
-          Customers scan this with the MiLaundry app to connect to {shop.name} — then they can
-          book online and track their laundry.
-        </Subtle>
-        <View style={{ alignItems: 'center', padding: 12 }}>
-          <QRCode value={shopQr} size={220} />
-        </View>
-        <Button
-          title="Share shop link"
-          variant="outline"
-          onPress={() =>
-            Share.share({ message: `Connect to ${shop.name} on MiLaundry: ${shopQr}` })
-          }
-        />
-      </Card>
-
-      {error ? <ErrorText>{error.message}</ErrorText> : null}
-      {customers?.length === 0 && (
-        <EmptyState message="No registered customers yet. Show this QR at the counter to register them." />
-      )}
-      {customers && customers.length > 0 && (
-        <Text style={{ fontWeight: '700', fontSize: 18 }}>
-          Registered customers ({customers.length})
-        </Text>
-      )}
-      {customers?.map((customer) => (
-        <Card key={customer.customer_id}>
-          <Text style={{ fontWeight: '600', fontSize: 16 }}>
-            {customer.full_name || 'Unnamed customer'}
-          </Text>
-          <Subtle>{customer.phone}</Subtle>
-          <Subtle>
-            {customer.order_count} orders · {formatMoney(Number(customer.total_spend))} spent
-          </Subtle>
-          <Subtle>
-            {customer.last_order_at
-              ? `Last order ${formatDate(customer.last_order_at)}`
-              : 'No orders yet'}
-          </Subtle>
-        </Card>
-      ))}
+    <Screen scroll={false}>
+      <FlatList
+        style={styles.fill}
+        data={visible}
+        keyExtractor={(customer) => customer.key}
+        renderItem={({ item }) => (
+          <CustomerRow
+            customer={item}
+            now={now}
+            onPress={() =>
+              router.push(`/(merchant)/customer/${encodeURIComponent(item.key)}` as never)
+            }
+          />
+        )}
+        ItemSeparatorComponent={() => <View style={styles.gap} />}
+        contentContainerStyle={styles.list}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        ListHeaderComponent={
+          <View style={styles.header}>
+            <ShopQrCard shop={shop} />
+            <StatGrid>
+              <StatTile
+                label="Customers"
+                value={String(summary.total)}
+                hint={`${summary.ordering} have ordered`}
+              />
+              <StatTile
+                label="Repeat rate"
+                value={`${summary.repeatRate}%`}
+                hint="Came back at least once"
+              />
+              <StatTile
+                label="Average lifetime value"
+                value={formatMoney(summary.averageLifetimeValue)}
+                tone="in"
+                hint="Per customer who has ordered"
+              />
+              <StatTile
+                label="Not seen lately"
+                value={String(summary.lapsed)}
+                hint="No order in 45 days · worth a message"
+              />
+            </StatGrid>
+            <SearchField
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Name or number"
+              accessibilityLabel="Search customers"
+            />
+            <ChipRow options={segments} value={segment} onChange={setSegment} label="Show customers" />
+            <ChipRow
+              options={CUSTOMER_SORTS}
+              value={sort}
+              onChange={setSort}
+              label="Sort customers"
+              tone="ghost"
+            />
+            {error ? (
+              <ErrorState
+                message={friendlyMerchantError('load-shop', error.message)}
+                onRetry={() => refetch()}
+              />
+            ) : null}
+          </View>
+        }
+        ListEmptyComponent={
+          <EmptyState message={emptyCopy(segment, query.trim().length > 0, summary.total)} />
+        }
+      />
     </Screen>
   );
 }
+
+const styles = StyleSheet.create({
+  header: { gap: space.cosy, paddingBottom: space.cosy },
+  fill: { flex: 1 },
+  list: { paddingBottom: space.gulf },
+  gap: { height: space.snug },
+});

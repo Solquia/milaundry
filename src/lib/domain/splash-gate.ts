@@ -13,7 +13,11 @@ export type HomeRoute =
   | '/(merchant)/orders'
   | '/(admin)';
 
-export type OpenDestination = '/splash' | '/sign-in' | HomeRoute;
+/**
+ * Nobody signed in lands on a form. The welcome offers the scan first, with
+ * sign-in and create-account as the two ways to finish it.
+ */
+export type OpenDestination = '/splash' | '/welcome' | HomeRoute;
 
 /**
  * Long enough for the water to arrive, cross the wordmark, settle — and then be
@@ -52,7 +56,7 @@ export function openRoute(input: {
   if (!input.hasSeenSplash) return '/splash';
 
   if (input.isAuthLoading) return null;
-  if (!input.hasSession) return '/sign-in';
+  if (!input.hasSession) return '/welcome';
   return homeRouteForRole(input.role);
 }
 

@@ -15,9 +15,10 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
+import { ShopLogo } from '@/components/shop-logo';
 import { getRegisteredShops } from '@/lib/api';
 import { assignBrandAccents } from '@/lib/domain/shop-branding';
-import { shopInitials } from '@/lib/domain/connected-shops';
+import { shopLogoUri } from '@/lib/domain/shop-cover';
 import { emptyDirectoryMessage } from '@/lib/domain/shop-directory';
 import type { Shop } from '@/lib/types';
 
@@ -102,15 +103,13 @@ function ShopCard({
         onPress={onPress}
         style={({ pressed }) => [styles.shopRow, pressed && { opacity: 0.7 }]}
       >
-        <View style={[styles.shopIcon, accent && { backgroundColor: accent.surface }]}>
-          {accent ? (
-            <Text style={[styles.shopInitials, { color: accent.ink }]}>
-              {shopInitials(shop.name)}
-            </Text>
-          ) : (
-            <Ionicons name="storefront" size={20} color={colors.subtle} />
-          )}
-        </View>
+        <ShopLogo
+          name={shop.name}
+          logoUrl={shopLogoUri(shop)}
+          size={44}
+          accent={accent ?? null}
+          fallback={accent ? 'initials' : 'storefront'}
+        />
         <View style={{ flex: 1 }}>
           <Text style={styles.shopName} numberOfLines={1}>
             {shop.name}
@@ -138,14 +137,5 @@ const styles = StyleSheet.create({
     ...elevation.rest,
   },
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  shopIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.sunken,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shopInitials: { ...type.label, fontSize: 15 },
   shopName: { ...type.label, fontSize: 16, color: colors.text },
 });

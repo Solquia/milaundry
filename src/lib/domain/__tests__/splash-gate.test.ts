@@ -19,10 +19,11 @@ describe('openRoute', () => {
     ).toBe('/splash');
   });
 
-  it('sends someone who is not signed in to sign in once the splash is done', () => {
+  it('sends someone who is not signed in to the welcome once the splash is done', () => {
+    // Not straight to a form: the first choice is scan, sign in, or create.
     expect(
       openRoute({ isAuthLoading: false, hasSession: false, role: null, hasSeenSplash: true })
-    ).toBe('/sign-in');
+    ).toBe('/welcome');
   });
 
   it('waits rather than guessing a destination while auth is still loading', () => {

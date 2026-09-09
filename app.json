@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "MiLaundry3.0",
-    "slug": "MiLaundry3.0",
+    "slug": "milaundry",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -14,6 +14,7 @@
     },
     "ios": {
       "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.milaundry.app",
       "associatedDomains": [
         "applinks:milaundry.app"
       ]
@@ -26,6 +27,19 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
+      "package": "com.milaundry.app",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "<ANDROID_MAPS_KEY>"
+        }
+      },
       "intentFilters": [
         {
           "action": "VIEW",
@@ -50,7 +64,7 @@
       ]
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
@@ -77,11 +91,25 @@
         {
           "cameraPermission": "MiLaundry uses the camera to scan laundry shop and order QR codes."
         }
+      ],
+      "expo-maps",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "MiLaundry uses your location to place your shop's pin on the map."
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5590276c-07eb-45d8-b1c3-ce071aa17afe"
+      }
+    },
+    "owner": "hyansolquia"
   }
 }

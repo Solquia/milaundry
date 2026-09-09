@@ -36,7 +36,7 @@ import {
   adminSetShopActive,
   adminUpdateShop,
   getAllShops,
-  uploadShopLogo,
+  uploadBrandLogo,
 } from '@/lib/api';
 import { friendlyAdminError } from '@/lib/domain/admin-error';
 import type { CredentialsHandoff } from '@/lib/domain/credentials-handoff';
@@ -285,7 +285,7 @@ function GeneralSegment({
       const validated = validateShopForm({ name, address, phoneInput });
       if (!validated.ok) throw new Error(validated.message);
       let logoUrl: string | undefined;
-      if (logoUri) logoUrl = await uploadShopLogo(shop.slug, logoUri);
+      if (logoUri) logoUrl = await uploadBrandLogo(shop.id, logoUri);
       return adminUpdateShop(shop.id, validated.values, { logoUrl });
     },
     onSuccess: () => {

@@ -21,7 +21,38 @@ describe('daily money analytics', () => {
       projectedToday: 0,
       receivables: 0,
       ordersToday: 0,
+      paymentsToday: 0,
     });
+  });
+
+  it("counts today's payments separately from today's orders", () => {
+    // The screen shows both numbers. Without this count, an order created
+    // yesterday and paid today reads as "money collected, 0 orders" — a money
+    // screen contradicting itself.
+    const result = computeDailyMoney(
+      [
+        order({
+          payment_status: 'paid',
+          paid_at: '2026-08-25T10:00:00',
+          created_at: '2026-08-24T18:00:00',
+          estimated_total: 2841,
+        }),
+      ],
+      NOW
+    );
+    expect(result.paymentsToday).toBe(1);
+    expect(result.ordersToday).toBe(0);
+  });
+
+  it('does not count a cancelled order as a payment received today', () => {
+    const result = computeDailyMoney(
+      [
+        order({ status: 'cancelled', payment_status: 'paid', paid_at: '2026-08-25T10:00:00' }),
+        order({ payment_status: 'paid', paid_at: '2026-08-25T11:00:00' }),
+      ],
+      NOW
+    );
+    expect(result.paymentsToday).toBe(1);
   });
 
   it('counts money collected today from orders paid today', () => {

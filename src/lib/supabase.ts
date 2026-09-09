@@ -12,11 +12,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
+// Expo Router renders web routes in Node, where AsyncStorage's web backend
+// reaches for `window` and throws. Keep the server render session-less.
+const isServer = typeof window === 'undefined';
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: false,
-  },
+  auth: isServer
+    ? {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      }
+    : {
+        storage: AsyncStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false,
+      },
 });

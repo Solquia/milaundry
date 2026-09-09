@@ -55,6 +55,48 @@ export function washCycleProgress(status: OrderStatus): WashCycleProgress {
   return { steps, percent, isCancelled };
 }
 
+export interface CycleStanding {
+  /** 1-based position in the cycle; 0 before it starts or once it is void. */
+  position: number;
+  total: number;
+  /** `Step 3 of 5`, or the phase in words when there is no step to count. */
+  caption: string;
+  /** A machine is actually turning right now, as opposed to laundry sitting. */
+  isRunning: boolean;
+}
+
+/**
+ * The cycle as a position rather than a percentage.
+ *
+ * A percentage is an abstraction of something the customer can already count:
+ * there are five stages, and their laundry is at one of them. "Step 3 of 5"
+ * says how much is left in the same terms the tracker's dots are drawn in,
+ * which an unlabelled 60% arc does not.
+ */
+export function cycleStanding(status: OrderStatus): CycleStanding {
+  const total = WASH_CYCLE_STAGES.length;
+  const index = WASH_CYCLE_STAGES.findIndex((stage) => stage.status === status);
+
+  if (status === 'cancelled') {
+    return { position: 0, total, caption: 'Cancelled', isRunning: false };
+  }
+  if (status === 'completed') {
+    return { position: total, total, caption: 'All done', isRunning: false };
+  }
+  if (index === -1) {
+    // Booked, not yet handed over: the cycle has not begun, so nothing counts.
+    return { position: 0, total, caption: 'Not started yet', isRunning: false };
+  }
+
+  const position = index + 1;
+  return {
+    position,
+    total,
+    caption: `Step ${position} of ${total}`,
+    isRunning: status === 'washing' || status === 'drying',
+  };
+}
+
 function stepState(
   index: number,
   currentIndex: number,

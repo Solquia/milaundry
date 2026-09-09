@@ -15,7 +15,7 @@ import {
   adminCreateBrandedOwner,
   adminCreateShop,
   adminUpdateShop,
-  uploadShopLogo,
+  uploadBrandLogo,
 } from '@/lib/api';
 import { friendlyAdminError } from '@/lib/domain/admin-error';
 import { generateBrandedAccount } from '@/lib/domain/branded-account';
@@ -63,7 +63,7 @@ export default function NewShop() {
 
       let logoUrl = '';
       if (logoUri) {
-        logoUrl = await uploadShopLogo(shop.slug, logoUri);
+        logoUrl = await uploadBrandLogo(shop.id, logoUri);
         await adminUpdateShop(shop.id, validated.values, { logoUrl });
       }
 

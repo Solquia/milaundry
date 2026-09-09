@@ -1,11 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-
+import React, { useEffect, useMemo, useState } from 'react';
 import {
-  Button,
+  AccessibilityInfo,
+  Animated,
+  Easing,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
+import type { StyleProp, ViewStyle } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useClaim } from '@/components/claim';
+import { CycleStrip } from '@/components/cycle-strip';
+import { useCue, useEntrance } from '@/components/entrance';
+import { ShopMapCard } from '@/components/shop-map-card';
+import { ServiceTileCard } from '@/components/service-tile-card';
+import { ShopfrontHero } from '@/components/shopfront-hero';
+import {
+  ACCENTS,
   Card,
   EmptyState,
   ErrorText,
@@ -13,24 +29,45 @@ import {
   Screen,
   Subtle,
   colors,
+  elevation,
+  space,
+  type,
 } from '@/components/ui-kit';
 import {
+  getMyOrders,
   getRegisteredShops,
   getServices,
   getShop,
   getShopReviews,
   joinShop,
 } from '@/lib/api';
-import { categoryIcon } from '@/lib/domain/shop-home';
+import { resolveAccent } from '@/lib/domain/shop-branding';
+import { shopLogoUri } from '@/lib/domain/shop-cover';
+import { shopPin } from '@/lib/domain/shop-location';
+import {
+  claimHaptic,
+  connectionRank,
+  parseWelcomeParam,
+  welcomeNote,
+  type WelcomeNote,
+} from '@/lib/domain/connection-welcome';
+import { ENTRANCE, staggerDelay } from '@/lib/domain/entrance';
+import { shopInitials } from '@/lib/domain/connected-shops';
+import { leadingIndex } from '@/lib/domain/home-headline';
+import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
+import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
+import { shopReputation, startingPrice } from '@/lib/domain/storefront';
+import { useHaptic } from '@/lib/use-app-settings';
+import type { ServiceRow } from '@/lib/types';
 
-function Stars({ rating }: { rating: number }) {
+function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (
     <View style={{ flexDirection: 'row', gap: 2 }}>
       {[1, 2, 3, 4, 5].map((star) => (
         <Ionicons
           key={star}
           name={star <= rating ? 'star' : 'star-outline'}
-          size={14}
+          size={size}
           color="#F59E0B"
         />
       ))}
@@ -38,17 +75,187 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-/** Tint pairs cycled across grid tiles so the grid feels lively, not flat. */
-const TILE_TINTS = [
-  { bg: '#E0F2FE', fg: '#0284C7' },
-  { bg: '#E0E7FF', fg: '#4F46E5' },
-  { bg: '#CCFBF1', fg: '#0D9488' },
-  { bg: '#FEF3C7', fg: '#D97706' },
-];
+type Accent = (typeof ACCENTS)[number];
+
+/**
+ * What the shopfront says the moment a laundry becomes yours.
+ *
+ * Connecting used to be silent — the Connect card simply vanished and the
+ * services quietly started working. It is the one action that turns a shop in a
+ * directory into *your* shop, so it gets the app's own signal for that: the
+ * laundry takes on its accent, the same tone it will wear on your home screen
+ * from now on.
+ *
+ * The words come from `connection-welcome`, which is also what decides whether
+ * this is the customer's *first* laundry. On that one it carries a badge and
+ * says what the app has just become; on every later connection the badge is
+ * gone and the second line spends itself on where this shop sits among the ones
+ * already on the home screen — real information rather than a second round of
+ * applause.
+ *
+ * It settles fully visible, so the motion is never required to read the card.
+ */
+function WelcomeCard({
+  note,
+  shopName,
+  accent,
+}: {
+  note: WelcomeNote;
+  shopName: string;
+  accent: Accent;
+}) {
+  const isFirst = note.rank === 'first';
+  // Lazy state, not a ref: the driver is read during render to build the
+  // transform, and reading a ref there is a hook-rules violation.
+  const [reveal] = useState(() => new Animated.Value(0));
+  const [isReduced, setIsReduced] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((reduced) => {
+      if (alive) setIsReduced(reduced);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isReduced) {
+      reveal.setValue(1);
+      return;
+    }
+    Animated.timing(reveal, {
+      toValue: 1,
+      duration: 420,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [isReduced, reveal]);
+
+  return (
+    <Animated.View
+      accessibilityLiveRegion="polite"
+      style={{
+        opacity: reveal,
+        transform: [
+          {
+            translateY: reveal.interpolate({
+              inputRange: [0, 1],
+              outputRange: [14, 0],
+            }),
+          },
+          {
+            scale: reveal.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }),
+          },
+        ],
+      }}
+    >
+      {/* A first laundry takes the shop's colour across the whole card; every
+          later one keeps it to the hairline and the mark. The difference is
+          weight, which is felt, rather than a label, which has to be read. */}
+      <View
+        style={[
+          styles.welcome,
+          { borderColor: accent.ink },
+          isFirst && { backgroundColor: accent.surface, borderWidth: 2 },
+        ]}
+      >
+        <View
+          style={[
+            styles.welcomeMark,
+            { backgroundColor: isFirst ? colors.card : accent.surface },
+          ]}
+        >
+          <Text style={[styles.welcomeInitials, { color: accent.ink }]}>
+            {shopInitials(shopName)}
+          </Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.welcomeTitle, isFirst && styles.welcomeTitleFirst]}>
+            {note.title}
+          </Text>
+          {/* Ink rather than the shared subtle grey when the card is tinted:
+              grey secondary text on a coloured field is a white-card design
+              pasted onto colour. */}
+          <Text style={[styles.welcomeBody, isFirst && { color: colors.text }]}>
+            {note.body}
+          </Text>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+/** Two cards to a row; an odd last card keeps its width with a blank beside it. */
+function servicePairs<T>(items: readonly T[]): (T | null)[][] {
+  const rows: (T | null)[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push([items[i], items[i + 1] ?? null]);
+  }
+  return rows;
+}
+
+/** How many cards sit above this group, so the cascade counts cards, not groups. */
+function cardIndexBefore(
+  groups: readonly { services: readonly unknown[] }[],
+  groupIndex: number
+): number {
+  return groups.slice(0, groupIndex).reduce((count, group) => count + group.services.length, 0);
+}
+
+/**
+ * One card of the price list arriving, `index` places behind the first.
+ *
+ * The stagger is capped in `staggerDelay`, so a shop with a long list does not
+ * have its last category land a second and a half in — past that point every
+ * remaining card simply arrives together.
+ */
+function CascadeIn({
+  progress,
+  index,
+  children,
+  style,
+}: {
+  progress: Animated.Value;
+  index: number;
+  children: React.ReactNode;
+  /** A card in a two-column row has to carry the column's width itself. */
+  style?: StyleProp<ViewStyle>;
+}) {
+  const delay = staggerDelay(index);
+  const cue = useCue(progress, {
+    delay: ENTRANCE.list.delay + delay,
+    duration: ENTRANCE.list.duration,
+  });
+
+  return (
+    <Animated.View
+      style={[
+        {
+          opacity: cue,
+          transform: [
+            { translateY: cue.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
+            { scale: cue.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
+          ],
+        },
+        style,
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
+}
 
 export default function CustomerShopHome() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  // `welcome` is the number of laundries the customer had *before* this one,
+  // carried across the navigation when the connect happened in the directory.
+  const { id, welcome } = useLocalSearchParams<{ id: string; welcome?: string }>();
   const router = useRouter();
+  const haptic = useHaptic();
+  const insets = useSafeAreaInsets();
+  // One driver for the whole arrival. Skipped entirely under Reduce Motion.
+  const { progress } = useEntrance();
   const queryClient = useQueryClient();
   const [joinError, setJoinError] = useState('');
 
@@ -75,89 +282,235 @@ export default function CustomerShopHome() {
     queryFn: getRegisteredShops,
   });
 
-  // Orders are only accepted from customers registered with the shop, so the
-  // services grid stays locked behind a one-tap connect until then.
+  // Orders are only accepted from customers registered with the shop, so
+  // booking stays behind a one-tap connect until then.
   const isRegistered = (registered ?? []).some((row) => row.id === id);
+
+  /**
+   * How many laundries the customer had before this one — set only for the
+   * visit in which the connection happened, so returning to a shop you joined
+   * last month does not re-congratulate you. `null` is the ordinary case.
+   *
+   * The initial value is the count a directory connect carried here, which is
+   * why it is read once at mount rather than watched: re-reading the param
+   * would replay the moment on every render Expo Router happens to repeat.
+   */
+  const [priorConnections, setPriorConnections] = useState<number | null>(() =>
+    parseWelcomeParam(welcome)
+  );
+  const justConnected = priorConnections !== null;
 
   const joinMutation = useMutation({
     mutationFn: () => joinShop(id!),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['registered-shops'] }),
+    onSuccess: async () => {
+      // Counted before the refetch, and without this shop, so the number is
+      // "the laundries you already had" no matter which list it lands in.
+      const prior = (registered ?? []).filter((row) => row.id !== id).length;
+      await queryClient.invalidateQueries({ queryKey: ['registered-shops'] });
+      setPriorConnections(prior);
+    },
     onError: (err: Error) => setJoinError(err.message),
   });
+
+  // The shop's own colour when it picked one, its stable hashed tone when it
+  // has not — and the hashed tone while the row is still loading, so the
+  // shopfront never flashes one colour before settling on another.
+  const accent =
+    ACCENTS[
+      resolveAccent(
+        { id: id ?? '', brand_accent: shop?.brand_accent ?? null },
+        ACCENTS.length
+      )
+    ];
+
+  // Same cache key the home screen uses, so this costs nothing extra.
+  const { data: myOrders } = useQuery({ queryKey: ['my-orders'], queryFn: getMyOrders });
+
+  /** This customer's loads still in the wash at *this* shop. */
+  const activeHere = useMemo(
+    () =>
+      (myOrders ?? []).filter(
+        (order) => order.shop?.id === id && !TERMINAL_STATUSES.includes(order.status)
+      ),
+    [myOrders, id]
+  );
+
+  // The same rule the home headline uses: ready outranks mid-cycle, then
+  // whichever load is furthest along.
+  const hereNow = useMemo(() => {
+    const index = leadingIndex(activeHere);
+    return index === -1 ? null : activeHere[index];
+  }, [activeHere]);
+
+  const priceList = useMemo(() => groupServicesByCategory(services ?? []), [services]);
+
+  const reputation = useMemo(() => shopReputation(reviews ?? []), [reviews]);
+  const cheapest = useMemo(() => startingPrice(services ?? []), [services]);
+
+  const shopName = shop?.name ?? 'Laundry shop';
+
+  const note = welcomeNote(shopName, priorConnections ?? -1);
+  const rank = connectionRank(priorConnections ?? -1);
+  /**
+   * A connect made in the shops directory lands here while the shopfront is
+   * still arriving, so the claim waits for the mark to finish landing — a mark
+   * cannot be seen taking a colour while it is still dropping into place. A
+   * connect made on this screen has nothing to wait for.
+   */
+  const claimDelay =
+    parseWelcomeParam(welcome) === null ? 0 : ENTRANCE.mark.delay + ENTRANCE.mark.duration;
+  const { claim } = useClaim(justConnected, claimDelay);
+
+  // The tap lands with the colour, not with the network round trip that
+  // preceded it, so the phone and the screen answer the finger together.
+  useEffect(() => {
+    if (!justConnected) return;
+    const tap = setTimeout(() => haptic(claimHaptic(rank)), claimDelay);
+    return () => clearTimeout(tap);
+  }, [justConnected, rank, claimDelay, haptic]);
+
+  const handleBook = (service: ServiceRow) => {
+    if (!isRegistered) {
+      setJoinError('Connect to this shop first to book a service.');
+      return;
+    }
+    router.push(`/(customer)/book/${service.id}?shopId=${id}` as never);
+  };
 
   if (isShopLoading || isServicesLoading) return <Loading />;
 
   return (
     <Screen>
+      {/* The gradient reaches the top of the display, so the clock and the
+          battery have to be drawn in white to stay legible on it. */}
+      <StatusBar style="light" />
       {shopError ? <ErrorText>{(shopError as Error).message}</ErrorText> : null}
 
-      {/* Branded header: just the laundry's name, front and center. */}
-      <View style={styles.hero}>
-        <Ionicons name="water" size={28} color="#BFE7FF" />
-        <Text style={styles.heroName}>{shop?.name ?? 'Laundry shop'}</Text>
-        {shop?.address ? <Text style={styles.heroAddress}>{shop.address}</Text> : null}
-      </View>
+      <ShopfrontHero
+        name={shopName}
+        tagline={shop?.tagline ?? ''}
+        address={shop?.address ?? ''}
+        logoUrl={shop ? shopLogoUri(shop) : null}
+        coverUrl={shop?.cover_url ?? null}
+        isRegistered={isRegistered}
+        accent={accent}
+        reputationLabel={reputation?.label ?? null}
+        cheapest={cheapest}
+        serviceCount={services?.length ?? 0}
+        insetTop={insets.top}
+        progress={progress}
+        claim={claim}
+        isClaiming={justConnected}
+        rank={rank}
+        onBack={() => (router.canGoBack() ? router.back() : router.push('/(customer)/shops' as never))}
+        isConnecting={joinMutation.isPending}
+        onConnect={() => {
+          setJoinError('');
+          joinMutation.mutate();
+        }}
+      />
 
-      {!isRegistered && (
-        <Card>
-          <Text style={styles.sectionTitle}>Connect to book</Text>
-          <Subtle>
-            Connect to {shop?.name ?? 'this shop'} to place orders and track your
-            laundry.
-          </Subtle>
-          <ErrorText>{joinError}</ErrorText>
-          <Button
-            title={joinMutation.isPending ? 'Connecting…' : 'Connect to this shop'}
-            disabled={joinMutation.isPending}
-            onPress={() => {
-              setJoinError('');
-              joinMutation.mutate();
-            }}
-          />
-        </Card>
+      <ErrorText>{joinError}</ErrorText>
+
+      {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
+
+      {/* Where your laundry is, at the shop that has it. A load belongs to one
+          laundry, so this is the screen that can answer for it, and on a shop
+          you are actually using it is the first thing worth reading — so it
+          sits above the price list rather than inside it. "Where is my
+          laundry" is a different question from "what does a load cost", and a
+          heading between them is what says so.
+          Shown for any shop you have connected to, resting when nothing of
+          yours is in its machines. It used to appear only mid-cycle, which
+          meant the place you go to ask "where is my laundry" answered by
+          showing nothing — indistinguishable from having no tracker at all.
+          A shop you have never joined still shows none: that one would be
+          noise. */}
+      {isRegistered && (
+        <CycleStrip
+          status={hereNow?.status ?? null}
+          accent={accent}
+          extraCount={Math.max(activeHere.length - 1, 0)}
+          onPress={
+            hereNow
+              ? () => router.push(`/(customer)/order/${hereNow.id}` as never)
+              : undefined
+          }
+        />
       )}
 
-      {/* Services grid straight from the owner's dashboard price list. */}
-      <Card>
-        <Text style={styles.sectionTitle}>Services</Text>
-        {services?.length === 0 && (
-          <EmptyState message="This shop hasn't listed services yet." />
-        )}
-        <View style={styles.grid}>
-          {services?.map((service, index) => {
-            const tint = TILE_TINTS[index % TILE_TINTS.length];
-            return (
-              <Pressable
-                key={service.id}
-                accessibilityRole="button"
-                accessibilityLabel={`Book ${service.name}`}
-                style={({ pressed }) => [styles.tile, pressed && { opacity: 0.7 }]}
-                onPress={() => {
-                  if (!isRegistered) {
-                    setJoinError('Connect to this shop first to book a service.');
-                    return;
-                  }
-                  router.push(`/(customer)/book/${service.id}?shopId=${id}` as never);
-                }}
-              >
-                <View style={[styles.tileIcon, { backgroundColor: tint.bg }]}>
-                  <Ionicons
-                    name={categoryIcon(service.category) as never}
-                    size={24}
-                    color={tint.fg}
-                  />
-                </View>
-                <Text style={styles.tileLabel} numberOfLines={2}>
-                  {service.name}
-                </Text>
-              </Pressable>
-            );
-          })}
+      {/* The price list, straight from the owner's dashboard and grouped the way
+          the owner grouped it. The category carries the glyph, so a shop with
+          three bedding services no longer prints the same bed icon three times
+          where three different names should have been. */}
+      <Text style={styles.sectionTitle}>The Price List</Text>
+
+      {services?.length === 0 && (
+        <EmptyState message="This shop hasn't listed services yet." />
+      )}
+      {/* Every service is a card with a face — a tile in the colour of its
+          kind, the name as a title, a line about it, the price, and a Book
+          sticker. The accordion is gone: a customer deciding what to bring
+          reads the whole menu, and a card that says what a service *is* earns
+          the height it takes. Categories are quiet labels between the cards,
+          shown only when there is more than one to tell apart. */}
+      {priceList.map((group, groupIndex) => (
+        <View key={group.category} style={styles.priceGroup}>
+          {priceList.length > 1 ? (
+            <CascadeIn progress={progress} index={cardIndexBefore(priceList, groupIndex)}>
+              <Text style={styles.categoryLabel}>{CATEGORY_LABELS[group.category]}</Text>
+            </CascadeIn>
+          ) : null}
+          {servicePairs(group.services).map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.priceRow}>
+              {row.map((service, column) =>
+                service ? (
+                  <CascadeIn
+                    key={service.id}
+                    progress={progress}
+                    index={cardIndexBefore(priceList, groupIndex) + rowIndex * 2 + column}
+                    style={styles.priceColumn}
+                  >
+                    <ServiceTileCard
+                      service={service}
+                      bookTone={{ bg: colors.action, ink: colors.onAccent }}
+                      isDisabled={!isRegistered}
+                      onBook={() => handleBook(service)}
+                    />
+                  </CascadeIn>
+                ) : (
+                  <View key={`blank-${column}`} style={styles.priceBlank} />
+                )
+              )}
+            </View>
+          ))}
         </View>
-      </Card>
+      ))}
+
+      {/* Where the shop is, before what people said about it: a customer
+          deciding whether to come needs the corner more than the score. */}
+      {shop ? (
+        <>
+          <Text style={styles.sectionTitle}>Where to Find Us</Text>
+          <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} />
+        </>
+      ) : null}
 
       {/* Live reviews feed — rendered inline, not hidden behind a button. */}
-      <Text style={styles.sectionTitle}>What customers say</Text>
+      <Text style={styles.sectionTitle}>What Customers Say</Text>
+      {reputation && (
+        <View style={styles.verdict}>
+          <Text style={styles.verdictScore}>{reputation.average.toFixed(1)}</Text>
+          <View style={{ gap: 2 }}>
+            <Stars rating={Math.round(reputation.average)} size={16} />
+            <Text style={styles.verdictCount}>
+              {reputation.count === 1
+                ? 'from 1 completed order'
+                : `from ${reputation.count} completed orders`}
+            </Text>
+          </View>
+        </View>
+      )}
       {!reviews?.length && (
         <Card>
           <Subtle>
@@ -188,50 +541,60 @@ export default function CustomerShopHome() {
 }
 
 const styles = StyleSheet.create({
-  hero: {
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingVertical: 28,
-    paddingHorizontal: 20,
-    alignItems: 'center',
-    gap: 6,
-  },
-  heroName: {
-    color: '#FFFFFF',
-    fontSize: 26,
-    fontWeight: '800',
-    textAlign: 'center',
-  },
-  heroAddress: {
-    color: '#D6ECFF',
-    fontSize: 13,
-    textAlign: 'center',
-  },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: colors.text },
-  grid: {
+  welcome: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 16,
-  },
-  tile: {
-    width: '25%',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 4,
+    gap: space.cosy,
+    padding: space.room,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    backgroundColor: colors.card,
   },
-  tileIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  welcomeMark: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileLabel: {
+  welcomeInitials: { ...type.label, fontSize: 16 },
+  welcomeTitle: { ...type.section, color: colors.text, marginBottom: 2 },
+  /** The one connection that changes what the app is for gets the larger voice. */
+  welcomeTitleFirst: { ...type.title, fontSize: 20, marginBottom: space.tight },
+  welcomeBody: { ...type.body, color: colors.subtle },
+
+  sectionTitle: { ...type.title, color: colors.text, marginTop: space.cosy },
+
+  priceGroup: { gap: space.cosy },
+  priceRow: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
+  priceColumn: { flex: 1, minWidth: 0 },
+  priceBlank: { flex: 1 },
+  categoryLabel: {
+    ...type.label,
     fontSize: 12,
-    color: colors.text,
-    textAlign: 'center',
-    fontWeight: '500',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.subtle,
+    paddingHorizontal: space.tight,
   },
-  reviewerName: { fontSize: 14, fontWeight: '600', color: colors.text },
-  reviewComment: { fontSize: 14, color: colors.text },
+
+  // The shop's score, said once and said properly, instead of five small star
+  // rows leaving the customer to average them by eye.
+  verdict: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.room,
+    paddingHorizontal: space.room,
+    paddingVertical: space.cosy,
+    borderRadius: 18,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.rest,
+  },
+  verdictScore: { ...type.hero, fontSize: 40, color: colors.text },
+  verdictCount: { ...type.caption, color: colors.subtle },
+
+  reviewerName: { ...type.label, color: colors.text },
+  reviewComment: { ...type.body, color: colors.text },
 });

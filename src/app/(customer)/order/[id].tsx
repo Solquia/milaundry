@@ -6,8 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PaySheet } from '@/components/pay-sheet';
-import { TORN_EDGE_HEIGHT, TornEdge } from '@/components/torn-edge';
-import { WashCycleTracker } from '@/components/wash-cycle-tracker';
+import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
 import {
   ACCENTS,
   Button,
@@ -36,7 +35,7 @@ import {
 import { actualBill, type BillStage } from '@/lib/domain/actual-bill';
 import { bookingPaymentStage } from '@/lib/domain/booking-status';
 import { shopInitials } from '@/lib/domain/connected-shops';
-import { docketNumber } from '@/lib/domain/docket';
+import { docketNumber, stampLabel } from '@/lib/domain/docket';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import { weighEvidence } from '@/lib/domain/weigh-evidence';
@@ -140,6 +139,7 @@ export default function CustomerOrderDetail() {
       )
     ];
   const money = BILL_TONES[bill.stage];
+  const stamp = stampLabel(bill.stage);
 
   return (
     <Screen>
@@ -168,11 +168,11 @@ export default function CustomerOrderDetail() {
         </View>
       </View>
 
-      {/* The question this screen is opened to answer: where are my clothes. */}
-      <Card>
-        <Text style={{ fontWeight: '600' }}>Where your laundry is</Text>
-        <WashCycleTracker status={order.status} />
-      </Card>
+      {/* The five-stage tracker used to sit here. Until the shop actually moves
+          an order through those stages, every load showed the same five grey
+          dots and the same sentence — a card whose entire job is to answer
+          "where is it" saying nothing the badge above had not already said.
+          The badge carries the state alone until the stages mean something. */}
 
       {/* The estimate-vs-actual banners that used to sit here said the same
           thing as the bill card below, one screenful earlier. The bill names
@@ -201,67 +201,92 @@ export default function CustomerOrderDetail() {
       >
         <TornEdge width={docketWidth} color={colors.bg} edge="top" />
 
-        <View style={styles.docketHead}>
-          <Text style={styles.docketMeta}>NO. {docketNumber(order.id)}</Text>
+        {/* The ticket's colour bar, and the answer to "which laundry is this".
+            The band is the one region the shop's own tone owns outright — the
+            same tone its mark wears above, its card wears in the directory, and
+            its shopfront wears across the top. Two orders from two laundries
+            are two different-coloured tickets in the same wallet. */}
+        <View style={[styles.band, { backgroundColor: accent.ink }]}>
+          <Text style={styles.bandName} numberOfLines={1}>
+            {shopName}
+          </Text>
+          <Text style={styles.bandNumber}>NO. {docketNumber(order.id)}</Text>
+        </View>
+
+        <View style={styles.ticketBody}>
           <Text style={styles.docketMeta}>{formatWhen(order.created_at)}</Text>
-        </View>
-        <DottedRule />
+          <DottedRule />
 
-        {order.order_items.map((item) => (
-          <View key={item.id} style={styles.itemLine}>
-            <Text style={styles.itemName}>
-              {item.service_name} × {item.quantity}
-              {item.unit === 'per_kg' ? ' kg' : ''}
-            </Text>
-            {/* Leader dots, the way a printed bill carries the eye across a gap
-                it would otherwise lose its place in. Empty and decorative, so
-                nothing is announced. */}
-            <View style={styles.leader} />
-            <Text style={styles.itemPrice}>{formatMoney(item.subtotal)}</Text>
-          </View>
-        ))}
-
-        {/* The accountant's double rule: the line under which a column of
-            figures stops being a list and becomes an amount. */}
-        <View style={styles.totalRule}>
-          <View style={styles.totalRuleLine} />
-          <View style={styles.totalRuleLine} />
-        </View>
-
-        {/* The bill, named. A single figure with "(estimated)" in brackets meant
-            the moment the price became real — the moment money is actually
-            being asked for — looked like nothing had happened.
-            The figure also takes the colour of what it *is*: an estimate stays
-            ink, a weighed load turns amber, a settled one green. */}
-        <View style={[styles.billLine, money.field && { backgroundColor: money.field }]}>
-          <Text style={styles.billHeading}>{bill.heading}</Text>
-          <Text style={[styles.billAmount, { color: money.ink }]}>{bill.amount}</Text>
-        </View>
-        {bill.difference ? (
-          <Text style={styles.billDifference}>{bill.difference}</Text>
-        ) : null}
-
-        {/* The evidence, stapled to the bill it justifies. A price that moved
-            sits directly above the photograph of the scale that moved it. */}
-        {evidence && evidenceUrl ? (
-          <View style={styles.evidence}>
-            <View style={styles.evidenceFrame}>
-              <Image
-                source={{ uri: evidenceUrl }}
-                style={styles.evidencePhoto}
-                contentFit="cover"
-                accessibilityLabel={evidence.caption}
-              />
+          {order.order_items.map((item) => (
+            <View key={item.id} style={styles.itemLine}>
+              <Text style={styles.itemName}>
+                {item.service_name} × {item.quantity}
+                {item.unit === 'per_kg' ? ' kg' : ''}
+              </Text>
+              {/* Leader dots, the way a printed bill carries the eye across a
+                  gap it would otherwise lose its place in. Empty and
+                  decorative, so nothing is announced. */}
+              <View style={styles.leader} />
+              <Text style={styles.itemPrice}>{formatMoney(item.subtotal)}</Text>
             </View>
-            <Text style={styles.evidenceCaption}>{evidence.caption}</Text>
-          </View>
-        ) : null}
+          ))}
+        </View>
 
-        <DottedRule />
-        {/* Prose stays in the app's own face. Monospace is the material of a
-            figure, not of a sentence — a paragraph set in it only reads more
-            slowly. */}
-        <Text style={styles.docketNote}>{bill.note}</Text>
+        {/* The tear line. Above it is what the shop is doing; below it is what
+            the customer owes — the seam a real ticket is actually torn on. */}
+        <TicketPerforation color={colors.bg} ruleColor={colors.paperRule} />
+
+        {/* A settled stub takes the takings tint across its whole area — the
+            one time colour is allowed to own a region here rather than a mark,
+            because "this is finished and paid" is worth seeing before reading. */}
+        <View style={[styles.stub, money.field && { backgroundColor: money.field }]}>
+          <View style={styles.stubRow}>
+            {/* The mark, struck at an angle the way a hand-held stamp lands.
+                Absent entirely on an estimate: nobody has stood behind that
+                number yet, so there is nothing to stamp. */}
+            {stamp ? (
+              <View
+                style={[styles.stamp, { borderColor: money.ink }]}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
+              >
+                <Text style={[styles.stampText, { color: money.ink }]}>{stamp}</Text>
+              </View>
+            ) : null}
+
+            {/* The figure takes the colour of what it *is*: an estimate stays
+                ink, a weighed load turns amber, a settled one green. */}
+            <View style={styles.billLine}>
+              <Text style={styles.billHeading}>{bill.heading}</Text>
+              <Text style={[styles.billAmount, { color: money.ink }]}>{bill.amount}</Text>
+              {bill.difference ? (
+                <Text style={styles.billDifference}>{bill.difference}</Text>
+              ) : null}
+            </View>
+          </View>
+
+          {/* The evidence, stapled to the bill it justifies. A price that moved
+              sits directly above the photograph of the scale that moved it. */}
+          {evidence && evidenceUrl ? (
+            <View style={styles.evidence}>
+              <View style={styles.evidenceFrame}>
+                <Image
+                  source={{ uri: evidenceUrl }}
+                  style={styles.evidencePhoto}
+                  contentFit="cover"
+                  accessibilityLabel={evidence.caption}
+                />
+              </View>
+              <Text style={styles.evidenceCaption}>{evidence.caption}</Text>
+            </View>
+          ) : null}
+
+          <DottedRule />
+          {/* Prose stays in the app's own face. Monospace is the material of a
+              figure, not of a sentence — a paragraph set in it only reads more
+              slowly. */}
+          <Text style={styles.docketNote}>{bill.note}</Text>
+        </View>
 
         <TornEdge width={docketWidth} color={colors.bg} edge="bottom" />
       </View>
@@ -473,12 +498,55 @@ const styles = StyleSheet.create({
    */
   docket: {
     backgroundColor: colors.paper,
-    paddingHorizontal: space.room,
-    paddingVertical: space.room + TORN_EDGE_HEIGHT,
-    gap: space.snug,
+    // No padding of its own: the band bleeds to the ticket's edges and the
+    // punched notches are clipped by it, so each region pads itself. The top
+    // and bottom insets are the margin the torn teeth eat into.
+    paddingTop: TORN_EDGE_HEIGHT,
+    paddingBottom: TORN_EDGE_HEIGHT,
     overflow: 'hidden',
   },
-  docketHead: { flexDirection: 'row', justifyContent: 'space-between' },
+  /** The one region the laundry's own colour owns outright. */
+  band: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.cosy,
+    paddingHorizontal: space.room,
+    paddingVertical: space.cosy,
+  },
+  // White on every accent ink in the palette clears 5.4:1 or better.
+  bandName: {
+    flexShrink: 1,
+    ...type.label,
+    fontSize: 15,
+    letterSpacing: 0.4,
+    color: colors.onAccent,
+  },
+  bandNumber: {
+    fontFamily: mono,
+    fontSize: 12,
+    letterSpacing: 1,
+    color: colors.onAccent,
+  },
+  ticketBody: { paddingHorizontal: space.room, paddingVertical: space.cosy, gap: space.snug },
+  /** Below the tear line: what the customer owes, and why. */
+  stub: { paddingHorizontal: space.room, paddingTop: space.snug, gap: space.snug },
+  stubRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
+  /**
+   * The stamp. Rotated, because a stamp is pressed by a hand and never lands
+   * square, and double-ruled the way an office stamp's ring is cut.
+   * Slightly transparent so the paper reads through it as ink rather than as a
+   * label printed with the rest of the ticket.
+   */
+  stamp: {
+    borderWidth: 2,
+    borderRadius: 6,
+    paddingHorizontal: space.snug,
+    paddingVertical: space.tight,
+    transform: [{ rotate: '-8deg' }],
+    opacity: 0.85,
+  },
+  stampText: { fontFamily: mono, fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
   /** The slip's own small print: reference and time, the way a till prints it. */
   docketMeta: {
     fontFamily: mono,
@@ -503,8 +571,6 @@ const styles = StyleSheet.create({
     marginBottom: 3,
   },
   itemPrice: { fontFamily: mono, fontSize: 13, color: colors.text },
-  totalRule: { gap: 2, marginTop: space.tight },
-  totalRuleLine: { height: 1, backgroundColor: colors.paperRule },
   /** The one thing on the paper set in the app's own voice, so it stays quick
       to read. */
   docketNote: { ...type.caption, fontSize: 13, color: colors.subtle },
@@ -545,19 +611,9 @@ const styles = StyleSheet.create({
   },
   cancelText: { fontSize: 16, fontWeight: '600', color: colors.dangerInk },
 
-  billLine: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
-    gap: space.snug,
-    marginTop: space.tight,
-    // Padding so a settled bill's tinted field has room to be a field; on the
-    // other two stages there is no background and this reads as ordinary space.
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.snug,
-    marginHorizontal: -space.tight,
-    borderRadius: 12,
-  },
+  // The total, right-aligned against the stamp so the two read as one line:
+  // the mark on the left, the amount it refers to on the right.
+  billLine: { flex: 1, alignItems: 'flex-end' },
   // Tracked caps, as a till prints a total line. `textTransform` rather than
   // capitals in the string, so a screen reader still receives "Estimated total"
   // and does not spell it out letter by letter.

@@ -218,7 +218,7 @@ export default function Splash() {
 
     const go = () =>
       router.replace(
-        (session ? homeRouteForRole(profile?.role) : '/sign-in') as never
+        (session ? homeRouteForRole(profile?.role) : '/welcome') as never
       );
 
     if (isReduceMotion) {

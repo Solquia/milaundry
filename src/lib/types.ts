@@ -23,12 +23,34 @@ export interface Shop {
   /** URL-ish identity shown as /sparkle-wash; also brands the login. */
   slug: string;
   logo_url: string;
+  /** Photo of the physical shop, behind its name on the shopfront; '' when none. */
+  cover_url: string;
   address: string;
+  /** Map pin; both null until the shop places one. */
+  latitude: number | null;
+  longitude: number | null;
   phone: string;
+  /** Palette index the shop chose; null falls back to the hashed default. */
+  brand_accent: number | null;
+  /** One line under the shop's name on its shopfront. */
+  tagline: string;
   qr_token: string;
   is_active: boolean;
   created_by: string | null;
   created_at: string;
+  /**
+   * How the shop takes money from a customer who is not at the counter.
+   * Published verbatim — these are the digits already on the tarpaulin above
+   * the till. Empty string means "not offered"; see `domain/shop-payment.ts`.
+   */
+  gcash_number: string;
+  gcash_name: string;
+  maya_number: string;
+  bank_name: string;
+  bank_account_name: string;
+  bank_account_number: string;
+  /** Whether the shop's public web page at /s/<slug> is switched on. */
+  web_enabled: boolean;
 }
 
 /** A login account attached to a shop, as returned by admin_list_shop_members. */
@@ -65,7 +87,11 @@ export interface OrderRow {
   order_type: OrderType;
   fulfillment: Fulfillment;
   delivery_address: string;
-  /** Jotted-down walk-in customer details (no account required). */
+  /**
+   * Who to call about this order. Typed at the counter for a walk-in; stamped
+   * from the booker's own profile when a customer books in the app, so the
+   * shop never sees a nameless order (see migration 0015).
+   */
   customer_name: string;
   customer_phone: string;
   payment_method: PaymentMethod;
@@ -77,6 +103,15 @@ export interface OrderRow {
   deliver_by: string | null;
   estimated_total: number;
   final_total: number | null;
+  /** What the shop's scale actually read; null until they weigh it. */
+  actual_weight_kg: number | null;
+  /** Private storage key for the photo of the weighed load. */
+  weigh_photo_path: string | null;
+  weighed_at: string | null;
+  /** Private storage key for the receipt the customer uploaded. */
+  payment_proof_path: string | null;
+  /** The reference number off that receipt, for the shop to match by eye. */
+  payment_reference: string | null;
   claim_token: string;
   claimed_at: string | null;
   notes: string;
@@ -135,4 +170,43 @@ export interface ShopAnalytics {
   unique_customers: number;
   repeat_customers: number;
   orders_by_status: Partial<Record<OrderStatus, number>>;
+}
+
+/**
+ * A shop's public web page, as get_storefront returns it: display fields,
+ * the active price list, and the latest reviews. No account is needed to read
+ * it, so nothing on it is private — the counter token rides along because the
+ * page prints the counter code.
+ */
+export interface StorefrontShop {
+  id: string;
+  name: string;
+  slug: string;
+  tagline: string;
+  brand_accent: number | null;
+  logo_url: string;
+  cover_url: string;
+  address: string;
+  phone: string;
+  latitude: number | null;
+  longitude: number | null;
+  qr_token: string;
+}
+
+export type StorefrontService = Pick<
+  ServiceRow,
+  'id' | 'name' | 'unit' | 'price' | 'category' | 'min_quantity' | 'description' | 'sort_order'
+>;
+
+export interface StorefrontReview {
+  id: string;
+  rating: number;
+  comment: string;
+  created_at: string;
+}
+
+export interface Storefront {
+  shop: StorefrontShop;
+  services: StorefrontService[];
+  reviews: StorefrontReview[];
 }

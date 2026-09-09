@@ -1,4 +1,56 @@
-import { WASH_CYCLE_STAGES, washCycleProgress } from '../wash-cycle';
+import { WASH_CYCLE_STAGES, cycleStanding, washCycleProgress } from '../wash-cycle';
+
+describe('cycleStanding', () => {
+  it('counts the stage out of the whole cycle, so progress is a position', () => {
+    expect(cycleStanding('drying')).toMatchObject({
+      position: 3,
+      total: 5,
+      caption: 'Step 3 of 5',
+    });
+  });
+
+  it('starts counting at the first stage of the cycle', () => {
+    expect(cycleStanding('received').caption).toBe('Step 1 of 5');
+  });
+
+  it('reaches the last step without overshooting it', () => {
+    expect(cycleStanding('ready')).toMatchObject({ position: 5, caption: 'Step 5 of 5' });
+  });
+
+  it('says a booking has not started rather than calling it step zero', () => {
+    expect(cycleStanding('pending')).toMatchObject({
+      position: 0,
+      caption: 'Not started yet',
+    });
+  });
+
+  it('reports a finished load as done, not as a step', () => {
+    expect(cycleStanding('completed')).toMatchObject({ position: 5, caption: 'All done' });
+  });
+
+  it('does not count a cancelled load through a cycle it left', () => {
+    expect(cycleStanding('cancelled')).toMatchObject({
+      position: 0,
+      caption: 'Cancelled',
+    });
+  });
+
+  it('knows a machine is actually turning during the wash and the dry', () => {
+    expect(cycleStanding('washing').isRunning).toBe(true);
+    expect(cycleStanding('drying').isRunning).toBe(true);
+  });
+
+  it('knows nothing is turning while the laundry only sits there', () => {
+    for (const status of ['pending', 'received', 'folded', 'ready', 'completed'] as const) {
+      expect(cycleStanding(status).isRunning).toBe(false);
+    }
+  });
+
+  it('counts the same stages the tracker draws', () => {
+    // The rail and the dots must never disagree about how long the cycle is.
+    expect(cycleStanding('washing').total).toBe(WASH_CYCLE_STAGES.length);
+  });
+});
 
 describe('WASH_CYCLE_STAGES', () => {
   it('walks the laundry from intake to ready in order', () => {

@@ -32,6 +32,7 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
+import { ShopLogo } from '@/components/shop-logo';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
 import { docketNumber } from '@/lib/domain/docket';
 import { assignBrandAccents, resolveAccent } from '@/lib/domain/shop-branding';
@@ -530,11 +531,7 @@ function ShopShortcut({
         onPressOut={press.onPressOut}
         style={[styles.panel, styles.shopRow]}
       >
-        <View style={[styles.shopAvatar, { backgroundColor: accent.surface }]}>
-          <Text style={[styles.shopInitials, { color: accent.ink }]}>
-            {shop.initials}
-          </Text>
-        </View>
+        <ShopLogo name={shop.name} logoUrl={shop.logo_url} size={44} accent={accent} />
         <View style={{ flex: 1 }}>
           <Text style={styles.shopName} numberOfLines={1}>
             {shop.name}
@@ -903,16 +900,6 @@ const styles = StyleSheet.create({
   },
 
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  // Surface and ink come from the shop's accent; these are the fallbacks.
-  shopAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: colors.actionSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shopInitials: { ...type.label, fontSize: 15, color: colors.actionInk },
   shopName: { ...type.label, fontSize: 16, color: colors.text },
   shopAddress: { ...type.caption, color: colors.subtle },
 
