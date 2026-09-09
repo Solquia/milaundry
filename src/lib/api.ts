@@ -5,6 +5,7 @@ import {
   shopAssetPath,
   type ShopAssetKind,
 } from './domain/shop-asset';
+import type { PeekedReceipt } from './domain/receipt-peek';
 import { STAFF_ONLY_ROLE } from './domain/staff-invite';
 import { readImage } from './read-image';
 import type { OrderStatus } from './domain/order-status';
@@ -441,6 +442,25 @@ export async function setOwnPassword(password: string): Promise<void> {
 export async function registerWithShopBySlug(slug: string): Promise<string> {
   const result = await supabase.rpc('register_with_shop_by_slug', { p_slug: slug });
   return unwrap(result) as string;
+}
+
+/**
+ * The receipt's own contents, for whoever is holding the printed code.
+ *
+ * Bounded to what the paper already says — lines, totals, state — and never
+ * the customer it belongs to; see migration 0023. Answers null once the load
+ * is on an account, which is not an error: the account is how you read it then.
+ */
+export async function peekOrder(
+  orderId: string,
+  token: string
+): Promise<PeekedReceipt | null> {
+  const { data, error } = await supabase.rpc('peek_order', {
+    p_id: orderId,
+    p_token: token,
+  });
+  if (error) throw new Error(error.message);
+  return (data as PeekedReceipt | null) ?? null;
 }
 
 export async function claimOrder(orderId: string, token: string): Promise<OrderRow> {

@@ -18,17 +18,32 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ACCENTS, ErrorText, Loading, colors, space, type } from '@/components/ui-kit';
+import {
+  ACCENTS,
+  ErrorText,
+  Loading,
+  colors,
+  formatMoney,
+  space,
+  type,
+} from '@/components/ui-kit';
 import { GuestForm } from '@/components/web/guest-form';
 import { WebShell } from '@/components/web/web-shell';
-import { claimOrder, peekScan } from '@/lib/api';
+import { claimOrder, peekOrder, peekScan } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { isUuid } from '@/lib/domain/qr';
 import { scanFailure } from '@/lib/domain/scan-outcome';
+import { formatOrderTime, shortOrderId } from '@/lib/domain/order-card';
+import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
+import {
+  receiptAmount,
+  receiptLineLabel,
+  type PeekedReceipt,
+} from '@/lib/domain/receipt-peek';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { claimHeadline, claimInvitation, claimSubmitLabel } from '@/lib/domain/web-claim';
 import type { ScannedShop } from '@/lib/domain/welcome-flow';
-import { storefrontTheme } from '@/lib/domain/web-theme';
+import { storefrontTheme, type StorefrontTheme } from '@/lib/domain/web-theme';
 
 export default function ClaimPage() {
   const params = useLocalSearchParams<{ id: string; token?: string | string[] }>();
@@ -54,6 +69,12 @@ export default function ClaimPage() {
 
 function ClaimBody({ shop, orderId, token }: { shop: ScannedShop | null; orderId: string; token: string }) {
   const router = useRouter();
+  // The receipt's own contents. Absent for a load already on an account, which
+  // is why the card below is conditional rather than assumed.
+  const { data: receipt } = useQuery({
+    queryKey: ['peek-order', orderId, token],
+    queryFn: () => peekOrder(orderId, token),
+  });
   const { session, isLoading: isAuthLoading } = useAuth();
   const [error, setError] = useState('');
   const [isClaiming, setIsClaiming] = useState(false);
@@ -106,6 +127,7 @@ function ClaimBody({ shop, orderId, token }: { shop: ScannedShop | null; orderId
           ) : null}
         </View>
         <View style={styles.body}>
+          {receipt ? <ReceiptCard receipt={receipt} theme={theme} /> : null}
           <View style={styles.card}>
             {session ? (
               <>
@@ -149,6 +171,55 @@ function ClaimBody({ shop, orderId, token }: { shop: ScannedShop | null; orderId
   );
 }
 
+
+/**
+ * The receipt itself, above the button that claims it.
+ *
+ * A page that says only "this load will be added to your account" asks the
+ * customer to attach a slip to their name before they can check it is theirs.
+ * These are the lines already printed on the paper in their hand, so the
+ * question the page asks is one they can actually answer.
+ */
+function ReceiptCard({ receipt, theme }: { receipt: PeekedReceipt; theme: StorefrontTheme }) {
+  const { amount, label, isEstimate } = receiptAmount(receipt);
+
+  return (
+    <View style={styles.receipt}>
+      <View style={styles.receiptHead}>
+        <Text style={styles.ticket}>{shortOrderId(receipt.id)}</Text>
+        <View style={[styles.status, { backgroundColor: theme.brandSoft }]}>
+          <Text style={[styles.statusText, { color: theme.brandInk }]}>
+            {STATUS_LABELS[receipt.status as OrderStatus] ?? receipt.status}
+          </Text>
+        </View>
+      </View>
+      <Text style={styles.taken}>{formatOrderTime(receipt.created_at, new Date())}</Text>
+
+      {receipt.items.map((line, index) => (
+        <View key={`${line.service_name}-${index}`} style={styles.line}>
+          <Text style={styles.lineName} numberOfLines={2}>
+            {receiptLineLabel(line)}
+          </Text>
+          <Text style={styles.lineAmount}>{formatMoney(line.subtotal)}</Text>
+        </View>
+      ))}
+
+      <View style={styles.totalRow}>
+        <Text style={styles.totalLabel}>{label}</Text>
+        <Text style={styles.totalAmount}>
+          {amount === null ? '—' : formatMoney(amount)}
+        </Text>
+      </View>
+      {/* Said out loud, because the figure above it is not the bill yet. */}
+      {isEstimate ? (
+        <Text style={styles.estimateNote}>
+          The shop weighs your laundry and confirms the price before you pay.
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
 function Notice({ title, body }: { title: string; body: string }) {
   return (
     <WebShell>
@@ -175,6 +246,48 @@ const styles = StyleSheet.create({
     gap: space.cosy,
   },
   hint: { ...type.body, color: colors.subtle },
+
+  /** The slip itself: ticket and state on one line, then what is on it. */
+  receipt: {
+    backgroundColor: colors.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.room,
+    gap: space.snug,
+  },
+  receiptHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: space.snug,
+  },
+  ticket: { ...type.label, color: colors.subtle },
+  status: { borderRadius: 999, paddingHorizontal: space.snug, paddingVertical: 3 },
+  statusText: { ...type.caption },
+  taken: { ...type.caption, color: colors.subtle },
+  line: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: space.cosy,
+    paddingTop: space.snug,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  lineName: { ...type.body, color: colors.text, flex: 1 },
+  lineAmount: { ...type.body, color: colors.text },
+  totalRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    paddingTop: space.snug,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderStrong,
+  },
+  totalLabel: { ...type.label, color: colors.subtle },
+  totalAmount: { ...type.value, color: colors.text },
+  estimateNote: { ...type.caption, color: colors.subtle },
   submit: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   submitText: { ...type.label, fontSize: 16 },
   link: { ...type.label, textAlign: 'center', paddingVertical: space.cosy },
