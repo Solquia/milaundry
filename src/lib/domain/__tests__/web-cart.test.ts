@@ -6,6 +6,7 @@ import {
   cartLines,
   cartTotal,
   startingCart,
+  setLine,
   type CartService,
 } from '../web-cart';
 import { MAX_WEIGHT_KG } from '../booking-estimate';
@@ -100,5 +101,32 @@ describe('startingCart', () => {
     expect(startingCart(undefined, catalog)).toBe(EMPTY_CART);
     expect(startingCart('', catalog)).toBe(EMPTY_CART);
     expect(startingCart('gone', catalog)).toBe(EMPTY_CART);
+  });
+});
+
+describe('setLine', () => {
+  const KILOS = { id: 'wf', name: 'Wash & Fold', unit: 'per_kg' as const, price: 40, min_quantity: 3 };
+
+  it('stores exactly what the scale was dragged to', () => {
+    expect(setLine({}, KILOS, 7)).toEqual({ wf: 7 });
+  });
+
+  it('drops the line at zero, rather than keeping an empty one', () => {
+    expect(setLine({ wf: 7 }, KILOS, 0)).toEqual({});
+  });
+
+  it('never keeps a negative weight', () => {
+    expect(setLine({ wf: 7 }, KILOS, -2)).toEqual({});
+  });
+
+  it('lets the customer sit below the minimum, and says so elsewhere', () => {
+    // The app's scale does the same: it stores 1 kg against a 3 kg minimum and
+    // lets minimumChargeNotice explain the charge. Snapping the ruler back
+    // under the finger is the worse answer.
+    expect(setLine({}, KILOS, 1)).toEqual({ wf: 1 });
+  });
+
+  it('leaves the rest of the basket alone', () => {
+    expect(setLine({ other: 2 }, KILOS, 5)).toEqual({ other: 2, wf: 5 });
   });
 });

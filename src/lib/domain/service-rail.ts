@@ -53,3 +53,22 @@ export function railLineCount<T extends RailService>(
 ): number {
   return services.filter((service) => (cart[service.id] ?? 0) > 0).length;
 }
+
+/** How a category's services should be put on screen. */
+export type CategoryPresentation = 'measure' | 'choose';
+
+/**
+ * Whether the grid should ask *which* or *how much*.
+ *
+ * A picture earns its place when it is the thing being chosen between. A
+ * category holding one service has nothing to choose, so its photograph is
+ * decoration, and the question that actually remains — how many kilos, how
+ * many pieces — was being left to a stepper the width of a thumbnail.
+ *
+ * With one service the grid gives that question the whole width and uses the
+ * app's own scale and piece pickers. With two or more the pictures come back,
+ * because then they are the choice.
+ */
+export function categoryPresentation(serviceCount: number): CategoryPresentation {
+  return serviceCount === 1 ? 'measure' : 'choose';
+}
