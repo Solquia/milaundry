@@ -2,28 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import React, { useMemo, useState } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, {
-  Defs,
-  LinearGradient as SvgLinearGradient,
-  Rect,
-  Stop,
-} from 'react-native-svg';
 
+import { BlueField } from '@/components/blue-field';
 import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
-import { WasherMark } from '@/components/washer-mark';
+import { OrderStub } from '@/components/order-stub';
 import {
   ACCENTS,
+  BLUE_FIELD,
   Button,
   EmptyState,
   ErrorText,
-  HERO_GRADIENT,
   Loading,
-  STATUS_COLORS,
   STATUS_LABELS,
-  Screen,
   StatusBadge,
   colors,
   elevation,
@@ -34,9 +27,8 @@ import {
 } from '@/components/ui-kit';
 import { ShopLogo } from '@/components/shop-logo';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
-import { docketNumber } from '@/lib/domain/docket';
+import { useAuth } from '@/lib/auth';
 import { assignBrandAccents, resolveAccent } from '@/lib/domain/shop-branding';
-import { cycleStanding, washCycleProgress } from '@/lib/domain/wash-cycle';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import {
   connectedShopTiles,
@@ -46,6 +38,7 @@ import {
   homeAttention,
   type AttentionCard,
 } from '@/lib/domain/home-attention';
+import { homeGreeting } from '@/lib/domain/home-greeting';
 import { homeSubline, type HeadlineOrder } from '@/lib/domain/home-headline';
 import { formatOrderTime } from '@/lib/domain/order-card';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
@@ -57,6 +50,29 @@ import {
   enabledNotifications,
 } from '@/lib/domain/notifications';
 import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
+
+/** The pinned bar's own height, under the status bar. */
+const TOP_BAR_HEIGHT = 52;
+/**
+ * How far the greeting sits below the bell and the gear.
+ *
+ * It used to start immediately under them, which put the biggest type on the
+ * screen hard against two small controls and left the whole block reading as
+ * something floating above the page rather than the top of it. Dropping it a
+ * step pulls it away from the controls and toward the sheet it introduces —
+ * the same gap the greeting already keeps from the card beneath it, so the
+ * block is spaced evenly on both sides instead of hugging the chrome.
+ */
+const GREETING_DROP = 28;
+/**
+ * The white sheet's corner: generous while it sits below the greeting, tighter
+ * once it has ridden up over it. A sheet at rest is an object on the field; a
+ * sheet carrying the whole screen is the page, and pages have smaller corners.
+ */
+const SHEET_RADIUS_REST = 32;
+const SHEET_RADIUS_RIDE = 20;
+/** How far up the sheet has to come before it counts as riding. */
+const RIDE_AT = 90;
 
 function toHeadlineOrder(order: OrderWithDetails): HeadlineOrder {
   return {
@@ -71,6 +87,51 @@ export default function CustomerOrders() {
   const insets = useSafeAreaInsets();
   const { settings } = useAppSettings();
   const haptic = useHaptic();
+  const { profile } = useAuth();
+  const isReduced = useReducedMotion();
+
+  /** One driver for the whole page: the finger. */
+  const [scrollY] = useState(() => new Animated.Value(0));
+  /**
+   * The sheet's corner, which the native driver cannot carry. Rather than
+   * interpolate a radius on every frame in JavaScript, it is animated once
+   * when the sheet passes the greeting — one timing per crossing, not sixty a
+   * second — and the listener below is the only JS the scroll touches.
+   */
+  const [sheetRadius] = useState(() => new Animated.Value(SHEET_RADIUS_REST));
+  const isRiding = useRef(false);
+
+  useEffect(() => {
+    if (isReduced) return;
+    const id = scrollY.addListener(({ value }) => {
+      const riding = value > RIDE_AT;
+      if (riding === isRiding.current) return;
+      isRiding.current = riding;
+      Animated.timing(sheetRadius, {
+        toValue: riding ? SHEET_RADIUS_RIDE : SHEET_RADIUS_REST,
+        duration: 260,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    });
+    return () => scrollY.removeListener(id);
+  }, [scrollY, sheetRadius, isReduced]);
+
+  const greeting = homeGreeting(profile?.full_name);
+
+  // Still page, still greeting: a device asking for less motion gets the
+  // composition and none of the parallax.
+  const greetLag = isReduced
+    ? 0
+    : scrollY.interpolate({ inputRange: [0, 240], outputRange: [0, 84], extrapolate: 'clamp' });
+  const greetFade = isReduced
+    ? 1
+    : scrollY.interpolate({ inputRange: [0, 130], outputRange: [1, 0], extrapolate: 'clamp' });
+  const plateIn = scrollY.interpolate({
+    inputRange: [RIDE_AT - 40, RIDE_AT + 40],
+    outputRange: [0, 1],
+    extrapolate: 'clamp',
+  });
 
   /** Every press that leaves this screen answers the finger first. */
   const go = (href: string) => {
@@ -172,33 +233,86 @@ export default function CustomerOrders() {
 
   if (isLoading) {
     return (
-      <Screen>
+      <View style={styles.page}>
         <Loading />
-      </Screen>
+      </View>
     );
   }
 
   return (
-    <Screen>
-      {/* The hero owns the top edge, so the status bar sits on deep blue. */}
+    <View style={styles.page}>
+      {/* The field is the page, not a band across the top of it. */}
+      <BlueField />
       <StatusBar style="light" />
 
-      <HomeHero
-        insetTop={insets.top}
-        subline={subline}
-        isAnythingWashing={active.length > 0}
-        alertCount={alertCount}
-        onBook={() => {
-          // The one press on this screen that starts something, so it lands
-          // heavier than the presses that only move you somewhere.
-          haptic('commit');
-          router.push('/(customer)/shops' as never);
-        }}
-        onOpenNotifications={() => go('/(customer)/notifications')}
-        onOpenSettings={() => go('/(customer)/settings')}
-      />
+      {/* Pinned: the two ways off this screen must not scroll away with the
+          greeting. The plate behind them fades in as the white sheet rises, so
+          the glyphs sit on blue at every scroll position rather than turning
+          white-on-white halfway down. */}
+      <View style={[styles.topBar, { paddingTop: insets.top }]} pointerEvents="box-none">
+        <Animated.View
+          pointerEvents="none"
+          style={[StyleSheet.absoluteFill, styles.topPlate, { opacity: plateIn }]}
+        />
+        {/* Nothing on the left. The page does not need to tell you whose app
+            you opened; the greeting already speaks to you by name. */}
+        <View style={{ flex: 1 }} />
+        <NotificationBell
+          count={alertCount}
+          onPress={() => go('/(customer)/notifications')}
+        />
+        {/* Second, and never first: the bell is where something has happened,
+            settings is where you go on purpose. Same glass, so the pair reads
+            as one set of ways out rather than two decisions. */}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          hitSlop={10}
+          onPress={() => go('/(customer)/settings')}
+          style={({ pressed }) => [styles.bell, pressed && { opacity: 0.7 }]}
+        >
+          <Ionicons name="settings-outline" size={22} color={colors.onAccent} />
+        </Pressable>
+      </View>
 
-      {/* The ping: what is owed, straight under the hero, before anything the
+      <Animated.ScrollView
+        contentContainerStyle={[
+          styles.scroll,
+          { paddingTop: insets.top + TOP_BAR_HEIGHT + GREETING_DROP },
+        ]}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], {
+          useNativeDriver: true,
+        })}
+      >
+        {/* The greeting lags the scroll and dims as the sheet rides over it:
+            one movement, and the only one on this page a finger drives. */}
+        <Animated.View
+          style={[styles.greeting, { opacity: greetFade, transform: [{ translateY: greetLag }] }]}
+        >
+          {/* One sentence, three weights. "Hi" is the smallest thing on the
+              block because it is the least of what is being said; the reader's
+              own name carries the weight; and the connector takes the accent,
+              which is what makes the two rows read as one sentence broken
+              across them rather than as two stacked lines. */}
+          <Text style={styles.hello} accessibilityRole="header">
+            Hi <Text style={styles.helloName}>{greeting.name}</Text>,
+          </Text>
+          <Text style={styles.headline}>
+            <Text style={styles.headlineLead}>{greeting.lead}</Text> {greeting.rest}
+          </Text>
+          <Text style={styles.state}>{subline}</Text>
+        </Animated.View>
+
+        {/* Everything there is to read rides on white. */}
+        <Animated.View
+          style={[
+            styles.sheet,
+            { borderTopLeftRadius: sheetRadius, borderTopRightRadius: sheetRadius },
+          ]}
+        >
+      {/* The ping: what is owed, first thing on the sheet, before anything the
           customer might browse to. A bill is the one thing on this screen the
           shop is waiting on. */}
       {attention.map((card) => (
@@ -251,9 +365,21 @@ export default function CustomerOrders() {
         <>
           <Text style={styles.sectionLabel}>IN THE WASH</Text>
           {active.map((order) => (
-            <TrackerCard
+            <OrderStub
               key={order.id}
               order={order}
+              shopName={order.shop?.name ?? 'Laundry shop'}
+              accent={
+                ACCENTS[
+                  resolveAccent(
+                    {
+                      id: order.shop?.id ?? order.shop_id,
+                      brand_accent: order.shop?.brand_accent ?? null,
+                    },
+                    ACCENTS.length
+                  )
+                ]
+              }
               onPress={() => go(`/(customer)/order/${order.id}`)}
             />
           ))}
@@ -276,122 +402,18 @@ export default function CustomerOrders() {
       {/* Sign-out used to end this list. Where it landed depended on how many
           orders you had, and it took one tap with nothing between it and a
           lost session — it lives on the settings screen now, behind the gear
-          in the hero and behind a confirmation. */}
-    </Screen>
-  );
-}
-
-/**
- * The one surface that owns the screen. It bleeds past the page gutter and up
- * behind the status bar, so the app opens on colour rather than on a card
- * floating in a field, and it leads with the answer instead of the wordmark.
- */
-function HomeHero({
-  insetTop,
-  subline,
-  isAnythingWashing,
-  alertCount,
-  onBook,
-  onOpenNotifications,
-  onOpenSettings,
-}: {
-  insetTop: number;
-  subline: string;
-  isAnythingWashing: boolean;
-  alertCount: number;
-  onBook: () => void;
-  onOpenNotifications: () => void;
-  onOpenSettings: () => void;
-}) {
-  // Percentage sizing on <Svg> does not resolve against a flex parent in
-  // react-native-svg — it painted a fixed viewport and left bare edges. Measure
-  // the box and paint in real pixels. The container also carries a solid mid
-  // stop, so the surface is never white for a frame or at a rounded corner.
-  const [field, setField] = useState({ width: 0, height: 0 });
-
-  return (
-    <View
-      // The inset only clears the status bar; everything above it here is what
-      // keeps the mark off the clock and out from under a punch-hole camera.
-      style={[styles.hero, { paddingTop: insetTop + space.gulf + space.cosy }]}
-      onLayout={(event) => {
-        const { width, height } = event.nativeEvent.layout;
-        setField((current) =>
-          current.width === width && current.height === height
-            ? current
-            : { width, height }
-        );
-      }}
-    >
-      {field.width > 0 && (
-        <Svg
-          style={StyleSheet.absoluteFill}
-          width={field.width}
-          height={field.height}
-          pointerEvents="none"
-        >
-          <Defs>
-            {/* Lower left to upper right: the lightest stop lands in the
-                corner the eye reaches first, and the depth pools underneath. */}
-            <SvgLinearGradient id="heroField" x1="0" y1="1" x2="1" y2="0">
-              <Stop offset="0" stopColor={HERO_GRADIENT[0]} />
-              <Stop offset="0.55" stopColor={HERO_GRADIENT[1]} />
-              <Stop offset="1" stopColor={HERO_GRADIENT[2]} />
-            </SvgLinearGradient>
-          </Defs>
-          <Rect
-            x={0}
-            y={0}
-            width={field.width}
-            height={field.height}
-            fill="url(#heroField)"
-          />
-        </Svg>
-      )}
-
-      {/* The wordmark is the heading; the drum beside it turns only while
-          something of yours is actually being washed. */}
-      <View style={styles.heroBrandRow}>
-        <WasherMark size={34} isRunning={isAnythingWashing} />
-        <Text style={styles.heroWordmark} accessibilityRole="header">
-          MiLaundry
-        </Text>
-        <View style={{ flex: 1 }} />
-        <NotificationBell count={alertCount} onPress={onOpenNotifications} />
-        {/* Second, and never first: the bell is where something has happened,
-            settings is where you go on purpose. Same glass treatment, so the
-            pair reads as one set of ways out rather than two decisions. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Settings"
-          hitSlop={10}
-          onPress={onOpenSettings}
-          style={({ pressed }) => [styles.bell, pressed && { opacity: 0.7 }]}
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.onAccent} />
-        </Pressable>
-      </View>
-
-      <Text style={styles.heroDetail}>{subline}</Text>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Book a pickup"
-        onPress={onBook}
-        style={({ pressed }) => [styles.heroCta, pressed && { opacity: 0.85 }]}
-      >
-        <Text style={styles.heroCtaText}>Book a pickup</Text>
-        <Ionicons name="arrow-forward" size={17} color={colors.actionInk} />
-      </Pressable>
+          in the top bar and behind a confirmation. */}
+        </Animated.View>
+      </Animated.ScrollView>
     </View>
   );
 }
 
 /**
- * The bell, sitting on the hero opposite the wordmark.
+ * The bell, on the top bar opposite the mark.
  *
  * It is glass rather than a filled button: it is a way *out* of this screen,
- * not the thing this screen is for, and the one filled shape on the hero has
+ * not the thing this screen is for, and the one filled shape on the field has
  * to stay "Book a pickup". The dot is amber — the app's colour for something
  * outstanding — with a ring so it separates from the blue behind it, and the
  * count is repeated in the accessible label, since a dot announces nothing.
@@ -548,115 +570,6 @@ function ShopShortcut({
   );
 }
 
-/**
- * One load in the wash, as a ticket stub.
- *
- * This was three full wash-cycle trackers stacked down the home screen: five
- * dots, five labels, a bar and a sentence, repeated per order at roughly 250px
- * each. With three loads from the same laundry the cards were literally
- * indistinguishable — same name, same badge, same five grey dots, same
- * sentence — so the section answered "how many loads do I have" and nothing
- * else. The roadmap of five stages belongs on the order screen, which is opened
- * to study one load; a list is opened to *find* one.
- *
- * So each row keeps only what tells loads apart, in the order they are asked
- * for: which laundry, which load, where it is, what it costs. The full tracker
- * is one tap away and unchanged.
- *
- * It reads as the stub of that ticket — the laundry's colour down the spine
- * where the ticket wears it as a band, and the same docket number in the same
- * monospace — so tapping one opens something recognisably larger rather than
- * something else.
- */
-function TrackerCard({
-  order,
-  onPress,
-}: {
-  order: OrderWithDetails;
-  onPress: () => void;
-}) {
-  const shopName = order.shop?.name ?? 'Laundry shop';
-  const accent =
-    ACCENTS[
-      resolveAccent(
-        { id: order.shop?.id ?? order.shop_id, brand_accent: order.shop?.brand_accent ?? null },
-        ACCENTS.length
-      )
-    ];
-  const progress = washCycleProgress(order.status);
-  const standing = cycleStanding(order.status);
-  const stageColor = STATUS_COLORS[order.status];
-  const docket = docketNumber(order.id);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      // The spoken label carries the position too: the bar and the spine are
-      // sighted shorthand, and a screen reader gets the whole sentence.
-      accessibilityLabel={`${shopName}, ${STATUS_LABELS[order.status]}, ${
-        standing.caption
-      }, ${formatMoney(order.final_total ?? order.estimated_total)}${
-        order.final_total === null ? ' estimated' : ''
-      }`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.stub, pressed && { opacity: 0.85 }]}
-    >
-      {/* The stub's end block, in the laundry's own tone — the ticket's band,
-          stood on its end. A 6px spine was the same idea whispered: it read as
-          a rule left on a list row, not as a piece of the ticket.
-          The drum inside it is the app's own mark, and it *turns only while the
-          load is genuinely in a machine* — so on a screen of three loads, the
-          one actually being washed is the one that moves. Nothing else in the
-          list moves at all, which is what makes it worth noticing. */}
-      <View style={[styles.stubBlock, { backgroundColor: accent.ink }]}>
-        <WasherMark size={30} isRunning={standing.isRunning} />
-      </View>
-
-      {/* The punch and the dashed seam: where a real stub is torn from its
-          ticket. The circles are page-coloured and clipped by the card, so the
-          bite is a clip rather than a shape kept in sync with the height. */}
-      <View style={[styles.stubNotch, styles.stubNotchTop]} />
-      <View style={[styles.stubNotch, styles.stubNotchBottom]} />
-      <View style={styles.stubSeam} />
-
-      <View style={styles.stubBody}>
-        <View style={styles.stubHead}>
-          <Text style={styles.stubShop} numberOfLines={1}>
-            {shopName}
-          </Text>
-          {docket ? <Text style={styles.stubDocket}>NO. {docket}</Text> : null}
-        </View>
-
-        {/* The cycle as one line rather than five. The bar carries the same
-            status hue the order screen's tracker uses, so the two agree. */}
-        <View style={styles.stubTrack}>
-          <View
-            style={[
-              styles.stubFill,
-              { width: `${progress.percent}%`, backgroundColor: stageColor },
-            ]}
-          />
-        </View>
-
-        <View style={styles.stubFoot}>
-          <Text style={[styles.stubStage, { color: stageColor }]} numberOfLines={1}>
-            {STATUS_LABELS[order.status]}
-          </Text>
-          {/* Only once the cycle has begun: before that the caption reads "Not
-              started yet", which the stage word beside it has already said. */}
-          {standing.position > 0 ? (
-            <Text style={styles.stubStep}>{standing.caption}</Text>
-          ) : null}
-          <Text style={styles.stubAmount}>
-            {formatMoney(order.final_total ?? order.estimated_total)}
-            {order.final_total === null ? ' est.' : ''}
-          </Text>
-        </View>
-      </View>
-    </Pressable>
-  );
-}
-
 function PastOrderRow({
   order,
   onPress,
@@ -687,7 +600,6 @@ function PastOrderRow({
   );
 }
 
-const HERO_RADIUS = 28;
 /** The accent block the drum sits in — the ticket's band, stood on its end. */
 const BLOCK_WIDTH = 76;
 /** How far the punched holes bite in at the seam. */
@@ -765,59 +677,91 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  // Escapes the page gutter on three sides so the colour reaches every edge.
-  hero: {
-    marginTop: -space.room,
-    marginHorizontal: -space.room,
-    marginBottom: space.snug,
-    paddingHorizontal: space.section,
-    paddingBottom: space.section,
-    borderBottomLeftRadius: HERO_RADIUS,
-    borderBottomRightRadius: HERO_RADIUS,
-    overflow: 'hidden',
-    gap: space.snug,
-    // The mid stop as a floor: if the gradient has not painted yet, or a
-    // rounded corner antialiases past it, what shows through is still blue.
-    backgroundColor: HERO_GRADIENT[1],
-    ...elevation.hero,
-  },
-  heroBrandRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  heroWordmark: {
-    fontSize: 34,
-    fontWeight: '800',
-    letterSpacing: -0.6,
-    color: colors.onAccent,
-  },
-  // Subordinate to the wordmark but still the largest thing after it, and
-  // bold enough at 21 to count as large text against the field.
-  heroStatus: {
-    fontSize: 21,
-    fontWeight: '700',
-    letterSpacing: -0.2,
-    lineHeight: 27,
-    color: colors.onAccent,
-    marginTop: space.cosy,
-  },
-  // A 34pt wordmark needs more air beneath it than the hero's default gap.
-  heroDetail: {
-    ...type.body,
-    color: colors.onAccent,
-    opacity: 0.92,
-    marginTop: space.tight,
-  },
-  heroCta: {
-    alignSelf: 'flex-start',
+  /** The page itself: blue to every edge, with the field painted on it. */
+  page: { flex: 1, backgroundColor: BLUE_FIELD.deep },
+  /**
+   * `flexGrow` so a customer with one shop and no orders still gets a white
+   * sheet that reaches the bottom of the glass rather than a white card
+   * floating halfway down a blue page.
+   */
+  scroll: { flexGrow: 1 },
+
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 2,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
-    marginTop: space.cosy,
-    paddingHorizontal: space.section,
-    paddingVertical: space.cosy + 2,
-    borderRadius: 999,
-    backgroundColor: colors.card,
-    ...elevation.lift,
+    height: undefined,
+    paddingHorizontal: space.room,
+    paddingBottom: space.snug,
   },
-  heroCtaText: { ...type.label, fontSize: 16, color: colors.actionInk },
+  /** The bar's own ground, faded in under it once the sheet has risen. */
+  topPlate: { backgroundColor: BLUE_FIELD.deep },
+
+  greeting: {
+    paddingHorizontal: space.section,
+    paddingBottom: space.gulf + space.cosy,
+    gap: space.tight,
+  },
+  /**
+   * The half of the headline that belongs to the reader, set a step down from
+   * the half that belongs to the page — one block, two voices, no eyebrow.
+   */
+  hello: {
+    ...type.title,
+    fontSize: 30,
+    lineHeight: 36,
+    // The greeting word, not the greeting: one step back from the name so the
+    // name is what the eye lands on.
+    fontWeight: '400',
+    color: 'rgba(255, 255, 255, 0.78)',
+  },
+  /** The reader's own name, at full strength and full weight. */
+  helloName: {
+    ...type.hero,
+    fontSize: 30,
+    lineHeight: 36,
+    color: colors.onAccent,
+  },
+  headline: {
+    ...type.hero,
+    fontSize: 34,
+    lineHeight: 40,
+    color: colors.onAccent,
+  },
+  /**
+   * The connector, in the app's own `actionMuted` rather than an invented
+   * pastel — the tint the design system already spends on blue-at-rule-weight,
+   * which is exactly this relationship: present, quieter, unmistakably the
+   * same family. 10:1 on the deep ground and 3.5:1 on the lit corner, against
+   * the 3:1 a 34pt line needs.
+   */
+  headlineLead: {
+    ...type.hero,
+    fontSize: 34,
+    lineHeight: 40,
+    fontWeight: '400',
+    color: colors.actionMuted,
+  },
+  state: {
+    ...type.body,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: space.cosy,
+  },
+  /** What the page is made of, riding on the light. */
+  sheet: {
+    flexGrow: 1,
+    backgroundColor: colors.bg,
+    paddingHorizontal: space.room,
+    paddingTop: space.room,
+    // Clear of the raised tab button at the foot of the screen.
+    paddingBottom: space.gulf * 3,
+    gap: space.cosy,
+  },
 
   // 44pt: the smallest target a thumb can hit reliably, and enough glass for
   // the glyph to read as a control rather than as decoration on the field.
@@ -845,7 +789,7 @@ const styles = StyleSheet.create({
     // A ring in the hero's own blue, so the dot reads as sitting on the bell
     // rather than floating somewhere behind it.
     borderWidth: 2,
-    borderColor: HERO_GRADIENT[1],
+    borderColor: BLUE_FIELD.deep,
   },
   // #3B2400 on #F5A623 is 8.4:1 — a 12px bold count has to survive sunlight.
   bellBadgeText: { fontSize: 11, fontWeight: '800', color: '#3B2400' },
