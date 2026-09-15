@@ -179,6 +179,29 @@ export const elevation = {
 export const HERO_GRADIENT = ['#0B48BE', '#1060D2', '#1272DF'] as const;
 
 /**
+ * The field a home page stands on: `blue-field.tsx`.
+ *
+ * `HERO_GRADIENT` is a band at the top of a screen and stays that. This is a
+ * whole page of colour with white riding on it, which asks more of the blue —
+ * it has to hold a headline at the top, stay handsome under a white sheet at
+ * the bottom, and never read as a flat fill. So the ground runs deeper than
+ * the hero's and the light is added back as two blooms rather than as a
+ * lighter stop: cyan high for energy, violet low for depth. Every stop here
+ * carries white text at 4.5:1 or better.
+ */
+export const BLUE_FIELD = {
+  /** The ground, and the colour behind the status bar. */
+  deep: '#05205C',
+  mid: '#0B3FA8',
+  /** The lit corner. */
+  lit: '#1466D8',
+  /** The high light. */
+  bloom: '#3E9BFF',
+  /** The low one, a half-step toward violet so the field has a temperature. */
+  glow: '#5B5BF0',
+} as const;
+
+/**
  * Identity accents — the one place colour names a *thing* rather than a state.
  *
  * A customer's connected shops all wore the same pale blue, so the list read as
@@ -282,9 +305,15 @@ type ScreenProps = {
    * Content taller than the viewport still scrolls normally from the top.
    */
   center?: boolean;
+  /**
+   * Drops the screen's own ground so whatever is painted behind it shows
+   * through. For a page that stands on the blue field rather than on the pale
+   * one — there the field *is* the page, and an opaque screen would cover it.
+   */
+  isClear?: boolean;
 };
 
-export function Screen({ children, scroll = true, footer, center }: ScreenProps) {
+export function Screen({ children, scroll = true, footer, center, isClear }: ScreenProps) {
   const content = scroll ? (
     // `handled` matters at a counter: after typing a customer name, the first
     // tap on a stepper used to be swallowed dismissing the keyboard, and the
@@ -307,7 +336,10 @@ export function Screen({ children, scroll = true, footer, center }: ScreenProps)
     // Only the side edges: the stack header already clears the notch and the
     // raised tab bar already applies the bottom inset, so claiming all four
     // here padded the screen twice.
-    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
+    <SafeAreaView
+      style={[styles.screen, isClear && styles.screenClear]}
+      edges={['left', 'right']}
+    >
       {content}
       {footer ? <View style={styles.screenFooter}>{footer}</View> : null}
     </SafeAreaView>
@@ -590,6 +622,7 @@ export function ErrorState({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  screenClear: { backgroundColor: 'transparent' },
   screenContent: { padding: space.room, gap: space.cosy },
   // `flexGrow` rather than `flex`: the content still grows past the viewport
   // and scrolls when it is taller, instead of being squeezed to fit.
