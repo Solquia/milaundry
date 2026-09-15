@@ -5,6 +5,11 @@
  * session, splash gate, or tab bar; it is the shop as a customer walking
  * past would see it, with the price list open and the phone number one tap
  * away. Booking hangs off it: "Book online" leads to /s/<slug>/book.
+ *
+ * It takes whatever window it is opened in. On a phone that is one column
+ * under a full-bleed hero; on a laptop the price grid widens and the shop's
+ * address and code stand in a column of their own beside it, with the booking
+ * buttons at the top of that column rather than across the foot of the screen.
  */
 import { useQuery } from '@tanstack/react-query';
 import Head from 'expo-router/head';
@@ -13,15 +18,18 @@ import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
+import { OrderStatusBand } from '@/components/web/order-status-band';
 import { PriceList } from '@/components/web/price-list';
 import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
 import { StorefrontHero } from '@/components/web/storefront-hero';
-import { WebShell } from '@/components/web/web-shell';
-import { getStorefront } from '@/lib/api';
+import { WebShell, useWebLayout } from '@/components/web/web-shell';
+import { getMyOrders, getStorefront } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { storefrontGreeting } from '@/lib/domain/home-greeting';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
+import { orderOnShow } from '@/lib/domain/storefront-order';
 import { storefrontTheme } from '@/lib/domain/web-theme';
 import type { Storefront } from '@/lib/types';
 
@@ -50,7 +58,17 @@ export default function StorefrontPage() {
 function StorefrontBody({ storefront }: { storefront: Storefront }) {
   const { shop, services, reviews } = storefront;
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, profile } = useAuth();
+  const layout = useWebLayout();
+  // Only asked for when there is a session to ask about. A signed-out visitor
+  // gets the band in its empty state, which leads to the page that finds an
+  // order from the name and number it was booked with.
+  const myOrders = useQuery({
+    queryKey: ['my-orders'],
+    queryFn: getMyOrders,
+    enabled: Boolean(session),
+  });
+  const tracked = orderOnShow(myOrders.data ?? [], shop.id);
   const canBook = services.length > 0;
   const theme = storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
   const reputation = shopReputation(reviews);
@@ -60,10 +78,12 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
   const description = shop.tagline || `Prices and contact details for ${shop.name}.`;
 
   // Booking leads when there is a price list to book from; the phone is the
-  // fallback for a shop that has not posted prices yet.
+  // fallback for a shop that has not posted prices yet. Side by side in the
+  // foot bar of a narrow window; stacked in the side column, where there is
+  // height to spare and two half-width buttons would read as a squeeze.
   const footer =
     canBook || phone || maps ? (
-      <View style={styles.actions}>
+      <View style={[styles.actions, layout.hasAside && styles.actionsStacked]}>
         {canBook ? (
           <ActionButton
             title="Book online"
@@ -97,19 +117,48 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
         <title>{shop.name}</title>
         <meta name="description" content={description} />
       </Head>
-      <WebShell footer={footer}>
-        <StorefrontHero
-          shop={shop}
-          theme={theme}
-          reputationLabel={reputation?.label ?? null}
-          cheapest={cheapest}
-          serviceCount={services.length}
-        />
-        <View style={styles.body}>
+      <WebShell
+        isField
+        footer={footer}
+        hero={
+          <StorefrontHero
+            shop={shop}
+            theme={theme}
+            reputationLabel={reputation?.label ?? null}
+            cheapest={cheapest}
+            serviceCount={services.length}
+            greeting={storefrontGreeting(profile?.full_name)}
+            layout={layout}
+          />
+        }
+        aside={
+          <View
+            style={[
+              styles.aside,
+              { paddingTop: layout.gutter, paddingHorizontal: layout.hasAside ? 0 : layout.gutter },
+            ]}
+          >
+            <Text style={styles.sectionTitle}>Find the shop</Text>
+            <ShopDetails shop={shop} theme={theme} />
+          </View>
+        }
+      >
+        <View style={[styles.body, { padding: layout.gutter }]}>
+          {/* Above the price list, because a customer who has already ordered
+              is not back to read prices — they are back to find out whether
+              the wash is done. */}
+          <OrderStatusBand
+            theme={theme}
+            order={tracked}
+            isLoading={Boolean(session) && myOrders.isLoading}
+            isSignedIn={Boolean(session)}
+            onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
+          />
           <Text style={styles.sectionTitle}>Services</Text>
           <PriceList
             services={services}
             theme={theme}
+            columns={layout.priceColumns}
             onBook={
               canBook
                 ? (serviceId) =>
@@ -117,27 +166,12 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
                 : undefined
             }
           />
-          {/* Below the prices on purpose. This link only exists for a customer
-              who has ordered here before, and putting it first made the page
-              open on a piece of navigation rather than on what the shop
-              sells. */}
-          {session ? (
-            <Pressable
-              accessibilityRole="link"
-              onPress={() => router.push(`/s/${shop.slug}/orders` as never)}
-              style={[styles.ordersLink, { backgroundColor: theme.brandSoft }]}
-            >
-              <Text style={[styles.ordersLinkText, { color: theme.brandInk }]}>Your orders here ›</Text>
-            </Pressable>
-          ) : null}
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>
               <ReviewList reviews={reviews} reputation={reputation} theme={theme} />
             </>
           ) : null}
-          <Text style={styles.sectionTitle}>Find the shop</Text>
-          <ShopDetails shop={shop} theme={theme} />
         </View>
       </WebShell>
     </>
@@ -175,11 +209,14 @@ function Notice({ title, body }: { title: string; body: string }) {
 }
 
 const styles = StyleSheet.create({
-  body: { padding: space.room, gap: space.cosy },
-  sectionTitle: { ...type.section, color: colors.text, marginTop: space.cosy },
-  ordersLink: { borderRadius: 12, padding: space.cosy, alignItems: 'center' },
-  ordersLinkText: { ...type.label },
+  body: { gap: space.cosy },
+  aside: { gap: space.cosy },
+  // On the field itself rather than on a sheet, so this is the page's only
+  // white ink — the same move the app's shop screen makes.
+  sectionTitle: { ...type.section, color: colors.onAccent, marginTop: space.cosy },
   actions: { flexDirection: 'row', gap: space.cosy },
+  /** In the side column the buttons run full width, one under the other. */
+  actionsStacked: { flexDirection: 'column' },
   action: {
     flex: 1,
     minHeight: 48,
