@@ -76,24 +76,11 @@ const styles = StyleSheet.create({
   list: { gap: space.snug },
   row: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
   blank: { flex: 1 },
-  /**
-   * On its own chip rather than bare on the page.
-   *
-   * The page stands on the blue field now, and caption-sized ink cannot hold
-   * 4.5:1 across a drifting bloom — a light tint measures 2.2:1 over a bloom's
-   * core and plain white only 3.6:1. A chip is the same answer the rest of the
-   * page gives: anything you have to read rides a sheet.
-   */
   footnote: {
     ...type.caption,
     color: colors.subtle,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.card,
-    paddingHorizontal: space.snug,
-    paddingVertical: space.tight,
-    borderRadius: 999,
+    paddingHorizontal: space.tight,
     marginTop: space.tight,
-    overflow: 'hidden',
   },
   empty: {
     backgroundColor: colors.card,

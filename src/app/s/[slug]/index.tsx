@@ -118,7 +118,6 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
         <meta name="description" content={description} />
       </Head>
       <WebShell
-        isField
         footer={footer}
         hero={
           <StorefrontHero

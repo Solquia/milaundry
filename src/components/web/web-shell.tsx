@@ -15,8 +15,7 @@
 import React from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { BlueField } from '@/components/blue-field';
-import { BLUE_FIELD, colors, space, type } from '@/components/ui-kit';
+import { colors, space, type } from '@/components/ui-kit';
 import { useViewport } from '@/components/viewport';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import { webLayout, type WebLayout } from '@/lib/domain/web-layout';
@@ -53,25 +52,15 @@ interface WebShellProps {
    * of the side column and follows the scroll from there.
    */
   footer?: React.ReactNode;
-  /**
-   * Stands the page on the blue field instead of the pale one. A shop's own
-   * pages wear it so the web storefront and the app open on the same light;
-   * tracking, claim and join do not.
-   */
-  isField?: boolean;
 }
 
-export function WebShell({ children, hero, aside, footer, isField }: WebShellProps) {
+export function WebShell({ children, hero, aside, footer }: WebShellProps) {
   const layout = useWebLayout();
   const column = { maxWidth: layout.contentWidth };
   const hasFootBar = Boolean(footer) && !layout.hasAside;
 
   return (
-    <View style={[styles.page, isField && styles.pageField]}>
-      {/* Opt-in rather than the default: this shell also carries tracking,
-          claim and join, which are not a shop's own page and have no business
-          wearing a shop's ground. */}
-      {isField ? <BlueField /> : null}
+    <View style={styles.page}>
       {/* No scrollbar gutter. A classic 13px bar reserved its width from the
           layout, so the hero and the page band stopped short of the column's
           right edge and left a pale strip down the side of every page. A phone
@@ -139,7 +128,6 @@ export function PageBand({ backLabel, onBack, title, theme }: PageBandProps) {
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.bg },
-  pageField: { backgroundColor: BLUE_FIELD.deep },
   /**
    * Children stretch; they are not centred.
    *

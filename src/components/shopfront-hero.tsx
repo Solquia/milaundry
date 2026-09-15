@@ -14,7 +14,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 
 import { ClaimRings, claimFill, claimSwell } from '@/components/claim';
@@ -28,7 +28,12 @@ import { heroBackdrop } from '@/lib/domain/shop-cover';
 
 type Accent = (typeof ACCENTS)[number];
 
-const HERO_RADIUS = 28;
+/**
+ * How deep the bottom arc sweeps, matching `heroSweep` at phone width in
+ * `domain/web-layout.ts` — the shop's page in the app and the shop's page on
+ * the web end on the same curve rather than on two different ideas of one.
+ */
+const HERO_SWEEP = 52;
 /** The shop's mark in the hero, and the ring of water that leaves it. */
 const MARK_SIZE = 64;
 /** Room for the photo to be the point, before the safe-area inset is added. */
@@ -332,8 +337,23 @@ const styles = StyleSheet.create({
     marginBottom: space.snug,
     paddingHorizontal: space.section,
     paddingBottom: space.section,
-    borderBottomLeftRadius: HERO_RADIUS,
-    borderBottomRightRadius: HERO_RADIUS,
+    // The arc, copied from the shop's own web page rather than invented here.
+    // An elliptical corner — half the block's width across, HERO_SWEEP deep —
+    // on each bottom corner; the two meet at the centre and read as one
+    // continuous curve rather than as two corners with a flat run between
+    // them. A 28pt nub at this width was a corner you noticed; the arc is a
+    // shape. Native has no elliptical radius, so it takes a round corner of
+    // the same depth, which is the nearest honest approximation.
+    ...Platform.select({
+      web: {
+        borderBottomLeftRadius: `50% ${HERO_SWEEP}px`,
+        borderBottomRightRadius: `50% ${HERO_SWEEP}px`,
+      } as object,
+      default: {
+        borderBottomLeftRadius: HERO_SWEEP,
+        borderBottomRightRadius: HERO_SWEEP,
+      },
+    }),
     overflow: 'hidden',
     // The mid stop as a floor: while the photo loads, or if a rounded corner
     // antialiases past it, what shows through is still blue.

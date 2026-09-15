@@ -17,13 +17,11 @@ import { useClaim } from '@/components/claim';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useCue, useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
-import { BlueField } from '@/components/blue-field';
 import { ShopMapCard } from '@/components/shop-map-card';
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { ShopfrontHero } from '@/components/shopfront-hero';
 import {
   ACCENTS,
-  BLUE_FIELD,
   Card,
   EmptyState,
   ErrorText,
@@ -360,26 +358,11 @@ export default function CustomerShopHome() {
   if (isShopLoading || isServicesLoading) return <Loading />;
 
   return (
-    // The same ground the customer's home stands on. A shop page used to open
-    // on the pale field, so the hero photo butted against grey and every shop
-    // looked like a different product depending on what they had uploaded; the
-    // blue is the one thing every shop shares, and putting it under the page
-    // rather than behind a band means the photo floats in it instead of ending
-    // at a seam. Everything a customer reads still rides a white sheet.
-    <View style={styles.page}>
-      <BlueField />
-      <Screen isClear>
-      {/* The field reaches the top of the display, so the clock and the
+    <Screen>
+      {/* The hero reaches the top of the display, so the clock and the
           battery have to be drawn in white to stay legible on it. */}
       <StatusBar style="light" />
-      {/* On a sheet, not on the field: the error red is 3.18:1 on the deep
-          ground and a red that cleared it would stop meaning error anywhere
-          else. Everything readable rides a sheet here anyway. */}
-      {shopError ? (
-        <Card>
-          <ErrorText>{(shopError as Error).message}</ErrorText>
-        </Card>
-      ) : null}
+      {shopError ? <ErrorText>{(shopError as Error).message}</ErrorText> : null}
 
       <ShopfrontHero
         name={shopName}
@@ -405,11 +388,7 @@ export default function CustomerShopHome() {
         }}
       />
 
-      {joinError ? (
-        <Card>
-          <ErrorText>{joinError}</ErrorText>
-        </Card>
-      ) : null}
+      <ErrorText>{joinError}</ErrorText>
 
       {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
 
@@ -445,9 +424,7 @@ export default function CustomerShopHome() {
       <Text style={styles.sectionTitle}>The Price List</Text>
 
       {services?.length === 0 && (
-        <Card>
-          <EmptyState message="This shop hasn't listed services yet." />
-        </Card>
+        <EmptyState message="This shop hasn't listed services yet." />
       )}
       {/* Every service is a card with a face — a tile in the colour of its
           kind, the name as a title, a line about it, the price, and a Book
@@ -526,8 +503,7 @@ export default function CustomerShopHome() {
           </Subtle>
         </Card>
       )}
-      </Screen>
-    </View>
+    </Screen>
   );
 }
 
@@ -554,11 +530,7 @@ const styles = StyleSheet.create({
   welcomeTitleFirst: { ...type.title, fontSize: 20, marginBottom: space.tight },
   welcomeBody: { ...type.body, color: colors.subtle },
 
-  page: { flex: 1, backgroundColor: BLUE_FIELD.deep },
-
-  // These headings sit on the field itself rather than on a sheet, so they
-  // are the shop page's only white ink. 15:1 on the deep ground.
-  sectionTitle: { ...type.title, color: colors.onAccent, marginTop: space.cosy },
+  sectionTitle: { ...type.title, color: colors.text, marginTop: space.cosy },
 
   /** Tight, like the web's: the cards are one block, not separated panels. */
   priceList: { gap: space.snug },
