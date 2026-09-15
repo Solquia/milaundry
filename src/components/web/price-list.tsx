@@ -17,8 +17,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { colors, space, type } from '@/components/ui-kit';
-import { groupServicesByCategory, labelledServices } from '@/lib/domain/service-catalog';
-import { gridRows } from '@/lib/domain/web-layout';
+import { CATEGORY_SHORT, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
 
@@ -27,16 +26,25 @@ interface PriceListProps {
   theme: StorefrontTheme;
   /** Books this service; absent when the shop is not taking bookings. */
   onBook?: (serviceId: string) => void;
-  /** Cards to a row. Two on a phone, more as the window grows. */
-  columns?: number;
 }
 
-export function PriceList({ services, theme, onBook, columns = 2 }: PriceListProps) {
+/** Two to a row; an odd last card keeps its width with a blank beside it. */
+function pairs<T>(items: readonly T[]): (T | null)[][] {
+  const rows: (T | null)[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push([items[i], items[i + 1] ?? null]);
+  }
+  return rows;
+}
+
+export function PriceList({ services, theme, onBook }: PriceListProps) {
+  const groups = groupServicesByCategory(services);
   const bookTone = { bg: theme.brand, ink: theme.onBrand };
   // Flattened, but still in category order, so the grid reads as one block
-  // without scattering the services that belong together. The app's shop
-  // screen orders its list through the same function.
-  const ordered = labelledServices(groupServicesByCategory(services));
+  // without scattering the services that belong together.
+  const ordered = groups.flatMap((group) =>
+    group.services.map((service) => ({ service, label: CATEGORY_SHORT[group.category] }))
+  );
 
   if (ordered.length === 0) {
     return (
@@ -49,7 +57,7 @@ export function PriceList({ services, theme, onBook, columns = 2 }: PriceListPro
 
   return (
     <View style={styles.list}>
-      {gridRows(ordered, columns).map((row, index) => (
+      {pairs(ordered).map((row, index) => (
         <View key={index} style={styles.row}>
           {row.map((entry, column) =>
             entry ? (
@@ -76,25 +84,7 @@ const styles = StyleSheet.create({
   list: { gap: space.snug },
   row: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
   blank: { flex: 1 },
-  /**
-   * On its own chip rather than bare on the page.
-   *
-   * The page stands on the blue field now, and caption-sized ink cannot hold
-   * 4.5:1 across a drifting bloom — a light tint measures 2.2:1 over a bloom's
-   * core and plain white only 3.6:1. A chip is the same answer the rest of the
-   * page gives: anything you have to read rides a sheet.
-   */
-  footnote: {
-    ...type.caption,
-    color: colors.subtle,
-    alignSelf: 'flex-start',
-    backgroundColor: colors.card,
-    paddingHorizontal: space.snug,
-    paddingVertical: space.tight,
-    borderRadius: 999,
-    marginTop: space.tight,
-    overflow: 'hidden',
-  },
+  footnote: { ...type.caption, color: colors.subtle, paddingHorizontal: space.tight, marginTop: space.tight },
   empty: {
     backgroundColor: colors.card,
     borderRadius: 26,

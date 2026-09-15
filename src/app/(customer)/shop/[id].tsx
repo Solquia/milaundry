@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -16,14 +17,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useClaim } from '@/components/claim';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useCue, useEntrance } from '@/components/entrance';
-import { ReviewShowcase } from '@/components/review-showcase';
-import { BlueField } from '@/components/blue-field';
 import { ShopMapCard } from '@/components/shop-map-card';
 import { ServiceTileCard } from '@/components/service-tile-card';
 import { ShopfrontHero } from '@/components/shopfront-hero';
 import {
   ACCENTS,
-  BLUE_FIELD,
   Card,
   EmptyState,
   ErrorText,
@@ -31,6 +29,7 @@ import {
   Screen,
   Subtle,
   colors,
+  elevation,
   space,
   type,
 } from '@/components/ui-kit';
@@ -43,7 +42,6 @@ import {
   joinShop,
 } from '@/lib/api';
 import { resolveAccent } from '@/lib/domain/shop-branding';
-import { storefrontTheme } from '@/lib/domain/web-theme';
 import { shopLogoUri } from '@/lib/domain/shop-cover';
 import { shopPin } from '@/lib/domain/shop-location';
 import {
@@ -57,11 +55,25 @@ import { ENTRANCE, staggerDelay } from '@/lib/domain/entrance';
 import { shopInitials } from '@/lib/domain/connected-shops';
 import { leadingIndex } from '@/lib/domain/home-headline';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
-import { groupServicesByCategory, labelledServices } from '@/lib/domain/service-catalog';
-import { gridRows } from '@/lib/domain/web-layout';
+import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
 import { useHaptic } from '@/lib/use-app-settings';
 import type { ServiceRow } from '@/lib/types';
+
+function Stars({ rating, size = 14 }: { rating: number; size?: number }) {
+  return (
+    <View style={{ flexDirection: 'row', gap: 2 }}>
+      {[1, 2, 3, 4, 5].map((star) => (
+        <Ionicons
+          key={star}
+          name={star <= rating ? 'star' : 'star-outline'}
+          size={size}
+          color="#F59E0B"
+        />
+      ))}
+    </View>
+  );
+}
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -176,6 +188,22 @@ function WelcomeCard({
 }
 
 /** Two cards to a row; an odd last card keeps its width with a blank beside it. */
+function servicePairs<T>(items: readonly T[]): (T | null)[][] {
+  const rows: (T | null)[][] = [];
+  for (let i = 0; i < items.length; i += 2) {
+    rows.push([items[i], items[i + 1] ?? null]);
+  }
+  return rows;
+}
+
+/** How many cards sit above this group, so the cascade counts cards, not groups. */
+function cardIndexBefore(
+  groups: readonly { services: readonly unknown[] }[],
+  groupIndex: number
+): number {
+  return groups.slice(0, groupIndex).reduce((count, group) => count + group.services.length, 0);
+}
+
 /**
  * One card of the price list arriving, `index` places behind the first.
  *
@@ -314,17 +342,9 @@ export default function CustomerShopHome() {
     return index === -1 ? null : activeHere[index];
   }, [activeHere]);
 
-  // One flat list in category order, each service carrying its own category —
-  // the same ordering the shop's web page uses.
-  const orderedServices = useMemo(
-    () => labelledServices(groupServicesByCategory(services ?? [])),
-    [services]
-  );
+  const priceList = useMemo(() => groupServicesByCategory(services ?? []), [services]);
 
   const reputation = useMemo(() => shopReputation(reviews ?? []), [reviews]);
-  // The same accent the welcome card and the logo ring already wear, as the
-  // tokens the map wash and the rating ladder paint with.
-  const theme = useMemo(() => storefrontTheme(accent), [accent]);
   const cheapest = useMemo(() => startingPrice(services ?? []), [services]);
 
   const shopName = shop?.name ?? 'Laundry shop';
@@ -360,26 +380,11 @@ export default function CustomerShopHome() {
   if (isShopLoading || isServicesLoading) return <Loading />;
 
   return (
-    // The same ground the customer's home stands on. A shop page used to open
-    // on the pale field, so the hero photo butted against grey and every shop
-    // looked like a different product depending on what they had uploaded; the
-    // blue is the one thing every shop shares, and putting it under the page
-    // rather than behind a band means the photo floats in it instead of ending
-    // at a seam. Everything a customer reads still rides a white sheet.
-    <View style={styles.page}>
-      <BlueField />
-      <Screen isClear>
-      {/* The field reaches the top of the display, so the clock and the
+    <Screen>
+      {/* The gradient reaches the top of the display, so the clock and the
           battery have to be drawn in white to stay legible on it. */}
       <StatusBar style="light" />
-      {/* On a sheet, not on the field: the error red is 3.18:1 on the deep
-          ground and a red that cleared it would stop meaning error anywhere
-          else. Everything readable rides a sheet here anyway. */}
-      {shopError ? (
-        <Card>
-          <ErrorText>{(shopError as Error).message}</ErrorText>
-        </Card>
-      ) : null}
+      {shopError ? <ErrorText>{(shopError as Error).message}</ErrorText> : null}
 
       <ShopfrontHero
         name={shopName}
@@ -405,11 +410,7 @@ export default function CustomerShopHome() {
         }}
       />
 
-      {joinError ? (
-        <Card>
-          <ErrorText>{joinError}</ErrorText>
-        </Card>
-      ) : null}
+      <ErrorText>{joinError}</ErrorText>
 
       {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
 
@@ -445,80 +446,72 @@ export default function CustomerShopHome() {
       <Text style={styles.sectionTitle}>The Price List</Text>
 
       {services?.length === 0 && (
-        <Card>
-          <EmptyState message="This shop hasn't listed services yet." />
-        </Card>
+        <EmptyState message="This shop hasn't listed services yet." />
       )}
       {/* Every service is a card with a face — a tile in the colour of its
           kind, the name as a title, a line about it, the price, and a Book
           sticker. The accordion is gone: a customer deciding what to bring
           reads the whole menu, and a card that says what a service *is* earns
-          the height it takes.
-
-          One grid, every service in it, exactly as the shop's own web page
-          draws it. The headings between the groups are gone: on a shop with
-          one or two services per category they produced a label, a card, a
-          gap, another label, and the cards never paired up — each sat
-          half-width beside a blank, which is what made this read as a column
-          of lonely boxes rather than a price list. Every card wears its own
-          category in its corner now, so nothing is lost by closing them up,
-          and `labelledServices` keeps the order here identical to the web. */}
-      <View style={styles.priceList}>
-        {gridRows(orderedServices, 2).map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.priceRow}>
-            {row.map((entry, column) =>
-              entry ? (
-                <CascadeIn
-                  key={entry.service.id}
-                  progress={progress}
-                  index={rowIndex * 2 + column}
-                  style={styles.priceColumn}
-                >
-                  <ServiceTileCard
-                    service={entry.service}
-                    categoryLabel={entry.label}
-                    bookTone={{ bg: colors.action, ink: colors.onAccent }}
-                    isDisabled={!isRegistered}
-                    onBook={() => handleBook(entry.service)}
-                  />
-                </CascadeIn>
-              ) : (
-                <View key={`blank-${column}`} style={styles.priceBlank} />
-              )
-            )}
-          </View>
-        ))}
-      </View>
+          the height it takes. Categories are quiet labels between the cards,
+          shown only when there is more than one to tell apart. */}
+      {priceList.map((group, groupIndex) => (
+        <View key={group.category} style={styles.priceGroup}>
+          {priceList.length > 1 ? (
+            <CascadeIn progress={progress} index={cardIndexBefore(priceList, groupIndex)}>
+              <Text style={styles.categoryLabel}>{CATEGORY_LABELS[group.category]}</Text>
+            </CascadeIn>
+          ) : null}
+          {servicePairs(group.services).map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.priceRow}>
+              {row.map((service, column) =>
+                service ? (
+                  <CascadeIn
+                    key={service.id}
+                    progress={progress}
+                    index={cardIndexBefore(priceList, groupIndex) + rowIndex * 2 + column}
+                    style={styles.priceColumn}
+                  >
+                    <ServiceTileCard
+                      service={service}
+                      bookTone={{ bg: colors.action, ink: colors.onAccent }}
+                      isDisabled={!isRegistered}
+                      onBook={() => handleBook(service)}
+                    />
+                  </CascadeIn>
+                ) : (
+                  <View key={`blank-${column}`} style={styles.priceBlank} />
+                )
+              )}
+            </View>
+          ))}
+        </View>
+      ))}
 
       {/* Where the shop is, before what people said about it: a customer
           deciding whether to come needs the corner more than the score. */}
       {shop ? (
         <>
           <Text style={styles.sectionTitle}>Where to Find Us</Text>
-          <ShopMapCard
-            name={shopName}
-            address={shop.address ?? ''}
-            pin={shopPin(shop)}
-            theme={theme}
-          />
+          <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} />
         </>
       ) : null}
 
       {/* Live reviews feed — rendered inline, not hidden behind a button. */}
       <Text style={styles.sectionTitle}>What Customers Say</Text>
-      {reviews?.length ? (
-        <ReviewShowcase
-          reviews={reviews.map((review) => ({
-            id: review.id,
-            rating: review.rating,
-            comment: review.comment,
-            reviewerName: review.reviewer?.full_name ?? null,
-          }))}
-          reputation={reputation}
-          theme={theme}
-          showNames
-        />
-      ) : (
+      {reputation && (
+        <View style={styles.verdict}>
+          <Text style={styles.verdictScore}>{reputation.average.toFixed(1)}</Text>
+          <View style={{ gap: 2 }}>
+            <Stars rating={Math.round(reputation.average)} size={16} />
+            <Text style={styles.verdictCount}>
+              {reputation.count === 1
+                ? 'from 1 completed order'
+                : `from ${reputation.count} completed orders`}
+            </Text>
+          </View>
+        </View>
+      )}
+      {!reviews?.length && (
         <Card>
           <Subtle>
             No reviews yet. Reviews from customers will show up here after their
@@ -526,8 +519,24 @@ export default function CustomerShopHome() {
           </Subtle>
         </Card>
       )}
-      </Screen>
-    </View>
+      {reviews?.map((review) => (
+        <Card key={review.id} compact>
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={styles.reviewerName}>
+              {review.reviewer?.full_name ?? 'Customer'}
+            </Text>
+            <Stars rating={review.rating} />
+          </View>
+          {review.comment ? <Text style={styles.reviewComment}>{review.comment}</Text> : null}
+        </Card>
+      ))}
+    </Screen>
   );
 }
 
@@ -554,15 +563,10 @@ const styles = StyleSheet.create({
   welcomeTitleFirst: { ...type.title, fontSize: 20, marginBottom: space.tight },
   welcomeBody: { ...type.body, color: colors.subtle },
 
-  page: { flex: 1, backgroundColor: BLUE_FIELD.deep },
+  sectionTitle: { ...type.title, color: colors.text, marginTop: space.cosy },
 
-  // These headings sit on the field itself rather than on a sheet, so they
-  // are the shop page's only white ink. 15:1 on the deep ground.
-  sectionTitle: { ...type.title, color: colors.onAccent, marginTop: space.cosy },
-
-  /** Tight, like the web's: the cards are one block, not separated panels. */
-  priceList: { gap: space.snug },
-  priceRow: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
+  priceGroup: { gap: space.cosy },
+  priceRow: { flexDirection: 'row', gap: space.cosy, alignItems: 'stretch' },
   priceColumn: { flex: 1, minWidth: 0 },
   priceBlank: { flex: 1 },
   categoryLabel: {
@@ -574,4 +578,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.tight,
   },
 
+  // The shop's score, said once and said properly, instead of five small star
+  // rows leaving the customer to average them by eye.
+  verdict: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.room,
+    paddingHorizontal: space.room,
+    paddingVertical: space.cosy,
+    borderRadius: 18,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    ...elevation.rest,
+  },
+  verdictScore: { ...type.hero, fontSize: 40, color: colors.text },
+  verdictCount: { ...type.caption, color: colors.subtle },
+
+  reviewerName: { ...type.label, color: colors.text },
+  reviewComment: { ...type.body, color: colors.text },
 });
