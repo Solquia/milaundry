@@ -13,17 +13,16 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, {
-  Circle,
-  Defs,
-  LinearGradient as SvgLinearGradient,
-  Path,
-  Rect,
-  Stop,
-} from 'react-native-svg';
 
-import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
-import { HERO_GRADIENT, colors, elevation, space, type } from '@/components/ui-kit';
+import { BlueField } from '@/components/blue-field';
+import { BLUE_FIELD, colors, elevation, space, type } from '@/components/ui-kit';
+import {
+  ON_FIELD,
+  ON_FIELD_SOFT,
+  WaveHem,
+  WelcomeScene,
+} from '@/components/welcome-scene';
+import { RADII } from '@/lib/domain/design-scale';
 import { useHaptic } from '@/lib/use-app-settings';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
@@ -34,495 +33,497 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
  * the first time is almost always standing at a counter with a code in front
  * of them, so the scan is the one big control and everything else is the way
  * to *finish* it: sign in if you have an account, create one if you don't.
- * Owners get their own quiet line at the foot — they are one in a hundred
- * visitors, and they know who they are.
+ * Owners get their own tile — they are one in a hundred visitors, but a tile
+ * is cheaper to skip past than a line of text is to find.
  *
- * Nothing is written on the water. The splash has just spent four seconds
- * saying the name, so repeating it here — wordmark, rule, tagline — would be
- * the app introducing itself twice to someone already holding a code. The
- * band is kept only for the handover: it opens on the same water the splash
- * closed on, the crests keep drifting, and everything a person has to read or
- * touch sits centred in the light below it, one column, in the middle of the
- * screen where a thumb already is.
+ * ## The shape
+ *
+ * Two regions, and the seam between them is the whole idea. Above: the blue
+ * field the customer's home stands on, so the app has one light rather than a
+ * gradient per screen. Below: the white the product actually lives on. Between
+ * them, not the arc a hero usually gets but the splash's own crest, run upside
+ * down — so the handover reads as a continuation of the same water rather than
+ * as a cut to a different screen. It drifts forever, at three speeds, and it
+ * is the one thing here that never settles.
+ *
+ * Nothing is written on the water but the name and the greeting. The tagline
+ * under the mark was the app describing itself to someone already holding a
+ * code; the mark says who this is and the two lines below say what to do.
+ *
+ * The mark returns at two-thirds the splash's size. This screen used to leave
+ * it out on the reasoning that the splash had just spent four seconds saying
+ * the name — right, when the name would have been re-announced at full size on
+ * an empty field. At 34pt over water it is a masthead rather than a second
+ * introduction, which is the difference between a title page and a letterhead.
+ *
+ * ## The arrival
+ *
+ * One order, and it is the order the visitor needs things in: the mark, the
+ * sentence that tells them where their code is, the scene, the ways in, the
+ * commit. Each beat is a translate and a fade on the native driver, so the
+ * sequence holds 60fps on the cheap Android handsets this app is mostly opened
+ * on — and every driver is sent straight to its settled value when the device
+ * asks for less motion. Nothing here is ever required in order to read the
+ * screen.
  */
 
-/** Long enough for the water to settle; short enough that the tiles never wait. */
-const ARRIVE_MS = 560;
-/** One pass of the viewfinder's line, and the rest between passes. */
-const SWEEP_MS = 1500;
-const SWEEP_REST_MS = 1900;
-/** The water is a band now, not a field: enough to carry the crests, no more. */
-const BAND_SHARE = 0.14;
-const BAND_MIN = 120;
-/** The sheet's top corners tuck this far up into the water. */
-const SHEET_OVERLAP = 28;
+/** The mark lands first: it is what says the handover completed. */
+const MARK_MS = 460;
+/** The sentence the scan answers, so it follows the mark closely. */
+const LEDE_MS = 440;
+const LEDE_DELAY_MS = 120;
+/** The scene is scenery. It arrives under the words, never before them. */
+const SCENE_MS = 620;
+const SCENE_DELAY_MS = 220;
+/** The ways in, staggered across one driver so they cannot drift apart. */
+const TILES_MS = 560;
+const TILES_DELAY_MS = 380;
+/** The commit, last, because it is what you do once you have read the rest. */
+const COMMIT_MS = 420;
+const COMMIT_DELAY_MS = 560;
+
+/** Pointer feedback. Small numbers: this is a press, not a jump. */
+const HOT_MS = 160;
 
 /**
- * Same construction as the splash: whole periods across two widths, slid
- * exactly one width per loop, so the seam cannot show.
+ * A phone's column, held at a phone's width. On a tablet the sheet would
+ * otherwise stretch four tiles across a metre of white.
  */
-const CRESTS = [
-  { key: 'far', amplitude: 9, periods: 2, duration: 15000, opacity: 0.16, lift: 22 },
-  { key: 'near', amplitude: 13, periods: 1, duration: 9500, opacity: 0.32, lift: 0 },
-] as const;
+const COLUMN_MAX = 430;
 
-function crestPath(width: number, amplitude: number, periods: number): string {
-  const period = width / periods;
-  let d = `M 0 ${amplitude}`;
-  for (let x = 0; x < width * 2; x += period) {
-    d +=
-      ` Q ${x + period * 0.25} 0 ${x + period * 0.5} ${amplitude}` +
-      ` Q ${x + period * 0.75} ${amplitude * 2} ${x + period} ${amplitude}`;
-  }
-  return `${d} L ${width * 2} ${amplitude * 6} L 0 ${amplitude * 6} Z`;
-}
+/** An arrival curve, not a UI curve: decelerate hard and stop dead. */
+const ARRIVE_EASING = Easing.out(Easing.cubic);
+
+/** The sheet, and therefore the colour the nearest crest is filled in. */
+const SHEET = colors.card;
+
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * The ways in, in the order a first-time visitor needs them.
+ *
+ * Every one is also reachable further along; this row is the shortcut, not the
+ * only door.
+ *
+ * One word each, and short enough that none of them wraps. "Scan code" and
+ * "New account" set on two lines, which made the row a block of text with
+ * pictures in it; at a quarter of a 360pt screen there is room for "Sign up"
+ * on one line and not for much more, so the labels were cut to fit rather
+ * than the type shrunk to hide it.
+ *
+ * The tints are the app's identity accents, the same six a shop is assigned
+ * from. Four identical blue tiles is a row you have to read word by word.
+ */
+const WAYS = [
+  { key: 'scan', icon: 'qr-code-outline' as IconName, label: 'Scan', tint: '#1263AF' },
+  { key: 'signin', icon: 'key-outline' as IconName, label: 'Sign in', tint: '#0F6B5F' },
+  { key: 'signup', icon: 'person-add-outline' as IconName, label: 'Sign up', tint: '#4B3FBF' },
+  { key: 'owner', icon: 'storefront-outline' as IconName, label: 'Owners', tint: '#8A5606' },
+] as const;
 
 export default function Welcome() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { width, height } = useWindowDimensions();
   const isReduced = useReducedMotion();
   const haptic = useHaptic();
+  const { width: screenWidth } = useWindowDimensions();
 
-  const [arrive] = useState(() => new Animated.Value(0));
+  // One driver per beat. Lazy state rather than refs: these are read during
+  // render to build the transforms, and reading a ref there breaks hook rules.
+  const [mark] = useState(() => new Animated.Value(0));
+  const [lede] = useState(() => new Animated.Value(0));
+  const [scene] = useState(() => new Animated.Value(0));
+  const [tiles] = useState(() => new Animated.Value(0));
+  const [commit] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (isReduced) {
-      arrive.setValue(1);
+      for (const driver of [mark, lede, scene, tiles, commit]) driver.setValue(1);
       return;
     }
-    const animation = Animated.timing(arrive, {
-      toValue: 1,
-      duration: ARRIVE_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    });
-    animation.start();
-    return () => animation.stop();
-  }, [arrive, isReduced]);
+    const arrival = Animated.parallel([
+      beat(mark, MARK_MS, 0),
+      beat(lede, LEDE_MS, LEDE_DELAY_MS),
+      beat(scene, SCENE_MS, SCENE_DELAY_MS),
+      beat(tiles, TILES_MS, TILES_DELAY_MS),
+      beat(commit, COMMIT_MS, COMMIT_DELAY_MS),
+    ]);
+    arrival.start();
+    return () => arrival.stop();
+  }, [commit, isReduced, lede, mark, scene, tiles]);
 
-  // The band carries no text, so it is the one box on this screen that may
-  // keep a fixed height: nothing inside it can grow with the font scale.
-  const bandHeight = insets.top + Math.max(BAND_MIN, Math.round(height * BAND_SHARE));
-
-  const goScan = () => {
-    haptic('commit');
-    router.push('/scan-laundry' as never);
-  };
-  const goSignIn = () => {
-    haptic('tap');
-    router.push('/sign-in' as never);
-  };
-  const goSignUp = () => {
-    haptic('tap');
-    router.push('/sign-up' as never);
+  const go = (path: string, weight: 'tap' | 'commit' = 'tap') => {
+    haptic(weight);
+    router.push(path as never);
   };
   const goOwner = () => {
     haptic('tap');
     router.push({ pathname: '/sign-in', params: { as: 'owner' } } as never);
   };
 
+  const onWay = (key: (typeof WAYS)[number]['key']) => {
+    if (key === 'scan') return go('/scan-laundry', 'commit');
+    if (key === 'signin') return go('/sign-in');
+    if (key === 'signup') return go('/sign-up');
+    return goOwner();
+  };
+
+  // Held off the gutters and capped, so the scene never becomes the whole hero
+  // on a tablet or a postage stamp on a 360pt phone.
+  const sceneWidth = Math.min(Math.round(Math.min(screenWidth, COLUMN_MAX) * 0.74), 300);
+
   return (
     <View style={styles.root}>
       <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
-        {/* The water ------------------------------------------------------ */}
-        <Animated.View
-          style={[
-            styles.band,
-            {
-              height: bandHeight + SHEET_OVERLAP,
-              transform: [
-                {
-                  scale: arrive.interpolate({ inputRange: [0, 1], outputRange: [1.04, 1] }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Svg width={width} height={bandHeight + SHEET_OVERLAP} style={StyleSheet.absoluteFill}>
-            <Defs>
-              <SvgLinearGradient id="welcomeBand" x1="0" y1="1" x2="1" y2="0">
-                <Stop offset="0" stopColor={HERO_GRADIENT[0]} />
-                <Stop offset="0.55" stopColor={HERO_GRADIENT[1]} />
-                <Stop offset="1" stopColor={HERO_GRADIENT[2]} />
-              </SvgLinearGradient>
-            </Defs>
-            <Rect width={width} height={bandHeight + SHEET_OVERLAP} fill="url(#welcomeBand)" />
-          </Svg>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* ── The water ──────────────────────────────────────────────────── */}
+        <View style={[styles.hero, { paddingTop: insets.top + space.gulf }]}>
+          {/* The elegant blue the home stands on, rather than a gradient of
+              this screen's own. One light, two surfaces. */}
+          <BlueField />
 
-          {CRESTS.map((crest) => (
-            <Crest
-              key={crest.key}
-              width={width}
-              bottom={SHEET_OVERLAP + crest.lift}
-              amplitude={crest.amplitude}
-              periods={crest.periods}
-              duration={crest.duration}
-              opacity={crest.opacity}
-              isReduced={isReduced}
-            />
-          ))}
-        </Animated.View>
+          <View style={styles.heroColumn}>
+            <Beat driver={mark} rise={16} style={styles.markBlock}>
+              <Text style={styles.wordmark} accessibilityRole="header">
+                MiLaundry
+              </Text>
+            </Beat>
 
-        {/* The sheet ------------------------------------------------------ */}
-        <Animated.View
-          style={[
-            styles.sheet,
-            {
-              paddingBottom: insets.bottom + space.section,
-              opacity: arrive,
-              transform: [
-                {
-                  translateY: arrive.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={styles.lede} accessibilityRole="header">
-            Your code is at the counter
-          </Text>
+            <Beat driver={lede} rise={14} style={styles.ledeBlock}>
+              <Text style={styles.ledeStrong}>Welcome.</Text>
+              <Text style={styles.lede}>Your code is at the counter.</Text>
+            </Beat>
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Scan your laundry's code"
-            accessibilityHint="Opens the camera to connect to a laundry, then sign in or create an account"
-            onPress={goScan}
-            style={({ pressed }) => [styles.scanCard, pressed && styles.scanCardPressed]}
-          >
-            <Viewfinder isReduced={isReduced} />
-            <View style={styles.scanCopy}>
-              <Text style={styles.scanTitle}>Scan your laundry</Text>
-              <Text style={styles.scanSub}>The fastest way in. We handle the rest.</Text>
-            </View>
-          </Pressable>
-
-          <View style={styles.pair}>
-            <Reveal delay={REVEAL_STAGGER_MS} style={styles.pairItem}>
-              <PathTile
-                icon="key-outline"
-                title="Sign in"
-                note="I have an account"
-                onPress={goSignIn}
-              />
-            </Reveal>
-            <Reveal delay={REVEAL_STAGGER_MS * 2} style={styles.pairItem}>
-              <PathTile
-                icon="person-add-outline"
-                title="Create account"
-                note="I'm new here"
-                onPress={goSignUp}
-              />
-            </Reveal>
+            <Beat driver={scene} rise={22} style={styles.sceneSlot}>
+              <WelcomeScene width={sceneWidth} />
+            </Beat>
           </View>
 
-          <Reveal delay={REVEAL_STAGGER_MS * 3} style={styles.ownerSlot}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Shop sign in, for laundry owners and staff"
-              onPress={goOwner}
-              style={({ pressed }) => [styles.ownerRow, pressed && styles.pressed]}
-            >
-              <Ionicons name="storefront-outline" size={16} color={colors.subtle} />
-              <Text style={styles.ownerText}>
-                Run a laundry? <Text style={styles.ownerLink}>Shop sign in</Text>
-              </Text>
-            </Pressable>
-          </Reveal>
-        </Animated.View>
+          {/* The seam. Drawn last so it sits over the field, and in the sheet's
+              own colour so the white below simply continues out of it. */}
+          <WaveHem width={screenWidth} sheet={SHEET} isStill={isReduced} />
+        </View>
+
+        {/* ── The sheet ──────────────────────────────────────────────────── */}
+        <View style={[styles.sheet, { paddingBottom: insets.bottom + space.section }]}>
+          <View style={styles.sheetColumn}>
+            <Text style={styles.sheetLabel}>Get started</Text>
+
+            <View style={styles.wayRow}>
+              {WAYS.map((way, index) => (
+                <Beat
+                  key={way.key}
+                  driver={tiles}
+                  rise={18}
+                  from={index * 0.1}
+                  style={styles.waySlot}
+                >
+                  <WayTile way={way} onPress={() => onWay(way.key)} />
+                </Beat>
+              ))}
+            </View>
+
+            <Beat driver={commit} rise={16} style={styles.commitRow}>
+              {/* The one big control, and beside it the fast lane for someone
+                  who has been here before — the pairing the reference makes
+                  with a login button and a fingerprint. */}
+              <CommitButton
+                label="Scan your laundry"
+                hint="Opens the camera to connect to a laundry"
+                isReduced={isReduced}
+                onPress={() => go('/scan-laundry', 'commit')}
+              />
+              <SquareButton icon="log-in-outline" label="Sign in" onPress={() => go('/sign-in')} />
+            </Beat>
+          </View>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
-/** One crest, drifting one screen-width per loop so it can never seam. */
-function Crest({
-  width,
-  bottom,
-  amplitude,
-  periods,
-  duration,
-  opacity,
-  isReduced,
+/** One beat of the arrival, as a timing on the native driver. */
+function beat(driver: Animated.Value, duration: number, delay: number) {
+  return Animated.timing(driver, {
+    toValue: 1,
+    duration,
+    delay,
+    easing: ARRIVE_EASING,
+    useNativeDriver: true,
+  });
+}
+
+/**
+ * A block that rises into place.
+ *
+ * `from` reads a window of a shared driver rather than taking its own delay,
+ * so a row of them staggers without the four clocks ever drifting apart.
+ */
+function Beat({
+  driver,
+  rise,
+  from = 0,
+  style,
+  children,
 }: {
-  width: number;
-  bottom: number;
-  amplitude: number;
-  periods: number;
-  duration: number;
-  opacity: number;
-  isReduced: boolean;
+  driver: Animated.Value;
+  rise: number;
+  from?: number;
+  style?: object;
+  children: React.ReactNode;
 }) {
-  const [drift] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    // Reduced motion resolves a tick after mount, so the loop may already be
-    // running: send the crest home rather than leaving it frozen mid-drift.
-    if (isReduced) {
-      drift.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.timing(drift, {
-        toValue: 1,
-        duration,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [drift, duration, isReduced]);
-
-  const crestHeight = amplitude * 6;
+  const window = { inputRange: [from, from + 0.7], extrapolate: 'clamp' as const };
   return (
     <Animated.View
-      pointerEvents="none"
       style={[
-        styles.crest,
+        style,
         {
-          bottom,
-          width: width * 2,
-          height: crestHeight,
-          opacity,
-          transform: [
-            { translateX: drift.interpolate({ inputRange: [0, 1], outputRange: [0, -width] }) },
-          ],
+          opacity: driver.interpolate({ ...window, outputRange: [0, 1] }),
+          transform: [{ translateY: driver.interpolate({ ...window, outputRange: [rise, 0] }) }],
         },
       ]}
     >
-      <Svg width={width * 2} height={crestHeight}>
-        <Path d={crestPath(width, amplitude, periods)} fill={colors.onAccent} />
-      </Svg>
+      {children}
     </Animated.View>
   );
 }
 
-/**
- * A viewfinder: four brackets around a code, and a line that reads it once
- * every few seconds. Drawn, not an icon, so the sweep can live inside it.
- */
-function Viewfinder({ isReduced }: { isReduced: boolean }) {
-  const [sweep] = useState(() => new Animated.Value(0));
-  const size = 64;
-  const inset = 10;
-  const bracket = 14;
-  const stroke = 2.5;
-
-  useEffect(() => {
-    if (isReduced) {
-      sweep.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(sweep, {
-          toValue: 1,
-          duration: SWEEP_MS,
-          easing: Easing.inOut(Easing.quad),
-          useNativeDriver: true,
-        }),
-        Animated.delay(SWEEP_REST_MS),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [sweep, isReduced]);
-
-  const far = size - inset;
-  const corners = [
-    `M ${inset} ${inset + bracket} V ${inset} H ${inset + bracket}`,
-    `M ${far - bracket} ${inset} H ${far} V ${inset + bracket}`,
-    `M ${far} ${far - bracket} V ${far} H ${far - bracket}`,
-    `M ${inset + bracket} ${far} H ${inset} V ${far - bracket}`,
-  ];
-  // A hint of a code between the brackets: enough to say "QR", not a real one.
-  const cells = [
-    [0, 0], [1, 0], [3, 0],
-    [0, 1], [2, 1],
-    [1, 2], [3, 2],
-    [0, 3], [2, 3], [3, 3],
-  ];
-  const cell = 5;
-  const gridOrigin = inset + bracket - 2;
-  // The sweep travels the open span between the brackets. Its opacity gates it
-  // off at both ends, so at rest the glyph is a still viewfinder rather than a
-  // frozen beam.
-  const travel = far - inset - stroke;
-
+/** One way in: a tinted disc, a drawn icon, and its name on two lines. */
+function WayTile({ way, onPress }: { way: (typeof WAYS)[number]; onPress: () => void }) {
   return (
-    <View style={{ width: size, height: size }}>
-      <Svg width={size} height={size}>
-        {corners.map((d) => (
-          <Path
-            key={d}
-            d={d}
-            stroke={colors.onAccent}
-            strokeWidth={stroke}
-            strokeLinecap="round"
-            fill="none"
-          />
-        ))}
-        {cells.map(([x, y]) => (
-          <Rect
-            key={`${x}-${y}`}
-            x={gridOrigin + x * (cell + 2)}
-            y={gridOrigin + y * (cell + 2)}
-            width={cell}
-            height={cell}
-            rx={1}
-            fill={colors.onAccent}
-            opacity={0.55}
-          />
-        ))}
-        <Circle cx={size / 2} cy={size / 2} r={1.6} fill={colors.onAccent} opacity={0.9} />
-      </Svg>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.sweep,
-          {
-            left: inset,
-            right: inset,
-            top: inset,
-            opacity: sweep.interpolate({
-              inputRange: [0, 0.08, 0.92, 1],
-              outputRange: [0, 1, 1, 0],
-            }),
-            transform: [
-              {
-                translateY: sweep.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }),
-              },
-            ],
-          },
-        ]}
-      />
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={way.label}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.way,
+        { backgroundColor: tintSurface(way.tint), borderColor: tintBorder(way.tint) },
+        pressed && styles.wayPressed,
+      ]}
+    >
+      <Ionicons name={way.icon} size={24} color={way.tint} />
+      <Text style={[styles.wayLabel, { color: way.tint }]} numberOfLines={1}>
+        {way.label}
+      </Text>
+    </Pressable>
   );
 }
 
-function PathTile({
-  icon,
-  title,
-  note,
+/**
+ * The pale field a tinted icon sits on: the ink itself at a tenth strength.
+ *
+ * Derived rather than listed, because four more hand-picked hex values would
+ * be four more things to keep in step with the inks above them — and the ink
+ * is already the value that has to clear contrast.
+ */
+function tintSurface(ink: string): string {
+  return `${ink}14`;
+}
+
+/** The hairline that gives the tile an edge without becoming a second colour. */
+function tintBorder(ink: string): string {
+  return `${ink}2E`;
+}
+
+/** The commit. Wide, filled, and the only pill on the screen. */
+function CommitButton({
+  label,
+  hint,
+  isReduced,
   onPress,
 }: {
-  icon: React.ComponentProps<typeof Ionicons>['name'];
-  title: string;
-  note: string;
+  label: string;
+  hint: string;
+  isReduced: boolean;
+  onPress: () => void;
+}) {
+  const [hot] = useState(() => new Animated.Value(0));
+
+  const move = (to: number) => {
+    if (isReduced) return;
+    Animated.timing(hot, {
+      toValue: to,
+      duration: HOT_MS,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Animated.View
+      style={[
+        styles.commitSlot,
+        { transform: [{ scale: hot.interpolate({ inputRange: [0, 1], outputRange: [1, 0.98] }) }] },
+      ]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityHint={hint}
+        onPress={onPress}
+        onPressIn={() => move(1)}
+        onPressOut={() => move(0)}
+        style={styles.commitButton}
+      >
+        <Ionicons name="qr-code" size={20} color={ON_FIELD} />
+        <Text style={styles.commitLabel}>{label}</Text>
+      </Pressable>
+    </Animated.View>
+  );
+}
+
+/** The fast lane beside it, at the commit's own height so the pair sits level. */
+function SquareButton({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: IconName;
+  label: string;
   onPress: () => void;
 }) {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${title}. ${note}`}
+      accessibilityLabel={label}
       onPress={onPress}
-      style={({ pressed }) => [styles.tile, pressed && styles.tilePressed]}
+      style={({ pressed }) => [styles.square, pressed && styles.squarePressed]}
     >
-      <View style={styles.tileIcon}>
-        <Ionicons name={icon} size={20} color={colors.actionInk} />
-      </View>
-      <Text style={styles.tileTitle}>{title}</Text>
-      <Text style={styles.tileNote}>{note}</Text>
+      <Ionicons name={icon} size={24} color={ON_FIELD} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.bg },
+  // The root wears the water, so the status bar and any overscroll at the top
+  // are the deep end rather than a white strip above the hero.
+  root: { flex: 1, backgroundColor: BLUE_FIELD.deep },
   scroll: { flexGrow: 1 },
 
-  band: {
-    overflow: 'hidden',
-    // The band scales around its own centre; the overscale hides its edges
-    // under the screen's, so nothing pale shows at the corners.
-    backgroundColor: HERO_GRADIENT[0],
+  /** The water, and everything drawn in it. */
+  hero: { overflow: 'hidden' },
+  heroColumn: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: COLUMN_MAX,
+    paddingHorizontal: space.room,
+    gap: space.room,
   },
-  crest: { position: 'absolute', left: 0 },
 
+  markBlock: { alignItems: 'center' },
+  /**
+   * The masthead. 34pt against the splash's 50: the same lockup, worn rather
+   * than announced. -0.03em is the optical correction a geometric face needs
+   * at display size, and stays inside the project's tracking floor.
+   */
+  wordmark: { ...type.hero, color: ON_FIELD, letterSpacing: -1 },
+
+  ledeBlock: { alignItems: 'center', gap: 2 },
+  /** Two lines, one voice: the greeting leads, the fact follows it. */
+  ledeStrong: {
+    ...type.body,
+    fontFamily: type.label.fontFamily,
+    fontSize: 17,
+    color: ON_FIELD,
+    textAlign: 'center',
+  },
+  lede: { ...type.body, fontSize: 17, color: ON_FIELD_SOFT, textAlign: 'center' },
+
+  /**
+   * The water the scene stands in. The hem is a sibling below this, so the
+   * crests cannot reach the machine on their own — this is the depth between
+   * the object and the surface, which is what stops the scene from looking
+   * like it is sitting on the edge.
+   */
+  sceneSlot: { alignItems: 'center', paddingBottom: space.section },
+
+  /** The white the product lives on. Its top edge is the hem's near crest. */
   sheet: {
     flexGrow: 1,
-    // Everything a person reads or touches sits in the middle of what is left.
-    justifyContent: 'center',
-    marginTop: -SHEET_OVERLAP,
-    borderTopLeftRadius: SHEET_OVERLAP,
-    borderTopRightRadius: SHEET_OVERLAP,
-    backgroundColor: colors.bg,
+    backgroundColor: SHEET,
+    paddingTop: space.snug,
     paddingHorizontal: space.room,
-    paddingTop: space.section,
   },
+  sheetColumn: { width: '100%', maxWidth: COLUMN_MAX, alignSelf: 'center', gap: space.section },
+  /**
+   * The sheet's one label. Centred and in the action blue, the way the
+   * reference heads its shortcut row — a signpost over the set rather than a
+   * heading that owns the rest of the screen.
+   */
+  sheetLabel: { ...type.label, color: colors.actionInk, textAlign: 'center', letterSpacing: 0.3 },
 
-  lede: {
-    ...type.title,
-    color: colors.text,
-    textAlign: 'center',
-    marginBottom: space.section,
-  },
-
-  scanCard: {
-    alignItems: 'center',
-    gap: space.cosy,
-    paddingVertical: space.section,
-    paddingHorizontal: space.room,
-    borderRadius: 22,
-    backgroundColor: colors.action,
-    ...elevation.hero,
-  },
-  scanCardPressed: { opacity: 0.9, transform: [{ scale: 0.985 }] },
-  scanCopy: { alignItems: 'center', gap: space.tight },
-  scanTitle: { ...type.section, color: colors.onAccent, textAlign: 'center' },
-  // Full-strength white: colors.action only clears AA against pure white
-  // (4.96:1), so the step down to the sub is weight and size, never opacity.
-  scanSub: { ...type.body, color: colors.onAccent, textAlign: 'center' },
-  sweep: {
-    position: 'absolute',
-    height: 2,
-    borderRadius: 1,
-    backgroundColor: colors.onAccent,
-    shadowColor: colors.onAccent,
-    shadowOpacity: 0.9,
-    shadowRadius: 4,
-    shadowOffset: { width: 0, height: 0 },
-  },
-
-  // The two account paths belong to the scan above them, so they sit close.
-  pair: { flexDirection: 'row', gap: space.cosy, marginTop: space.cosy },
-  pairItem: { flex: 1 },
-  tile: {
-    alignItems: 'center',
-    gap: space.snug,
-    paddingVertical: space.room,
-    paddingHorizontal: space.cosy,
+  wayRow: { flexDirection: 'row', gap: space.snug },
+  waySlot: { flex: 1 },
+  /**
+   * A square with curved sides, not a disc with a caption under it.
+   *
+   * The disc was the target and the words were a label beside it, so the four
+   * of them read as icons someone had annotated. As a box the whole tile is
+   * the button: one shape, one press area, the icon and its name inside it.
+   * `aspectRatio` rather than a fixed height so the row stays square from a
+   * 360pt phone to a tablet, and 18 is the app's own card curve — a softer
+   * radius here would have made four pills again.
+   */
+  way: {
+    flex: 1,
+    aspectRatio: 1,
     borderRadius: 18,
-    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.lift,
-  },
-  tilePressed: { opacity: 0.85 },
-  tileIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
+    gap: space.snug,
+    paddingHorizontal: space.tight,
   },
-  tileTitle: { ...type.section, color: colors.text, textAlign: 'center' },
-  tileNote: { ...type.caption, color: colors.subtle, textAlign: 'center' },
+  wayPressed: { opacity: 0.6, transform: [{ scale: 0.97 }] },
+  /**
+   * 58pt: comfortably past the 44pt touch minimum on its own, so the caption
+   * beneath it is a label rather than part of the target.
+   */
+  /** One line, always: the labels were shortened so they never wrap. */
+  wayLabel: {
+    ...type.label,
+    fontSize: 12,
+    lineHeight: 15,
+    textAlign: 'center',
+  },
 
-  // A different register entirely — one in a hundred visitors — so it is
-  // separated generously rather than stacked into the same list.
-  ownerSlot: { marginTop: space.gulf },
-  ownerRow: {
+  commitRow: { flexDirection: 'row', alignItems: 'stretch', gap: space.snug },
+  commitSlot: { flex: 1 },
+  /**
+   * The one pill on the screen, and the only filled blue in the sheet. 56pt
+   * tall so it stands level with the square beside it.
+   */
+  commitButton: {
+    height: 56,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
-    paddingVertical: space.room,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.action,
+    ...elevation.rest,
   },
-  ownerText: { ...type.body, color: colors.subtle },
-  ownerLink: { ...type.label, color: colors.actionInk },
-  pressed: { opacity: 0.6 },
+  commitLabel: { ...type.body, fontFamily: type.label.fontFamily, fontSize: 17, color: ON_FIELD },
+
+  /**
+   * The fast lane. Square rather than a second pill, and in the hero's deep
+   * water rather than the action blue: two pills side by side would be two
+   * primaries, and the deeper tone says "the other way" without saying "the
+   * lesser way".
+   */
+  square: {
+    width: 56,
+    height: 56,
+    borderRadius: RADII.control,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: BLUE_FIELD.mid,
+    ...elevation.rest,
+  },
+  squarePressed: { opacity: 0.8 },
 });
