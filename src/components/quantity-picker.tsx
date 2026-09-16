@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -10,7 +11,10 @@ import {
   View,
 } from 'react-native';
 
+import { useReducedMotion } from '@/lib/use-reduced-motion';
+
 import { MAX_WEIGHT_KG, WEIGHT_STEP_KG } from '@/lib/domain/booking-estimate';
+import { mixHex, tickEmphasis, withAlpha } from '@/lib/domain/brand-gradient';
 import {
   MAX_PIECES,
   TICK_SPACING,
@@ -22,9 +26,40 @@ import {
   weightForOffset,
 } from '@/lib/domain/quantity-input';
 
-import { colors, space, type } from './ui-kit';
+import { Odometer } from './odometer';
+import { RADII, colors, space, type } from './ui-kit';
 
 const TICK_HEIGHTS = { major: 26, minor: 17, micro: 10 } as const;
+
+/**
+ * How far either side of the needle the ruler is lit, in kilos.
+ *
+ * Wide enough that the pool has a shape — a single lit tick is a cursor, not
+ * light — and narrow enough that the far end of a 30kg ruler stays quiet.
+ */
+const LIT_REACH_KG = 3;
+
+/**
+ * The colour these controls are wearing.
+ *
+ * The app draws them in its own blue; a shop's web page draws the same two
+ * controls in the shop's accent, because on that page the scale *is* the
+ * storefront. One prop rather than two components.
+ */
+export interface QuantityTone {
+  /** The solid: needle, lit ticks, a chosen pill. */
+  brand: string;
+  /** The pale field the ruler is cut into. */
+  soft: string;
+  /** Brand as text on `soft`. */
+  ink: string;
+}
+
+export const APP_TONE: QuantityTone = {
+  brand: colors.action,
+  soft: colors.actionSurface,
+  ink: colors.actionInk,
+};
 
 /**
  * A weighing scale you drag.
@@ -39,10 +74,12 @@ export function WeightScale({
   valueKg,
   onChange,
   maxKg = MAX_WEIGHT_KG,
+  tone = APP_TONE,
 }: {
   valueKg: number;
   onChange: (kg: number) => void;
   maxKg?: number;
+  tone?: QuantityTone;
 }) {
   const scrollRef = useRef<ScrollView>(null);
   const [trackWidth, setTrackWidth] = useState(0);
@@ -116,13 +153,22 @@ export function WeightScale({
 
   return (
     <View style={styles.scaleBlock}>
-      <View style={styles.readoutRow}>
-        <Text style={styles.readoutValue}>{valueKg.toFixed(1)}</Text>
-        <Text style={styles.readoutUnit}>kg</Text>
+      {/* The reading, on a plinth of the shop's own colour. It used to be
+          black text floating above the ruler, which made the number a caption
+          for the control rather than the thing the control produces. */}
+      <View style={[styles.readout, { backgroundColor: withAlpha(tone.brand, 0.07) }]}>
+        <View style={styles.readoutRow}>
+          <Odometer
+            value={valueKg.toFixed(1)}
+            style={styles.readoutValue}
+            label={`${valueKg.toFixed(1)} kilograms`}
+          />
+          <Text style={[styles.readoutUnit, { color: tone.ink }]}>kg</Text>
+        </View>
       </View>
 
       <View
-        style={styles.track}
+        style={[styles.track, { backgroundColor: tone.soft }]}
         onLayout={handleLayout}
         accessible
         accessibilityRole="adjustable"
@@ -160,23 +206,48 @@ export function WeightScale({
           >
             {ticks.map((kg) => {
               const kind = tickKind(kg);
+              // Lit by how near the needle it stands, so the strip has a pool
+              // of light in it rather than one uniform texture.
+              const lit = tickEmphasis(kg, valueKg, LIT_REACH_KG);
+              const pale = mixHex(tone.brand, tone.soft, 0.55);
               return (
                 <View key={kg} style={styles.tickSlot}>
                   <View
                     style={[
                       styles.tick,
-                      { height: TICK_HEIGHTS[kind] },
-                      kind === 'major' && styles.tickMajor,
+                      {
+                        height: TICK_HEIGHTS[kind] + lit * 5,
+                        backgroundColor: mixHex(pale, tone.brand, lit),
+                        width: kind === 'major' || lit > 0.6 ? 2.5 : 2,
+                      },
                     ]}
                   />
-                  {kind === 'major' && <Text style={styles.tickLabel}>{kg}</Text>}
+                  {kind === 'major' && (
+                    <Text
+                      style={[
+                        styles.tickLabel,
+                        lit > 0.25 && { color: tone.ink, fontFamily: type.label.fontFamily },
+                      ]}
+                    >
+                      {kg}
+                    </Text>
+                  )}
                 </View>
               );
             })}
           </ScrollView>
         )}
-        {/* The needle. Everything else moves; this stays put. */}
-        <View pointerEvents="none" style={styles.needle} />
+        {/* The needle. Everything else moves; this stays put. The glow is what
+            separates it from the lit ticks it now stands among. */}
+        <View pointerEvents="none" style={styles.needleGroup}>
+          <View style={[styles.needleCap, { backgroundColor: tone.brand }]} />
+          <View
+            style={[
+              styles.needle,
+              { backgroundColor: tone.brand, shadowColor: tone.brand },
+            ]}
+          />
+        </View>
       </View>
     </View>
   );
@@ -196,88 +267,183 @@ export function PieceCounter({
   label,
   max = MAX_PIECES,
   compact = false,
+  tone = APP_TONE,
 }: {
   value: number;
   onChange: (count: number) => void;
   label: string;
   max?: number;
   compact?: boolean;
+  tone?: QuantityTone;
 }) {
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.pillRow}
-    >
-      {pieceOptions(max).map((count) => {
-        const isSelected = value === count;
-        return (
-          <Pressable
+    <View style={styles.pieceBlock}>
+      {/* The count, said once and large, so pieces and kilos answer the same
+          question in the same voice rather than one being a row of chips. */}
+      <View style={[styles.readout, { backgroundColor: withAlpha(tone.brand, 0.07) }]}>
+        <View style={styles.readoutRow}>
+          <Odometer
+            value={String(value)}
+            style={styles.readoutValue}
+            label={`${value} ${value === 1 ? 'piece' : 'pieces'}`}
+          />
+          <Text style={[styles.readoutUnit, { color: tone.ink }]}>
+            {value === 1 ? 'piece' : 'pieces'}
+          </Text>
+        </View>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pillRow}
+      >
+        {pieceOptions(max).map((count) => (
+          <PiecePill
             key={count}
-            accessibilityRole="button"
-            accessibilityLabel={
-              count === 0
-                ? `No ${label}`
-                : `${count} ${count === 1 ? 'piece' : 'pieces'} of ${label}`
-            }
-            accessibilityState={{ selected: isSelected }}
+            count={count}
+            label={label}
+            isSelected={value === count}
+            compact={compact}
+            tone={tone}
             onPress={() => onChange(clampPieces(count, max))}
-            style={[
-              styles.pill,
-              compact && styles.pillCompact,
-              // "None" carries a word, so it needs room a digit does not.
-              count === 0 && styles.pillWide,
-              isSelected && styles.pillSelected,
-            ]}
-          >
-            <Text
-              style={[
-                styles.pillText,
-                compact && styles.pillTextCompact,
-                isSelected && styles.pillTextSelected,
-              ]}
-            >
-              {count === 0 ? 'None' : count}
-            </Text>
-          </Pressable>
-        );
-      })}
-    </ScrollView>
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/**
+ * One count, which gives under the finger.
+ *
+ * A pill that only changes colour on release tells you nothing until the
+ * decision is already made. Taking it to 94% on touch-down acknowledges the
+ * finger at the moment it lands, which is the difference between a control
+ * that responds and a control that reports.
+ */
+function PiecePill({
+  count,
+  label,
+  isSelected,
+  compact,
+  tone,
+  onPress,
+}: {
+  count: number;
+  label: string;
+  isSelected: boolean;
+  compact: boolean;
+  tone: QuantityTone;
+  onPress: () => void;
+}) {
+  const isReduced = useReducedMotion();
+  const [press] = useState(() => new Animated.Value(1));
+
+  const springTo = (toValue: number) => {
+    if (isReduced) return;
+    Animated.spring(press, {
+      toValue,
+      damping: 15,
+      stiffness: 320,
+      mass: 0.5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: press }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          count === 0 ? `No ${label}` : `${count} ${count === 1 ? 'piece' : 'pieces'} of ${label}`
+        }
+        accessibilityState={{ selected: isSelected }}
+        onPressIn={() => springTo(0.94)}
+        onPressOut={() => springTo(1)}
+        onPress={onPress}
+        style={[
+          styles.pill,
+          compact && styles.pillCompact,
+          // "None" carries a word, so it needs room a digit does not.
+          count === 0 && styles.pillWide,
+          isSelected && {
+            backgroundColor: tone.brand,
+            borderColor: tone.brand,
+            shadowColor: tone.brand,
+            ...styles.pillSelected,
+          },
+        ]}
+      >
+        <Text
+          style={[
+            styles.pillText,
+            compact && styles.pillTextCompact,
+            isSelected && styles.pillTextSelected,
+          ]}
+        >
+          {count === 0 ? 'None' : count}
+        </Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
   scaleBlock: { gap: space.snug },
+  pieceBlock: { gap: space.cosy },
 
+  /** The reading sits *on* something, so it reads as output rather than label. */
+  readout: {
+    borderRadius: RADII.control,
+    paddingVertical: space.cosy,
+    paddingHorizontal: space.room,
+  },
   readoutRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'center',
     gap: space.tight,
   },
-  readoutValue: { fontSize: 40, fontWeight: '700', letterSpacing: -0.8, color: colors.text },
-  readoutUnit: { fontSize: 18, fontWeight: '600', color: colors.subtle },
+  readoutValue: {
+    fontSize: 44,
+    lineHeight: 50,
+    fontFamily: type.hero.fontFamily,
+    letterSpacing: -1.4,
+    color: colors.text,
+  },
+  readoutUnit: { ...type.section, fontSize: 17 },
 
   track: {
-    height: 64,
-    backgroundColor: colors.actionSurface,
-    borderRadius: space.cosy,
+    height: 72,
+    borderRadius: RADII.control,
     overflow: 'hidden',
   },
   tickSlot: { width: TICK_SPACING, alignItems: 'center', paddingTop: space.snug },
-  tick: { width: 2, borderRadius: 1, backgroundColor: colors.actionMuted },
-  tickMajor: { backgroundColor: colors.action, width: 2 },
-  tickLabel: { ...type.caption, fontWeight: '600', color: colors.subtle, marginTop: 2 },
+  tick: { width: 2, borderRadius: 1.5 },
+  tickLabel: { ...type.caption, color: colors.subtle, marginTop: 2 },
 
-  needle: {
+  /** The fixed mark, and the cap that gives it a head to read against. */
+  needleGroup: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -1.5,
-    top: space.snug,
-    bottom: space.snug,
+    marginLeft: -5,
+    top: 0,
+    bottom: 0,
+    width: 10,
+    alignItems: 'center',
+  },
+  needleCap: { width: 10, height: 5, borderBottomLeftRadius: 5, borderBottomRightRadius: 5 },
+  needle: {
+    flex: 1,
+    marginTop: 1,
+    marginBottom: space.snug,
     width: 3,
     borderRadius: 2,
-    backgroundColor: colors.action,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 6,
+    elevation: 3,
   },
 
   // One scrolling line. `paddingRight` leaves the last pill clear of the edge
@@ -296,9 +462,14 @@ const styles = StyleSheet.create({
   },
   pillCompact: { minWidth: 44, height: 44 },
   pillWide: { paddingHorizontal: space.room },
-  // `action`, not the identity blue: this pill carries a white numeral.
-  pillSelected: { backgroundColor: colors.action, borderColor: colors.action },
-  pillText: { fontSize: 18, fontWeight: '700', color: colors.text },
+  /** Chosen, and lifted off the row by its own colour rather than only filled. */
+  pillSelected: {
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.34,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  pillText: { fontSize: 18, fontFamily: type.value.fontFamily, color: colors.text },
   pillTextCompact: { fontSize: 17 },
   pillTextSelected: { color: colors.onAccent },
 });

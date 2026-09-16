@@ -20,7 +20,9 @@ import {
   ON_FIELD,
   ON_FIELD_SOFT,
   WaveHem,
+  WayMark,
   WelcomeScene,
+  type WayMarkKind,
 } from '@/components/welcome-scene';
 import { RADII } from '@/lib/domain/design-scale';
 import { useHaptic } from '@/lib/use-app-settings';
@@ -115,11 +117,22 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
  * from. Four identical blue tiles is a row you have to read word by word.
  */
 const WAYS = [
-  { key: 'scan', icon: 'qr-code-outline' as IconName, label: 'Scan', tint: '#1263AF' },
-  { key: 'signin', icon: 'key-outline' as IconName, label: 'Sign in', tint: '#0F6B5F' },
-  { key: 'signup', icon: 'person-add-outline' as IconName, label: 'Sign up', tint: '#4B3FBF' },
-  { key: 'owner', icon: 'storefront-outline' as IconName, label: 'Owners', tint: '#8A5606' },
+  { key: 'scan', mark: 'scan' as WayMarkKind, label: 'Scan', tint: '#1263AF' },
+  { key: 'signin', mark: 'key' as WayMarkKind, label: 'Sign in', tint: '#0F6B5F' },
+  { key: 'signup', mark: 'person' as WayMarkKind, label: 'Sign up', tint: '#4B3FBF' },
+  { key: 'owner', mark: 'shop' as WayMarkKind, label: 'Owners', tint: '#8A5606' },
 ] as const;
+
+/**
+ * The tiles' ground: one off-white with the blue of the water still in it.
+ *
+ * They each wore their own ink at a tenth strength before — four pale washes,
+ * which made the row read as four different materials and left every one of
+ * them flat against the sheet. One solid surface under all four lets the drawn
+ * mark be the only colour on the tile, and lets a shadow do the lifting.
+ */
+const TILE = '#F2F6FC';
+const TILE_EDGE = '#E2EAF6';
 
 export default function Welcome() {
   const router = useRouter();
@@ -299,34 +312,14 @@ function WayTile({ way, onPress }: { way: (typeof WAYS)[number]; onPress: () => 
       accessibilityRole="button"
       accessibilityLabel={way.label}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.way,
-        { backgroundColor: tintSurface(way.tint), borderColor: tintBorder(way.tint) },
-        pressed && styles.wayPressed,
-      ]}
+      style={({ pressed }) => [styles.way, pressed && styles.wayPressed]}
     >
-      <Ionicons name={way.icon} size={24} color={way.tint} />
+      <WayMark kind={way.mark} ink={way.tint} size={34} />
       <Text style={[styles.wayLabel, { color: way.tint }]} numberOfLines={1}>
         {way.label}
       </Text>
     </Pressable>
   );
-}
-
-/**
- * The pale field a tinted icon sits on: the ink itself at a tenth strength.
- *
- * Derived rather than listed, because four more hand-picked hex values would
- * be four more things to keep in step with the inks above them — and the ink
- * is already the value that has to clear contrast.
- */
-function tintSurface(ink: string): string {
-  return `${ink}14`;
-}
-
-/** The hairline that gives the tile an edge without becoming a second colour. */
-function tintBorder(ink: string): string {
-  return `${ink}2E`;
 }
 
 /** The commit. Wide, filled, and the only pill on the screen. */
@@ -474,12 +467,24 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
     borderRadius: 18,
     borderWidth: 1,
+    borderColor: TILE_EDGE,
+    backgroundColor: TILE,
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
     paddingHorizontal: space.tight,
+    // Lifted off the sheet rather than tinted into it: these are the four
+    // things a first-time visitor can press, and a pressable that lies flat on
+    // the page is asking to be read as a label.
+    ...elevation.rest,
   },
-  wayPressed: { opacity: 0.6, transform: [{ scale: 0.97 }] },
+  /** Pressed, it goes *down* onto the sheet — the shadow is what it loses. */
+  wayPressed: {
+    transform: [{ scale: 0.97 }],
+    backgroundColor: TILE_EDGE,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
   /**
    * 58pt: comfortably past the 44pt touch minimum on its own, so the caption
    * beneath it is a label rather than part of the target.

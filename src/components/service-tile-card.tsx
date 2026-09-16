@@ -6,9 +6,15 @@
  * scannable — every name starts in the same place, so a column reads like a
  * list, while the objects fill the space the words do not need.
  *
- * The card stays white. Colour on it would compete with the object, which is
- * the one thing on the card worth looking at; the name in the category's ink
- * and the object's own palette carry all the colour this needs.
+ * The card wears its category as a ground, not just as a chip in the corner.
+ *
+ * It was white, on the reasoning that colour would compete with the object.
+ * What white actually produced was a grid of identical boxes in which the only
+ * thing separating wash from dry-cleaning was a 10px label nobody reads before
+ * the price. The ground is the same hue at a whisper — lighter than the page it
+ * sits on, so it never fights the drawing — and it lets a customer sort the
+ * grid by colour at a glance. The chips go white on it, which is what keeps
+ * them reading as chips. The tint per category is `domain/service-showcase.ts`.
  *
  * The same card serves the price list and the ordering step. Pass `quantity`
  * and the steppers and it becomes a basket row. The card itself is the button
@@ -16,9 +22,10 @@
  */
 import { Image } from 'expo-image';
 import React from 'react';
-import { AccessibilityInfo, Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { sceneFor } from '@/lib/domain/service-scene';
 import {
   showcasePrice,
@@ -57,23 +64,6 @@ interface ServiceTileCardProps {
   quantity?: number;
   onAdd?: () => void;
   onRemove?: () => void;
-}
-
-/** Whether the device has asked for less motion. */
-function useReducedMotion(): boolean {
-  const [isReduced, setIsReduced] = React.useState(false);
-  React.useEffect(() => {
-    let alive = true;
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => {
-      if (alive) setIsReduced(value);
-    });
-    const listener = AccessibilityInfo.addEventListener('reduceMotionChanged', setIsReduced);
-    return () => {
-      alive = false;
-      listener.remove();
-    };
-  }, []);
-  return isReduced;
 }
 
 function Step({
@@ -178,6 +168,7 @@ export function ServiceTileCard({
       // style, which once dropped every card style and collapsed the grid.
       style={[
         styles.card,
+        { backgroundColor: tone.field },
         isHovered && isBookable && styles.cardHovered,
         isPressed && isBookable && styles.cardPressed,
         held > 0 && { borderColor: bookTone.bg },
@@ -226,6 +217,11 @@ export function ServiceTileCard({
         ) : null}
       </View>
 
+      {/* The room the object stands in. A spacer rather than a fixed card
+          height, so a name that wraps to two lines pushes the foot down and
+          the art keeps its distance instead of climbing into the words. */}
+      <View style={styles.clearance} pointerEvents="none" />
+
       {isBasket && held > 0 ? (
         <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
           <Step
@@ -251,13 +247,43 @@ export function ServiceTileCard({
   );
 }
 
-const CARD_HEIGHT = 182;
+/**
+ * The object, and where it sits.
+ *
+ * Anchored past the bottom-right corner so the card clips it — that overrun is
+ * what makes it read as a thing on a shelf rather than an icon in a box. The
+ * size is fixed on purpose: it is the one element on the card worth looking at,
+ * and shrinking it to make room for the words would be the wrong trade.
+ */
+const OBJECT_SIZE = 150;
+const OBJECT_RIGHT = -12;
+const OBJECT_DROP = 14;
+
+/**
+ * The band the object claims above the card's foot, and so the room the words
+ * must be given before it.
+ *
+ * The words used to be laid straight over the object: at phone width the price
+ * sat on a stack of towels and the minimum chip ran through a hanger. They are
+ * drawn after the object and so stayed legible, but a figure crossing a drawing
+ * is a collision, not a composition. A spacer of exactly this height under the
+ * words pushes the card's foot far enough down that the object clears them,
+ * whatever the words turn out to be — a name that wraps to two lines grows the
+ * card rather than colliding with the art.
+ *
+ * `- space.room` because the card's own bottom padding is already part of the
+ * gap. Derived from the geometry above, so moving the object keeps it true.
+ */
+const ART_CLEARANCE = OBJECT_SIZE - OBJECT_DROP - space.room;
+
+/** The shortest a card may be, whatever is in it: a row of cards is stretched. */
+const CARD_MIN_HEIGHT = 182;
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
-    height: CARD_HEIGHT,
+    minHeight: CARD_MIN_HEIGHT,
     padding: space.room,
     ...CROWN,
     backgroundColor: colors.card,
@@ -281,9 +307,16 @@ const styles = StyleSheet.create({
    * Anchored to the bottom-right corner and allowed to run past it. Big enough
    * to be the thing you look at; the card clips whatever overruns.
    */
-  object: { position: 'absolute', right: -12, bottom: -14, width: 150, height: 150 },
+  object: {
+    position: 'absolute',
+    right: OBJECT_RIGHT,
+    bottom: -OBJECT_DROP,
+    width: OBJECT_SIZE,
+    height: OBJECT_SIZE,
+  },
 
   words: { gap: 2, alignItems: 'flex-start' },
+  clearance: { height: ART_CLEARANCE },
   /** Clears the tag, so a long name wraps instead of running under it. */
   wordsUnderTag: { paddingTop: 22 },
   /**
@@ -298,7 +331,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.card,
     maxWidth: '62%',
   },
   tagText: { ...type.caption, fontSize: 10.5, fontFamily: fontFor(700), letterSpacing: 0.3 },
@@ -336,7 +369,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
-    backgroundColor: colors.sunken,
+    backgroundColor: colors.card,
   },
   minimumText: { ...type.caption, fontSize: 11, fontFamily: fontFor(600) },
 

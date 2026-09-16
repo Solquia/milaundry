@@ -21,6 +21,13 @@ interface AuthContextValue {
   signIn: (phone: string, password: string) => Promise<void>;
   signUp: (phone: string, password: string, fullName: string) => Promise<void>;
   signOut: () => Promise<void>;
+  /**
+   * Re-reads the signed-in profile row. The profile carries settings the
+   * customer changes about themselves — how they pay, for one — and without
+   * this the screen that changed it would keep showing the old answer until
+   * the next cold start.
+   */
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -101,6 +108,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     []
   );
 
+  const refreshProfile = useCallback(async () => {
+    await loadProfile(userIdRef.current);
+  }, [loadProfile]);
+
   const signOut = useCallback(async () => {
     const { error } = await supabase.auth.signOut();
     if (error) throw new Error(error.message);
@@ -108,7 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ session, profile, isLoading, signIn, signUp, signOut }}
+      value={{ session, profile, isLoading, signIn, signUp, signOut, refreshProfile }}
     >
       {children}
     </AuthContext.Provider>

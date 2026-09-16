@@ -5,6 +5,7 @@ import {
   describeShopAccess,
   redirectForMerchantScreen,
   resolveShopRole,
+  shopRoleBadge,
   tabsForShopRole,
 } from '../merchant-access';
 import { MERCHANT_TABS, STAFF_TABS } from '../tab-config';
@@ -108,5 +109,14 @@ describe('redirectForMerchantScreen', () => {
     // a guard that swallowed them would break tapping a ticket.
     expect(redirectForMerchantScreen('staff', 'settings')).toBeNull();
     expect(redirectForMerchantScreen('staff', 'index')).toBeNull();
+  });
+});
+
+describe('shopRoleBadge', () => {
+  it('names the role in one word, for the chip beside the shop name', () => {
+    // `describeShopAccess` is a sentence for the settings screen; a band that
+    // has to fit a shop name beside it needs the word, not the sentence.
+    expect(shopRoleBadge('owner')).toBe('Owner');
+    expect(shopRoleBadge('staff')).toBe('Staff');
   });
 });

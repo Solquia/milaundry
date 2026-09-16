@@ -60,6 +60,35 @@ export function groupServicesByCategory<T extends CategorizedService>(
   })).filter((group) => group.services.length > 0);
 }
 
+export interface LabelledService<T> {
+  service: T;
+  /** The category, for the card's own corner rather than a heading above it. */
+  label: string;
+}
+
+/**
+ * Every service in one list, in category order, each carrying its category.
+ *
+ * A price list drawn as a heading per group is a grid only on paper. A shop
+ * with one or two services per category gets a label, a card, a gap, another
+ * label — the cards never pair up into rows, so each one sits half-width
+ * beside a blank and the list reads as a column of lonely boxes. Flattening
+ * lets the grid fill, and moving the category onto the card is what makes the
+ * headings unnecessary rather than merely absent: nothing is lost, the
+ * neighbours are still the services that belong together, and two cards fit
+ * on a phone's row where one used to.
+ *
+ * Both the shop's web page and the shop screen in the app read the list from
+ * here, so the two cannot drift apart again.
+ */
+export function labelledServices<T extends CategorizedService>(
+  groups: readonly ServiceGroup<T>[]
+): LabelledService<T>[] {
+  return groups.flatMap((group) =>
+    group.services.map((service) => ({ service, label: CATEGORY_SHORT[group.category] }))
+  );
+}
+
 export interface RemovableService {
   is_active: boolean;
 }

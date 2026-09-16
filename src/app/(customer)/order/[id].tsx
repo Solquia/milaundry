@@ -6,6 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PaySheet } from '@/components/pay-sheet';
+import { ShopLogo } from '@/components/shop-logo';
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
 import {
   ACCENTS,
@@ -34,12 +35,21 @@ import {
 } from '@/lib/api';
 import { actualBill, type BillStage } from '@/lib/domain/actual-bill';
 import { bookingPaymentStage } from '@/lib/domain/booking-status';
-import { shopInitials } from '@/lib/domain/connected-shops';
 import { docketNumber, stampLabel } from '@/lib/domain/docket';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import { weighEvidence } from '@/lib/domain/weigh-evidence';
 import { supabase } from '@/lib/supabase';
+
+/**
+ * The mark at the head of the docket.
+ *
+ * Big enough that a laundry's own artwork is legible as artwork — most of
+ * these are badges with the shop's name lettered inside them, and below about
+ * 80 the lettering is a smudge. Held under a third of the narrowest phone so
+ * the letterhead never becomes the whole first screenful.
+ */
+const LOGO_SIZE = 104;
 
 export default function CustomerOrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -143,31 +153,6 @@ export default function CustomerOrderDetail() {
 
   return (
     <Screen>
-      {/*
-        Whose laundry this is.
-
-        Every other customer surface — the home tiles, the directory, the
-        shopfront, the moment you connect — says "this laundry is *this*
-        colour". This screen, the one you open about that shop's actual work,
-        was the single place that dropped it: a name in plain ink, indis-
-        tinguishable from any other shop's order.
-        The mark is the same one those screens draw, so arriving here from any
-        of them is continuous.
-      */}
-      <View style={styles.identity}>
-        <View style={[styles.shopMark, { backgroundColor: accent.surface }]}>
-          <Text style={[styles.shopInitials, { color: accent.ink }]}>
-            {shopInitials(shopName)}
-          </Text>
-        </View>
-        <View style={styles.identityText}>
-          <Text style={styles.shopName} numberOfLines={2}>
-            {shopName}
-          </Text>
-          <StatusBadge status={order.status} />
-        </View>
-      </View>
-
       {/* The five-stage tracker used to sit here. Until the shop actually moves
           an order through those stages, every load showed the same five grey
           dots and the same sentence — a card whose entire job is to answer
@@ -201,20 +186,47 @@ export default function CustomerOrderDetail() {
       >
         <TornEdge width={docketWidth} color={colors.bg} edge="top" />
 
-        {/* The ticket's colour bar, and the answer to "which laundry is this".
-            The band is the one region the shop's own tone owns outright — the
-            same tone its mark wears above, its card wears in the directory, and
-            its shopfront wears across the top. Two orders from two laundries
-            are two different-coloured tickets in the same wallet. */}
-        <View style={[styles.band, { backgroundColor: accent.ink }]}>
-          <Text style={styles.bandName} numberOfLines={1}>
+        {/*
+          The letterhead.
+
+          The shop used to be said twice in the first two hundred pixels: a
+          small initials disc with the name beside it, and then, immediately
+          under it, a coloured bar with the same name printed in it again.
+          Neither was the shop's actual mark — the logo the merchant uploaded
+          reached the directory and the shopfront but never the one screen
+          about that shop's work.
+
+          So the two are now one thing, and it is the head of the ticket, which
+          is where a printed docket carries a letterhead anyway: the mark large
+          and centred, the name under it, the state under that. The shop's tone
+          is still what the region is painted in — two orders from two
+          laundries are still two different-coloured tickets in the same wallet
+          — but as the pale field rather than the deep one, because a logo is
+          artwork with its own colours and a saturated slab behind it fights
+          every one of them.
+        */}
+        <View style={[styles.letterhead, { backgroundColor: accent.surface }]}>
+          <ShopLogo
+            name={shopName}
+            logoUrl={order.shop?.logo_url ?? null}
+            size={LOGO_SIZE}
+            accent={accent}
+            shape="plate"
+          />
+          <Text style={[styles.letterheadName, { color: accent.ink }]} numberOfLines={2}>
             {shopName}
           </Text>
-          <Text style={styles.bandNumber}>NO. {docketNumber(order.id)}</Text>
+          <StatusBadge status={order.status} />
         </View>
 
         <View style={styles.ticketBody}>
-          <Text style={styles.docketMeta}>{formatWhen(order.created_at)}</Text>
+          {/* The docket's own small print, on the line a till prints it: the
+              number on the left to say out loud at the counter, when it was
+              taken on the right. */}
+          <View style={styles.docketMetaRow}>
+            <Text style={styles.docketMeta}>NO. {docketNumber(order.id)}</Text>
+            <Text style={styles.docketMeta}>{formatWhen(order.created_at)}</Text>
+          </View>
           <DottedRule />
 
           {order.order_items.map((item) => (
@@ -300,7 +312,7 @@ export default function CustomerOrderDetail() {
           "pickup & delivery" part so no row has to repeat it. */}
       {order.fulfillment === 'delivery' && (
         <Card>
-          <Text style={{ fontWeight: '600' }}>Pickup &amp; delivery</Text>
+          <Text style={styles.cardTitle}>Pickup &amp; delivery</Text>
           <DetailRow label="Address" value={order.delivery_address} />
           <DetailRow label="We collect" value={formatWhen(order.pickup_at)} />
           <DetailRow label="Back with you by" value={formatWhen(order.deliver_by)} />
@@ -325,9 +337,7 @@ export default function CustomerOrderDetail() {
       {/* Review prompt once the laundry journey is done. */}
       {order.status === 'completed' && !hasReviewed && (
         <Card>
-          <Text style={{ fontWeight: '600', fontSize: 16 }}>
-            How was {order.shop?.name ?? 'the shop'}?
-          </Text>
+          <Text style={styles.cardTitle}>How was {order.shop?.name ?? 'the shop'}?</Text>
           <View style={{ flexDirection: 'row', gap: 4 }}>
             {[1, 2, 3, 4, 5].map((star) => (
               <Pressable
@@ -361,7 +371,7 @@ export default function CustomerOrderDetail() {
       )}
       {order.status === 'completed' && hasReviewed && (
         <Card>
-          <Text style={{ fontWeight: '600', color: colors.success }}>
+          <Text style={[styles.cardTitle, { color: colors.success }]}>
             Thanks for your review!
           </Text>
         </Card>
@@ -372,7 +382,7 @@ export default function CustomerOrderDetail() {
           what has happened to their clothes. */}
       {history && history.length > 0 && (
         <Card>
-          <Text style={{ fontWeight: '600' }}>What&apos;s happened so far</Text>
+          <Text style={styles.cardTitle}>What&apos;s happened so far</Text>
           {history.map((entry) => (
             <Subtle key={entry.id}>
               {STATUS_LABELS[entry.to_status]} · {formatWhen(entry.created_at)}
@@ -473,20 +483,6 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 }
 
 const styles = StyleSheet.create({
-  /** The shop's mark and the order's state, read as one line of identity. */
-  identity: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  shopMark: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shopInitials: { ...type.label, fontSize: 16 },
-  // `alignItems: flex-start` so the badge hugs its own text rather than
-  // stretching across the row the way a block child would.
-  identityText: { flex: 1, alignItems: 'flex-start', gap: space.tight },
-  shopName: { ...type.title, color: colors.text },
 
   /**
    * The paper.
@@ -498,36 +494,29 @@ const styles = StyleSheet.create({
    */
   docket: {
     backgroundColor: colors.paper,
-    // No padding of its own: the band bleeds to the ticket's edges and the
-    // punched notches are clipped by it, so each region pads itself. The top
-    // and bottom insets are the margin the torn teeth eat into.
-    paddingTop: TORN_EDGE_HEIGHT,
+    // No padding of its own: the letterhead bleeds to the ticket's edges and
+    // the punched notches are clipped by it, so each region pads itself. The
+    // top inset belongs to the letterhead rather than to the ticket, so the
+    // teeth are cut in the shop's colour and the tear runs *through* the
+    // brand — which is what the web ticket has always done.
     paddingBottom: TORN_EDGE_HEIGHT,
     overflow: 'hidden',
   },
-  /** The one region the laundry's own colour owns outright. */
-  band: {
-    flexDirection: 'row',
+  /**
+   * The head of the ticket, and the one region the laundry's own colour owns.
+   * Centred, because a letterhead is centred — and because a mark this size
+   * ranged left would leave a column of dead paper beside it.
+   */
+  letterhead: {
     alignItems: 'center',
-    justifyContent: 'space-between',
     gap: space.cosy,
     paddingHorizontal: space.room,
-    paddingVertical: space.cosy,
+    // The teeth eat into this, so the mark clears them by a full room.
+    paddingTop: TORN_EDGE_HEIGHT + space.room,
+    paddingBottom: space.room,
   },
-  // White on every accent ink in the palette clears 5.4:1 or better.
-  bandName: {
-    flexShrink: 1,
-    ...type.label,
-    fontSize: 15,
-    letterSpacing: 0.4,
-    color: colors.onAccent,
-  },
-  bandNumber: {
-    fontFamily: mono,
-    fontSize: 12,
-    letterSpacing: 1,
-    color: colors.onAccent,
-  },
+  /** Every accent ink in the palette clears 5:1 on its own surface. */
+  letterheadName: { ...type.title, textAlign: 'center' },
   ticketBody: { paddingHorizontal: space.room, paddingVertical: space.cosy, gap: space.snug },
   /** Below the tear line: what the customer owes, and why. */
   stub: { paddingHorizontal: space.room, paddingTop: space.snug, gap: space.snug },
@@ -547,6 +536,13 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   stampText: { fontFamily: mono, fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
+  /** Reference left, time right — one printed line, not two stacked ones. */
+  docketMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: space.cosy,
+  },
   /** The slip's own small print: reference and time, the way a till prints it. */
   docketMeta: {
     fontFamily: mono,
@@ -575,6 +571,14 @@ const styles = StyleSheet.create({
       to read. */
   docketNote: { ...type.caption, fontSize: 13, color: colors.subtle },
 
+  /**
+   * The heading on each card below the ticket. These were four inline
+   * `fontWeight: '600'` literals at three different sizes, so the same role
+   * was drawn differently on four adjacent cards; `section` is the token the
+   * rest of the app gives a card heading.
+   */
+  cardTitle: { ...type.section, color: colors.text },
+
   /** Label left, fact right — scannable as a column without a table. */
   detailRow: {
     flexDirection: 'row',
@@ -582,13 +586,13 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.room,
   },
-  detailLabel: { fontSize: 15, color: colors.subtle },
+  detailLabel: { ...type.body, color: colors.subtle },
   // The fact outweighs its label, and wraps rather than truncating: a long
   // address is the whole point of the row.
   detailValue: {
     flexShrink: 1,
-    fontSize: 15,
-    fontWeight: '600',
+    ...type.body,
+    fontFamily: type.label.fontFamily,
     color: colors.text,
     textAlign: 'right',
   },

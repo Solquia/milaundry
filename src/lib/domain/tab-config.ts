@@ -37,8 +37,13 @@ export const STAFF_TABS: readonly TabConfig[] = [
   { name: 'services', title: 'Prices', icon: 'pricetags-outline' },
 ];
 
+/**
+ * The customer's own bar. The home tab used to carry the product's name, which
+ * put "MiLaundry" on screen at all times and told the customer nothing: they
+ * know which app they opened. It says where the tab goes instead.
+ */
 export const CUSTOMER_TABS: readonly TabConfig[] = [
-  { name: 'orders', title: 'MiLaundry', icon: 'shirt-outline' },
+  { name: 'orders', title: 'Home', icon: 'shirt-outline' },
   { name: 'scan', title: 'Scan', icon: 'qr-code', isCenter: true },
   { name: 'shops', title: 'Shops', icon: 'storefront-outline' },
 ];

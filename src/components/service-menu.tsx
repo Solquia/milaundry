@@ -3,9 +3,9 @@
  *
  * A strip of categories to narrow by, and a grid of tiles big enough to hit
  * with a thumb while the other hand holds a bag. Every tile states its price,
- * so the menu is also the price list; a tile already on the ticket turns blue
- * and wears what it carries, so the grid doubles as a checklist on the way
- * back down.
+ * so the menu is also the price list; a tile already on the ticket takes the
+ * shop's own colour and wears what it carries, so the grid doubles as a
+ * checklist on the way back down.
  */
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
@@ -18,6 +18,7 @@ import { serviceIcon } from '@/lib/domain/service-icon';
 import { categoryIcon } from '@/lib/domain/shop-home';
 import type { ServiceRow } from '@/lib/types';
 
+import { APP_TONE, type QuantityTone } from './quantity-picker';
 import { RADII, colors, space, type } from './ui-kit';
 
 export const ALL_CATEGORIES = 'all';
@@ -35,10 +36,13 @@ export function CategoryStrip({
   groups,
   active,
   onChange,
+  tone = APP_TONE,
 }: {
   groups: ServiceGroup<ServiceRow>[];
   active: string;
   onChange: (category: string) => void;
+  /** The shop's colour, so the strip agrees with the band above it. */
+  tone?: QuantityTone;
 }) {
   // One category is not a choice; the strip would be a single chip saying so.
   if (groups.length < 2) return null;
@@ -69,7 +73,7 @@ export function CategoryStrip({
             onPress={() => onChange(chip.key)}
             style={({ pressed }) => [
               styles.chip,
-              isActive && styles.chipActive,
+              isActive && { backgroundColor: tone.brand, borderColor: tone.brand },
               pressed && styles.pressed,
             ]}
           >
@@ -88,14 +92,25 @@ export function CategoryStrip({
   );
 }
 
+/**
+ * One tile.
+ *
+ * A View holding two targets, not a button holding a button: the tile's own
+ * press area fills it, and the key that takes a line back off floats above the
+ * top-right corner. Nesting the second Pressable inside the first was invalid
+ * on the web — a <button> inside a <button> — and the browser said so on every
+ * chosen tile.
+ */
 function ServiceTile({
   service,
   quantity,
+  tone,
   onPress,
   onLess,
 }: {
   service: ServiceRow;
   quantity: number;
+  tone: QuantityTone;
   onPress: () => void;
   /** Steps a counted tile down by one, or takes any other chosen tile off. */
   onLess: () => void;
@@ -110,62 +125,68 @@ function ServiceTile({
         : 'Adds one more';
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        isChosen ? `${service.name}, ${badge} on the ticket` : `Add ${service.name}`
-      }
-      accessibilityHint={hint}
-      accessibilityState={{ selected: isChosen }}
-      onPress={onPress}
-      style={({ pressed }) => [
+    <View
+      style={[
         styles.tile,
-        isChosen && styles.tileChosen,
-        pressed && styles.tilePressed,
+        isChosen && { borderColor: tone.brand, backgroundColor: tone.soft },
       ]}
     >
-      <View style={styles.tileTop}>
-        <View style={[styles.tileIcon, isChosen && styles.tileIconChosen]}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={
+          isChosen ? `${service.name}, ${badge} on the ticket` : `Add ${service.name}`
+        }
+        accessibilityHint={hint}
+        accessibilityState={{ selected: isChosen }}
+        onPress={onPress}
+        style={({ pressed }) => [styles.tileHit, pressed && styles.tilePressed]}
+      >
+        <View style={[styles.tileIcon, isChosen && { backgroundColor: tone.brand }]}>
           <Ionicons
             name={serviceIcon(service.name, service.category) as never}
             size={20}
-            color={isChosen ? colors.onAccent : colors.actionInk}
+            color={isChosen ? colors.onAccent : tone.ink}
           />
         </View>
-        {badge ? (
-          <View style={styles.badgeRow}>
-            {/* The way back sits on the tile itself, so a mis-tap is undone
-                where it happened rather than by clearing the whole ticket. */}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                service.unit === 'per_item'
-                  ? `One less ${service.name}`
-                  : `Take ${service.name} off the ticket`
-              }
-              onPress={onLess}
-              hitSlop={space.snug}
-              style={({ pressed }) => [styles.lessKey, pressed && styles.pressed]}
-            >
-              <Ionicons
-                name={service.unit === 'per_item' ? 'remove' : 'close'}
-                size={16}
-                color={colors.actionInk}
-              />
-            </Pressable>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>{badge}</Text>
-            </View>
+        <Text style={styles.tileName} numberOfLines={2}>
+          {service.name}
+        </Text>
+        <Text style={[styles.tilePrice, isChosen && { color: tone.ink }]} numberOfLines={1}>
+          {priceSubtitle(service)}
+        </Text>
+      </Pressable>
+
+      {badge ? (
+        <View style={styles.badgeRow}>
+          {/* The way back sits on the tile itself, so a mis-tap is undone
+              where it happened rather than by clearing the whole ticket. */}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              service.unit === 'per_item'
+                ? `One less ${service.name}`
+                : `Take ${service.name} off the ticket`
+            }
+            onPress={onLess}
+            hitSlop={space.snug}
+            style={({ pressed }) => [
+              styles.lessKey,
+              { borderColor: tone.soft },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={service.unit === 'per_item' ? 'remove' : 'close'}
+              size={16}
+              color={tone.ink}
+            />
+          </Pressable>
+          <View style={[styles.badge, { backgroundColor: tone.brand }]}>
+            <Text style={styles.badgeText}>{badge}</Text>
           </View>
-        ) : null}
-      </View>
-      <Text style={styles.tileName} numberOfLines={2}>
-        {service.name}
-      </Text>
-      <Text style={[styles.tilePrice, isChosen && styles.tilePriceChosen]} numberOfLines={1}>
-        {priceSubtitle(service)}
-      </Text>
-    </Pressable>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -175,12 +196,15 @@ export function ServiceMenu({
   quantities,
   onTap,
   onLess,
+  tone = APP_TONE,
 }: {
   groups: ServiceGroup<ServiceRow>[];
   active: string;
   quantities: Readonly<Record<string, number>>;
   onTap: (service: ServiceRow) => void;
   onLess: (service: ServiceRow) => void;
+  /** The shop's colour, so a chosen tile agrees with the band above it. */
+  tone?: QuantityTone;
 }) {
   const shown =
     active === ALL_CATEGORIES ? groups : groups.filter((group) => group.category === active);
@@ -201,6 +225,7 @@ export function ServiceMenu({
                     key={service.id}
                     service={service}
                     quantity={quantities[service.id] ?? 0}
+                    tone={tone}
                     onPress={() => onTap(service)}
                     onLess={() => onLess(service)}
                   />
@@ -230,7 +255,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  chipActive: { backgroundColor: colors.action, borderColor: colors.action },
   chipText: { ...type.label, color: colors.text },
   chipTextActive: { color: colors.onAccent },
 
@@ -248,16 +272,14 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     minHeight: 118,
-    padding: space.cosy,
-    gap: space.tight,
     borderRadius: RADII.card,
     borderWidth: 1.5,
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  tileChosen: { borderColor: colors.action, backgroundColor: colors.actionSurface },
+  /** The press area is the whole tile; the padding lives here so it is hit. */
+  tileHit: { flex: 1, padding: space.cosy, gap: space.tight },
   tilePressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
-  tileTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   tileIcon: {
     width: 36,
     height: 36,
@@ -270,7 +292,15 @@ const styles = StyleSheet.create({
   tileName: { ...type.body, fontWeight: '700', color: colors.text, marginTop: space.tight },
   tilePrice: { ...type.caption, fontSize: 13, color: colors.subtle },
   tilePriceChosen: { color: colors.actionInk },
-  badgeRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
+  /** Floated over the tile's own corner rather than nested inside its button. */
+  badgeRow: {
+    position: 'absolute',
+    top: space.cosy,
+    right: space.cosy,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.tight,
+  },
   lessKey: {
     width: 28,
     height: 28,
@@ -278,16 +308,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.actionMuted,
     backgroundColor: colors.card,
   },
-  /** What this tile has put on the ticket; white on `action` clears 5.9:1. */
+  /** What this tile has put on the ticket; white on the accent clears 4.5:1. */
   badge: {
     minHeight: 24,
     paddingHorizontal: space.snug,
     borderRadius: 999,
     justifyContent: 'center',
-    backgroundColor: colors.action,
   },
   badgeText: { ...type.caption, fontWeight: '700', color: colors.onAccent },
 

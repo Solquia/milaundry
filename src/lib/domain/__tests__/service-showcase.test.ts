@@ -151,3 +151,46 @@ describe('showcasePrice symbol and amount', () => {
     expect(price.figure).toBe(`${price.symbol}${price.amount}`);
   });
 });
+
+describe('the card ground each category brings', () => {
+  /** WCAG relative luminance, so the assertions below are about real contrast. */
+  function luminance(hex: string): number {
+    const channels = [0, 2, 4].map((index) => parseInt(hex.slice(index + 1, index + 3), 16) / 255);
+    const linear = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2];
+  }
+  function contrast(a: string, b: string): number {
+    const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+    return (hi + 0.05) / (lo + 0.05);
+  }
+
+  const TEXT = '#14212E';
+  const SUBTLE = '#5A6B7D';
+
+  it('gives every category its own ground', () => {
+    const fields = CATEGORY_ORDER.map((category) => showcaseTone(category).field);
+    expect(new Set(fields).size).toBe(fields.length);
+    for (const field of fields) expect(field).toMatch(/^#[0-9A-F]{6}$/i);
+  });
+
+  it('keeps every word on the card readable on it', () => {
+    for (const category of CATEGORY_ORDER) {
+      const tone = showcaseTone(category);
+      // The name, the figure, and the unit beside it. AA body text is 4.5:1.
+      expect(contrast(tone.ink, tone.field)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(TEXT, tone.field)).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(SUBTLE, tone.field)).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it('stays a ground, not a block of the colour itself', () => {
+    for (const category of CATEGORY_ORDER) {
+      const tone = showcaseTone(category);
+      // Far lighter than the tile the same hue paints at full strength, and
+      // light enough that a white chip still reads as a chip on it.
+      expect(luminance(tone.field)).toBeGreaterThan(luminance(tone.bg));
+      expect(luminance(tone.field)).toBeGreaterThan(0.78);
+      expect(contrast('#FFFFFF', tone.field)).toBeLessThan(1.25);
+    }
+  });
+});

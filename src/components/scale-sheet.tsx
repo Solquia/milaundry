@@ -17,8 +17,9 @@ import { openingQuantity } from '@/lib/domain/service-intake';
 import { MAX_SCALE_KG } from '@/lib/domain/weigh-order';
 import type { ServiceRow } from '@/lib/types';
 
-import { WeightScale } from './quantity-picker';
-import { Button, RADII, colors, space, type } from './ui-kit';
+import { BrandButton } from './brand-button';
+import { APP_TONE, WeightScale, type QuantityTone } from './quantity-picker';
+import { RADII, colors, space, type } from './ui-kit';
 
 type ScaleSheetProps = {
   /** The per-kg service being weighed, or null when the sheet is down. */
@@ -28,6 +29,11 @@ type ScaleSheetProps = {
   onConfirm: (kg: number) => void;
   onRemove: () => void;
   onClose: () => void;
+  /**
+   * The shop's colour. The sheet opens over a till painted in it, and a ruler
+   * in the product's blue over a teal counter is two brands in one gesture.
+   */
+  tone?: QuantityTone;
 };
 
 export function ScaleSheet({ service, ...rest }: ScaleSheetProps) {
@@ -43,6 +49,7 @@ function OpenScale({
   onConfirm,
   onRemove,
   onClose,
+  tone = APP_TONE,
 }: ScaleSheetProps & { service: ServiceRow }) {
   const insets = useSafeAreaInsets();
   const isEditing = currentKg > 0;
@@ -80,7 +87,7 @@ function OpenScale({
             </Pressable>
           </View>
 
-          <WeightScale valueKg={kg} onChange={setKg} maxKg={MAX_SCALE_KG} />
+          <WeightScale valueKg={kg} onChange={setKg} maxKg={MAX_SCALE_KG} tone={tone} />
 
           <View style={styles.chips}>
             {chips.map((load) => {
@@ -94,7 +101,7 @@ function OpenScale({
                   onPress={() => setKg(load)}
                   style={({ pressed }) => [
                     styles.chip,
-                    isActive && styles.chipActive,
+                    isActive && { backgroundColor: tone.brand, borderColor: tone.brand },
                     pressed && styles.pressed,
                   ]}
                 >
@@ -112,10 +119,12 @@ function OpenScale({
             </Text>
           ) : null}
 
-          <Button
+          <BrandButton
             title={scaleSheetCta(service, kg, isEditing)}
             disabled={kg <= 0}
             onPress={() => onConfirm(kg)}
+            fill={tone.brand}
+            ink={colors.onAccent}
           />
           {isEditing ? (
             <Pressable
@@ -181,7 +190,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  chipActive: { backgroundColor: colors.action, borderColor: colors.action },
   chipText: { fontSize: 16, fontWeight: '700', color: colors.text },
   chipTextActive: { color: colors.onAccent },
 

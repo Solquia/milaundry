@@ -72,3 +72,15 @@ export function redirectForMerchantScreen(
   if (canOpenMerchantRoute(role, screen)) return null;
   return `/(merchant)/${STAFF_TABS[0].name}`;
 }
+
+/**
+ * The role in one word, for the chip beside the shop name on the till.
+ *
+ * `describeShopAccess` is a sentence and belongs under an account name on the
+ * settings screen. A band that already carries the shop's name and the step's
+ * question has room for a word, and staff working a counter that is not theirs
+ * should be able to see whose it is and what they are inside it at a glance.
+ */
+export function shopRoleBadge(role: ShopAccountRole): string {
+  return role === 'owner' ? 'Owner' : 'Staff';
+}

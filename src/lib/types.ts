@@ -1,3 +1,4 @@
+import type { PreferredMethod } from './domain/customer-book';
 import type { OrderStatus } from './domain/order-status';
 import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
@@ -15,6 +16,14 @@ export interface Profile {
   /** Branded login for shop accounts; null for phone-based sign-ups. */
   username: string | null;
   created_at: string;
+  /**
+   * How this customer usually pays, so a booking arrives with it chosen
+   * (migration 0024). Null until they say. Never a card: `card` in this
+   * product is the terminal on a counter, and nothing is kept on file.
+   */
+  preferred_payment_method: PreferredMethod | null;
+  /** The GCash or Maya number that method pays from; null for the others. */
+  payment_handle: string | null;
 }
 
 export interface Shop {

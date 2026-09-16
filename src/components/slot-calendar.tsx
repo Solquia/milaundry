@@ -1,47 +1,40 @@
 /**
- * Choosing when: a month you can see, and the time stated above it.
+ * Choosing when: the days on one line, the hours on the next.
  *
- * The schedule step used to be two rows of chips — four days and six hours —
- * and the four days were four because 2×2 is a tidy grid, not because a laundry
- * only takes bookings until Thursday. A customer wanting collection a week out
- * had no way to say so, and nothing on screen admitted why.
+ * This was a month grid — seven columns, six rows, a month label and two
+ * paging arrows — drawn once for the pickup and again for the delivery. Nine
+ * rows of squares, twice, to answer a question that is nearly always "today"
+ * or "tomorrow", and most of those squares were greyed days the shop would
+ * not take anyway. The customer had to read a calendar to find tomorrow.
  *
- * The strip along the top is the answer, stated: the date on the left, the time
- * on the right, each a door back into the control that sets it. Below it the
- * month, with the days the shop will not take drawn and greyed rather than
- * hidden — the shape of the window is a fact the customer should be able to
- * see, not infer from an absence.
+ * So the days are a rail now, in order of nearness: the likeliest answer sits
+ * first, the rest are a swipe away, and only bookable days are on it. Which
+ * days those are, and what each card says, is `domain/day-rail.ts`. The hours
+ * run on their own line underneath in the same gesture — no tap to reveal
+ * them, because a control you must open to see is a control you must remember.
  *
- * Which days those are is `calendar-month.ts`. This file draws squares.
+ * Sideways is how this product asks for a quantity already: the weight ruler
+ * and the piece counter both swipe. The date is now the third.
  */
-import { Ionicons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import {
-  BOOKING_WINDOW_DAYS,
-  dayLabel,
-  hourLabel,
-  type Slot,
-} from '@/lib/domain/booking-slot';
-import {
-  WEEKDAY_INITIALS,
-  dayOffsetOf,
-  hasSelectableDay,
-  monthGrid,
-  monthLabel,
-  monthOf,
-  shiftMonth,
-  type MonthCursor,
-} from '@/lib/domain/calendar-month';
+import { BOOKING_WINDOW_DAYS, hourLabel, slotSummary, type Slot } from '@/lib/domain/booking-slot';
+import { railDays, railIndexOf, type RailDay } from '@/lib/domain/day-rail';
 import { RADII } from '@/lib/domain/design-scale';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { colors, space, type } from './ui-kit';
 
-/** The hours a rider calls. Two-hourly from eight to six, so six fill a row. */
+/** The hours a rider calls. Two-hourly from eight to six. */
 export const SLOT_HOURS = [8, 10, 12, 14, 16, 18];
 
-/** The accent a calendar borrows. A storefront passes its own shop's. */
+/** One card, and the gap after it. The rail scrolls by exactly this much. */
+const CARD_WIDTH = 68;
+const CARD_GAP = space.snug;
+const CARD_STRIDE = CARD_WIDTH + CARD_GAP;
+
+/** The accent a picker borrows. A storefront passes its own shop's. */
 export interface SlotTone {
   accent: string;
   onAccent: string;
@@ -55,7 +48,7 @@ export const SLOT_TONE: SlotTone = {
 };
 
 interface SlotCalendarProps {
-  /** "Pickup" or "Delivered back" — the strip labels both halves with it. */
+  /** "Pickup" or "Delivered back". */
   label: string;
   value: Slot;
   onChange: (next: Slot) => void;
@@ -64,6 +57,19 @@ interface SlotCalendarProps {
   maxOffset?: number;
   now?: Date;
   tone?: SlotTone;
+  /**
+   * False where a caller already names this leg and states its answer — the
+   * app's schedule step opens each leg from a row that does exactly that, and
+   * a heading here would say it twice.
+   */
+  showHeading?: boolean;
+  /**
+   * False where this already sits inside a bordered surface. The app's
+   * schedule step opens each leg into a tinted panel inside a bordered group
+   * inside a card — a fourth box drawn around the chips only made the step
+   * look busier than the two questions it actually asks.
+   */
+  framed?: boolean;
 }
 
 export function SlotCalendar({
@@ -74,58 +80,39 @@ export function SlotCalendar({
   maxOffset = BOOKING_WINDOW_DAYS,
   now = new Date(),
   tone = SLOT_TONE,
+  showHeading = true,
+  framed = true,
 }: SlotCalendarProps) {
-  // Opens on the month holding the answer, not on today's, so a booking
-  // already set for next month does not have to be paged to.
-  const [cursor, setCursor] = useState<MonthCursor>(() => monthOf(value.dayOffset, now));
-  const [isPickingTime, setPickingTime] = useState(false);
-
-  const weeks = monthGrid(cursor, now, minOffset, maxOffset);
-  const step = (delta: number) => setCursor((at) => shiftMonth(at, delta));
-  const canStep = (delta: number) =>
-    hasSelectableDay(shiftMonth(cursor, delta), now, minOffset, maxOffset);
+  const days = railDays(minOffset, maxOffset, now);
 
   return (
-    <View style={styles.frame}>
-      {/* The answer, stated. Two halves, each a door back to its own control. */}
-      <View style={styles.strip}>
-        <View style={styles.stripHalf}>
-          <Text style={styles.stripLabel}>{label} date</Text>
-          <View style={styles.stripValue}>
-            <Ionicons name="calendar-outline" size={16} color={colors.subtle} />
-            <View style={[styles.datePill, { backgroundColor: tone.accentSoft }]}>
-              <Text style={[styles.dateText, { color: tone.accent }]} numberOfLines={1}>
-                {dayLabel(value.dayOffset, now)}
-              </Text>
-            </View>
-          </View>
+    <View style={framed ? styles.frame : styles.bare}>
+      {showHeading ? (
+        <View style={styles.heading}>
+          <Text style={styles.headingLabel}>{label}</Text>
+          {/* The whole answer in one line, so the leg reads as a sentence even
+              when both its controls are scrolled away from their marks. */}
+          <Text style={[styles.headingValue, { color: tone.accent }]} numberOfLines={1}>
+            {slotSummary(value, now)}
+          </Text>
         </View>
+      ) : null}
 
-        <View style={styles.stripSeam} />
+      <DayRail
+        days={days}
+        selected={value.dayOffset}
+        label={label}
+        tone={tone}
+        onPick={(dayOffset) => onChange({ ...value, dayOffset })}
+      />
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityState={{ expanded: isPickingTime }}
-          accessibilityLabel={`${label} time, ${hourLabel(value.hour)}`}
-          accessibilityHint={isPickingTime ? 'Closes the times' : 'Opens the times'}
-          onPress={() => setPickingTime((open) => !open)}
-          style={({ pressed }) => [styles.stripHalf, pressed && styles.pressed]}
+      <View style={styles.hoursBlock}>
+        <Text style={styles.rowLabel}>Time</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.hours}
         >
-          <Text style={styles.stripLabel}>{label} time</Text>
-          <View style={styles.stripValue}>
-            <Ionicons name="time-outline" size={16} color={colors.subtle} />
-            <Text style={styles.timeText}>{hourLabel(value.hour)}</Text>
-            <Ionicons
-              name={isPickingTime ? 'chevron-up' : 'chevron-down'}
-              size={14}
-              color={colors.subtle}
-            />
-          </View>
-        </Pressable>
-      </View>
-
-      {isPickingTime && (
-        <View style={styles.hours}>
           {SLOT_HOURS.map((hour) => {
             const isOn = hour === value.hour;
             return (
@@ -133,13 +120,16 @@ export function SlotCalendar({
                 key={hour}
                 accessibilityRole="button"
                 accessibilityState={{ selected: isOn }}
-                onPress={() => {
-                  onChange({ ...value, hour });
-                  setPickingTime(false);
-                }}
+                accessibilityLabel={`${label} at ${hourLabel(hour)}`}
+                onPress={() => onChange({ ...value, hour })}
                 style={[
                   styles.hour,
-                  isOn && { backgroundColor: tone.accent, borderColor: tone.accent },
+                  isOn && {
+                    backgroundColor: tone.accent,
+                    borderColor: tone.accent,
+                    shadowColor: tone.accent,
+                    ...styles.hourOn,
+                  },
                 ]}
               >
                 <Text style={[styles.hourText, isOn && { color: tone.onAccent }]}>
@@ -148,99 +138,144 @@ export function SlotCalendar({
               </Pressable>
             );
           })}
-        </View>
-      )}
-
-      {/* An arrow onto a month of dead days is hidden, not disabled: an arrow
-          that pages to nothing has lied about there being more. */}
-      <View style={styles.monthBar}>
-        <Arrow direction="back" show={canStep(-1)} onPress={() => step(-1)} />
-        <Text style={styles.monthLabel}>{monthLabel(cursor, now)}</Text>
-        <Arrow direction="forward" show={canStep(1)} onPress={() => step(1)} />
+        </ScrollView>
       </View>
-
-      <View style={styles.weekdays}>
-        {WEEKDAY_INITIALS.map((initial) => (
-          <Text key={initial} style={styles.weekday}>
-            {initial}
-          </Text>
-        ))}
-      </View>
-
-      {weeks.map((week, index) => (
-        <View key={index} style={styles.week}>
-          {week.map((square, column) => {
-            if (square.kind === 'pad') return <View key={column} style={styles.cell} />;
-
-            const isOn = square.dayOffset === value.dayOffset;
-            return (
-              <Pressable
-                key={column}
-                accessibilityRole="button"
-                accessibilityState={{ selected: isOn, disabled: !square.isSelectable }}
-                accessibilityLabel={dayLabel(square.dayOffset, now)}
-                disabled={!square.isSelectable}
-                onPress={() =>
-                  onChange({
-                    ...value,
-                    dayOffset: dayOffsetOf(cursor, square.dayOfMonth, now),
-                  })
-                }
-                style={styles.cell}
-              >
-                <View
-                  style={[
-                    styles.day,
-                    isOn && { backgroundColor: tone.accent },
-                    // Today, unchosen, is ringed rather than filled, so it is
-                    // never mistaken for the day actually picked.
-                    square.isToday && !isOn && { borderColor: tone.accent },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.dayText,
-                      !square.isSelectable && styles.dayTextOff,
-                      isOn && { color: tone.onAccent },
-                    ]}
-                  >
-                    {square.dayOfMonth}
-                  </Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
-      ))}
     </View>
   );
 }
 
-/** A month arrow, or the space one would occupy so the label stays centred. */
-function Arrow({
-  direction,
-  show,
-  onPress,
+/**
+ * The days, on one line you swipe.
+ *
+ * It opens showing the chosen day rather than at the left edge, because a
+ * delivery already set for next week would otherwise open on a rail whose
+ * every visible card is the wrong one. It follows the value when something
+ * else moves it too — moving the pickup past the delivery nudges the delivery,
+ * and the rail has to go with it rather than keep pointing at a day that is no
+ * longer set.
+ */
+function DayRail({
+  days,
+  selected,
+  label,
+  tone,
+  onPick,
 }: {
-  direction: 'back' | 'forward';
-  show: boolean;
-  onPress: () => void;
+  days: readonly RailDay[];
+  selected: number;
+  label: string;
+  tone: SlotTone;
+  onPick: (dayOffset: number) => void;
 }) {
-  if (!show) return <View style={styles.arrow} />;
+  const scrollRef = useRef<ScrollView>(null);
+  const hasOpened = useRef(false);
+  const index = railIndexOf(days, selected);
+
+  useEffect(() => {
+    if (index < 0) return;
+    // One card of run-up, so the chosen day never sits flush against the edge
+    // looking like the first one there is.
+    const x = Math.max(0, (index - 1) * CARD_STRIDE);
+    scrollRef.current?.scrollTo({ x, animated: hasOpened.current });
+    hasOpened.current = true;
+  }, [index]);
+
+  if (days.length === 0) {
+    return (
+      <View style={styles.empty}>
+        <Text style={styles.emptyText}>No days left in the booking window.</Text>
+      </View>
+    );
+  }
 
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={direction === 'back' ? 'Previous month' : 'Next month'}
-      onPress={onPress}
-      style={({ pressed }) => [styles.arrow, pressed && styles.pressed]}
-    >
-      <Ionicons
-        name={direction === 'back' ? 'chevron-back' : 'chevron-forward'}
-        size={20}
-        color={colors.text}
-      />
-    </Pressable>
+    <View style={styles.railBlock}>
+      <Text style={styles.rowLabel}>Date</Text>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        snapToInterval={CARD_STRIDE}
+        decelerationRate="fast"
+        contentContainerStyle={styles.rail}
+      >
+        {days.map((day) => (
+          <DayCard
+            key={day.dayOffset}
+            day={day}
+            isOn={day.dayOffset === selected}
+            label={label}
+            tone={tone}
+            onPress={() => onPick(day.dayOffset)}
+          />
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+/** One day, which gives under the finger the way the piece counter does. */
+function DayCard({
+  day,
+  isOn,
+  label,
+  tone,
+  onPress,
+}: {
+  day: RailDay;
+  isOn: boolean;
+  label: string;
+  tone: SlotTone;
+  onPress: () => void;
+}) {
+  const isReduced = useReducedMotion();
+  const [press] = useState(() => new Animated.Value(1));
+
+  const springTo = (toValue: number) => {
+    if (isReduced) return;
+    Animated.spring(press, {
+      toValue,
+      damping: 15,
+      stiffness: 320,
+      mass: 0.5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: press }] }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ selected: isOn }}
+        accessibilityLabel={`${label} ${day.lead}${day.month ? ` ${day.month}` : ''} ${day.dayOfMonth}`}
+        onPressIn={() => springTo(0.94)}
+        onPressOut={() => springTo(1)}
+        onPress={onPress}
+        style={[
+          styles.card,
+          // Today, unchosen, is ringed rather than filled, so it is never
+          // mistaken for the day actually picked.
+          day.isToday && !isOn && { borderColor: tone.accent },
+          isOn && {
+            backgroundColor: tone.accent,
+            borderColor: tone.accent,
+            shadowColor: tone.accent,
+            ...styles.cardOn,
+          },
+        ]}
+      >
+        <Text
+          numberOfLines={1}
+          style={[styles.cardLead, isOn && { color: tone.onAccent, ...styles.cardLeadOn }]}
+        >
+          {day.lead}
+        </Text>
+        <Text style={[styles.cardDay, isOn && { color: tone.onAccent }]}>{day.dayOfMonth}</Text>
+        {/* Only where the month turns over — and a blank line where it does
+            not, so a card carrying one is not taller than its neighbours. */}
+        <Text style={[styles.cardMonth, isOn && { color: tone.onAccent }]}>{day.month ?? ' '}</Text>
+      </Pressable>
+    </Animated.View>
   );
 }
 
@@ -250,43 +285,72 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     borderRadius: RADII.control,
     backgroundColor: colors.card,
-    overflow: 'hidden',
+    paddingVertical: space.cosy,
+    gap: space.cosy,
   },
-  pressed: { opacity: 0.6 },
+  /** Embedded: the surface around it is already drawn, so this draws none. */
+  bare: { gap: space.cosy },
 
-  /** The settled answer, ruled off from the calendar that changes it. */
-  strip: {
+  /** The leg's name, and the answer it currently holds, on one line. */
+  heading: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.sunken,
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: space.snug,
+    paddingHorizontal: space.cosy,
   },
-  stripHalf: { flex: 1, gap: space.tight, padding: space.cosy },
-  stripSeam: { width: 1, backgroundColor: colors.border },
-  stripLabel: { ...type.caption, color: colors.subtle },
-  stripValue: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  datePill: {
-    flexShrink: 1,
-    borderRadius: RADII.pill,
-    paddingHorizontal: space.snug,
-    paddingVertical: 3,
-  },
-  dateText: { ...type.label },
-  timeText: { ...type.label, color: colors.text },
+  headingLabel: { ...type.label, color: colors.text },
+  headingValue: { ...type.caption, fontFamily: type.label.fontFamily, flexShrink: 1 },
 
-  /** Six hours across two rows of three, so none strands alone on a line. */
+  /**
+   * Tight to the row it names — four against the twelve between the two rows,
+   * so date and time read as two groups rather than four loose lines.
+   */
+  railBlock: { gap: space.tight },
+  hoursBlock: { gap: space.tight },
+  rowLabel: { ...type.caption, color: colors.subtle, paddingHorizontal: space.cosy },
+
+  rail: { flexDirection: 'row', gap: CARD_GAP, paddingHorizontal: space.cosy, paddingVertical: 2 },
+  card: {
+    width: CARD_WIDTH,
+    paddingVertical: space.snug,
+    borderRadius: RADII.chip,
+    // A hairline, not a 2pt rule. Ten cards on a rail drawn in double-weight
+    // border read as a grid of boxes; the selected day is told by its fill.
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    gap: 1,
+  },
+  /**
+   * The chosen day sits up off the rail, but by a shade rather than a flare.
+   * The old lift threw the accent hue at 30% behind every selected chip, which
+   * on a step holding two of them was two blue glows arguing with the button.
+   */
+  cardOn: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  cardLead: { ...type.caption, fontSize: 11, color: colors.subtle },
+  cardLeadOn: { fontFamily: type.label.fontFamily },
+  /** One step down from `value`: still the biggest thing on the card, without
+      setting a date chip in the same face as the screen's total. */
+  cardDay: { ...type.section, color: colors.text },
+  cardMonth: { ...type.caption, fontSize: 10, color: colors.subtle },
+
   hours: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: space.snug,
-    padding: space.cosy,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingHorizontal: space.cosy,
+    paddingVertical: 2,
   },
   hour: {
-    flexGrow: 1,
-    flexBasis: '30%',
+    minWidth: 64,
     minHeight: 40,
+    paddingHorizontal: space.cosy,
     borderRadius: RADII.chip,
     borderWidth: 1,
     borderColor: colors.border,
@@ -294,40 +358,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.card,
   },
+  hourOn: {
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 6,
+    elevation: 2,
+  },
   hourText: { ...type.label, color: colors.text },
 
-  monthBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: space.snug,
-    paddingTop: space.snug,
-  },
-  monthLabel: { ...type.section, color: colors.text },
-  /** 44 square: the arrows are the smallest targets on the screen. */
-  arrow: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-
-  weekdays: { flexDirection: 'row', paddingHorizontal: space.snug },
-  weekday: {
-    ...type.caption,
-    flex: 1,
-    textAlign: 'center',
-    color: colors.subtle,
-    paddingVertical: space.snug,
-  },
-
-  week: { flexDirection: 'row', paddingHorizontal: space.snug },
-  cell: { flex: 1, alignItems: 'center', paddingVertical: 2 },
-  day: {
-    width: 38,
-    height: 38,
-    borderRadius: RADII.pill,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayText: { ...type.label, color: colors.text },
-  /** Outside the window: drawn, so the limit is visible, but plainly not a door. */
-  dayTextOff: { color: colors.borderStrong },
+  empty: { paddingHorizontal: space.cosy },
+  emptyText: { ...type.caption, color: colors.subtle },
 });

@@ -7,8 +7,15 @@
  * out on paper with every line still editable, then asks who it is for and how
  * they paid. The old screen asked the name first and buried the total under
  * an accordion — the counter typed before it counted.
+ *
+ * It is dressed as the flow it is. A customer booking on the shop's own web
+ * page walks through named, numbered questions under a band in the shop's
+ * colour, with the estimate pinned under their thumb and a Back beside every
+ * Continue. The counter was asking the same questions with none of that: an
+ * unnamed second screen reached by a text link, and a button that carried the
+ * price. Same band, same rail, same footer, same paper slip at the end — so
+ * whoever is holding the phone, the shop takes an order one way.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
@@ -24,12 +31,26 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { BrandButton } from '@/components/brand-button';
 import { CheckoutForm } from '@/components/checkout-form';
+import { CounterBand } from '@/components/counter-band';
+import { Odometer } from '@/components/odometer';
+import {
+  SlipCode,
+  SlipCrown,
+  SlipPaper,
+  SlipRow,
+  SlipStub,
+  SlipTear,
+  SlipTotal,
+} from '@/components/order-slip';
+import { Reveal } from '@/components/reveal';
+import type { QuantityTone } from '@/components/quantity-picker';
 import { ScaleSheet } from '@/components/scale-sheet';
 import { ALL_CATEGORIES, CategoryStrip, ServiceMenu } from '@/components/service-menu';
 import { TicketSlip } from '@/components/ticket-slip';
 import {
-  Button,
+  ACCENTS,
   EmptyState,
   ErrorState,
   ErrorText,
@@ -38,37 +59,45 @@ import {
   Subtle,
   colors,
   formatMoney,
-  mono,
+  formatWhen,
   space,
   type,
-  CROWN,
 } from '@/components/ui-kit';
 import { getOrder, getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
+import { actualBill } from '@/lib/domain/actual-bill';
 import { docketNumber } from '@/lib/domain/docket';
+import { shopRoleBadge } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { orderContact } from '@/lib/domain/order-contact';
 import { adjustQuantity, quantityCeiling } from '@/lib/domain/order-quantity';
-import { orderTags } from '@/lib/domain/order-tags';
-import {
-  chargeLabel,
-  tapTile,
-  ticketCount,
-  ticketCountLabel,
-  untapTile,
-} from '@/lib/domain/pos-ticket';
+import { placedScene } from '@/lib/domain/order-scene';
+import { paymentSummaryLine } from '@/lib/domain/payment-summary';
+import { tapTile, ticketCount, ticketCountLabel, untapTile } from '@/lib/domain/pos-ticket';
 import { estimateOrderTotal } from '@/lib/domain/pricing';
+import { buildOrderQr } from '@/lib/domain/qr';
 import { groupServicesByCategory } from '@/lib/domain/service-catalog';
+import { resolveAccent } from '@/lib/domain/shop-branding';
+import { previousStep } from '@/lib/domain/step-rail';
+import {
+  TILL_STEPS,
+  savedScanNote,
+  savedSlipNote,
+  savedSlipTitle,
+  tillCta,
+  tillEstimateLabel,
+  tillStepTitle,
+  type TillStep,
+} from '@/lib/domain/till-flow';
 import {
   validateWalkIn,
   type WalkInErrors,
   type WalkInInput,
 } from '@/lib/domain/walk-in-order';
-import type { OrderRow, ServiceRow } from '@/lib/types';
+import { storefrontTheme, type StorefrontTheme } from '@/lib/domain/web-theme';
+import type { OrderRow, ServiceRow, Shop } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { useHaptic } from '@/lib/use-app-settings';
 import { usePrinter } from '@/lib/use-printer';
-
-type Step = 'ring' | 'checkout';
 
 const EMPTY_INTAKE: WalkInInput = {
   customerName: '',
@@ -79,22 +108,31 @@ const EMPTY_INTAKE: WalkInInput = {
   isPaid: false,
 };
 
+/** The counter wears the same colour the shop's own web page does. */
+function shopTheme(shop: Shop): StorefrontTheme {
+  return storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
+}
+
 /**
- * The frame both steps share: scrolling work above, a pinned decision below.
- * Unlike `Screen`, it lifts the footer over the keyboard, because the checkout
- * step types a name directly above the button that saves it.
+ * The frame both steps share: the band up top, scrolling work under it, a
+ * pinned decision below. Unlike `Screen`, it lifts the footer over the
+ * keyboard, because the checkout step types a name directly above the button
+ * that saves it.
  */
 function TillShell({
+  band,
   children,
   footer,
   scroll = true,
 }: {
+  band: React.ReactNode;
   children: React.ReactNode;
   footer: React.ReactNode;
   scroll?: boolean;
 }) {
   return (
     <SafeAreaView style={styles.shell} edges={['left', 'right']}>
+      {band}
       <KeyboardAvoidingView
         style={styles.shell}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -120,9 +158,9 @@ export default function Pos() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const haptic = useHaptic();
-  const { shop, isLoading, error: shopError } = useActiveShop();
+  const { shop, shopRole, isLoading, error: shopError } = useActiveShop();
 
-  const [step, setStep] = useState<Step>('ring');
+  const [step, setStep] = useState<TillStep>('items');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [weighing, setWeighing] = useState<ServiceRow | null>(null);
@@ -163,7 +201,7 @@ export default function Pos() {
   const printer = usePrinter();
 
   const printLastOrder = async (orderId: string) => {
-    // The saved card only holds the order row; the receipt wants its lines too.
+    // The saved slip only holds the order row; the receipt wants its lines too.
     let full;
     try {
       full = await getOrder(orderId);
@@ -217,7 +255,7 @@ export default function Pos() {
   };
 
   // One tap wipes the whole ticket, so it asks first. Sitting a thumb's width
-  // above the Charge button, an unguarded Clear is a mis-tap waiting to happen.
+  // from Continue, an unguarded Clear is a mis-tap waiting to happen.
   const confirmClear = () => {
     haptic('warning');
     Alert.alert('Clear the ticket?', `${ticketCountLabel(count)} will come off.`, [
@@ -280,7 +318,7 @@ export default function Pos() {
     setFieldErrors({});
     setSaveError('');
     setCategory(ALL_CATEGORIES);
-    setStep('ring');
+    setStep('items');
   };
 
   if (isLoading || (shopId && isLoadingServices)) return <Loading />;
@@ -300,43 +338,95 @@ export default function Pos() {
     );
   }
 
+  const theme = shopTheme(shop);
+  // The ruler, the chips and a chosen tile wear the same colour as the band;
+  // the app's blue would be a second brand inside one flow.
+  const tone: QuantityTone = { brand: theme.brand, soft: theme.brandSoft, ink: theme.brandInk };
+
   if (lastOrder) {
+    const contact = orderContact(lastOrder);
+    const bill = actualBill(lastOrder);
     return (
-      <Screen center>
-        <View style={styles.saved}>
-          <View style={styles.savedMark}>
-            <Ionicons name="checkmark" size={34} color={colors.onAccent} />
-          </View>
-          <Text style={styles.savedTitle}>Order saved</Text>
-          <Text style={styles.savedDocket}>NO. {docketNumber(lastOrder.id)}</Text>
-          <View style={styles.savedCard}>
-            <Text style={styles.savedName}>{orderContact(lastOrder).name}</Text>
-            <Subtle>{orderTags(lastOrder).join(' · ')}</Subtle>
-            <Text style={styles.savedTotal}>
-              {formatMoney(lastOrder.final_total ?? lastOrder.estimated_total)}
-            </Text>
-          </View>
-          {printer.saved ? (
-            <Button
-              title={printer.state.kind === 'printing' ? 'Printing…' : 'Print receipt'}
-              variant="outline"
-              disabled={printer.state.kind === 'printing'}
-              onPress={() => printLastOrder(lastOrder.id)}
-            />
-          ) : null}
-          {printer.state.kind === 'error' ? <ErrorText>{printer.state.message}</ErrorText> : null}
-          <Button title="Next customer" onPress={startNext} />
-          <Button
-            title="Open this order"
-            variant="outline"
-            onPress={() => {
-              const orderId = lastOrder.id;
-              startNext();
-              router.push(`/(merchant)/order/${orderId}`);
-            }}
-          />
-        </View>
-      </Screen>
+      <SafeAreaView style={styles.shell} edges={['top', 'left', 'right']}>
+        <ScrollView contentContainerStyle={styles.savedContent}>
+          <Reveal>
+            {/* The same slip a customer's own booking prints, filled in by the
+                counter: the shop is about to hand this order over, and both
+                sides of the counter should be looking at one object. */}
+            <SlipPaper>
+              <SlipCrown
+                scene={placedScene(lastOrder.fulfillment)}
+                brand={theme.brand}
+                halo={theme.brandSoft}
+                title={savedSlipTitle()}
+                note={savedSlipNote(lastOrder.fulfillment)}
+              />
+
+              <SlipTear />
+
+              <SlipStub>
+                <SlipRow label="Order" value={docketNumber(lastOrder.id)} isCode />
+                <SlipRow label="Customer" value={contact.name} />
+                <SlipRow label="Taken" value={formatWhen(lastOrder.created_at)} />
+                <SlipTotal
+                  label={bill.heading}
+                  value={bill.amount}
+                  note={paymentSummaryLine({
+                    paymentMethod: lastOrder.payment_method,
+                    isPaid: lastOrder.payment_status === 'paid',
+                    fulfillment: lastOrder.fulfillment,
+                    total: lastOrder.final_total ?? lastOrder.estimated_total,
+                  })}
+                />
+                {/* The ticket's own claim code. Held up at the counter it puts
+                    the order in the customer's phone, which is the difference
+                    between a walk-in they can follow and one they cannot. */}
+                <SlipCode
+                  value={buildOrderQr(lastOrder.id, lastOrder.claim_token)}
+                  note={savedScanNote()}
+                />
+              </SlipStub>
+            </SlipPaper>
+          </Reveal>
+
+          <Reveal delay={120}>
+            <View style={styles.savedActions}>
+              <View style={styles.buttons}>
+                <BrandButton
+                  title="Next customer"
+                  onPress={startNext}
+                  fill={theme.brand}
+                  ink={theme.onBrand}
+                  flex={2}
+                />
+                {printer.saved ? (
+                  <BrandButton
+                    title={printer.state.kind === 'printing' ? 'Printing…' : 'Print'}
+                    onPress={() => printLastOrder(lastOrder.id)}
+                    disabled={printer.state.kind === 'printing'}
+                    fill={theme.brandSoft}
+                    ink={theme.brandInk}
+                    flex={1}
+                  />
+                ) : null}
+              </View>
+              {printer.state.kind === 'error' ? <ErrorText>{printer.state.message}</ErrorText> : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Open this order"
+                onPress={() => {
+                  const orderId = lastOrder.id;
+                  startNext();
+                  router.push(`/(merchant)/order/${orderId}`);
+                }}
+                style={({ pressed }) => [styles.openRow, pressed && styles.pressed]}
+              >
+                <Text style={[styles.openText, { color: theme.brandInk }]}>Open this order ›</Text>
+              </Pressable>
+            </View>
+          </Reveal>
+        </ScrollView>
+      </SafeAreaView>
     );
   }
 
@@ -361,41 +451,79 @@ export default function Pos() {
       onConfirm={handleWeighed}
       onRemove={() => weighing && handleRemove(weighing)}
       onClose={() => setWeighing(null)}
+      tone={tone}
     />
+  );
+
+  const band = (
+    <CounterBand
+      theme={theme}
+      shopName={shop.name}
+      roleBadge={shopRoleBadge(shopRole)}
+      title={tillStepTitle(step)}
+      steps={TILL_STEPS}
+      current={step}
+      onGo={setStep}
+      onSettings={() => router.push('/(merchant)/settings')}
+    />
+  );
+
+  /** Where Back goes. Null on the first step, which is why it is not drawn. */
+  const back = previousStep(TILL_STEPS, step);
+
+  /**
+   * The running total, pinned. The same row the booking page carries: what is
+   * on the ticket on the left, the one figure the step is producing on the
+   * right, moving on the ruler that produces it rather than blinking to it.
+   */
+  const totalRow = (
+    <View style={styles.totalRow}>
+      <Text style={styles.totalLabel}>{tillEstimateLabel(count)}</Text>
+      {/* An em dash is not a number and has no wheels to turn, so an
+          unpriceable ticket stays plain text. */}
+      {estimate.total === null ? (
+        <Text style={[styles.totalValue, styles.totalMuted]}>—</Text>
+      ) : (
+        <Odometer
+          value={formatMoney(estimate.total)}
+          style={{ ...styles.totalValue, color: theme.brandInk }}
+          label={`Estimate ${formatMoney(estimate.total)}`}
+        />
+      )}
+    </View>
   );
 
   if (step === 'checkout') {
     return (
       <TillShell
+        band={band}
         footer={
           <>
             {/* The total stays pinned on this step too: the slip above scrolls
                 away under the keyboard, and the figure is what is being saved. */}
-            <View style={styles.footerRow}>
-              <Text style={styles.footerCount}>{ticketCountLabel(count)}</Text>
-              <Text style={styles.footerTotal}>
-                {estimate.total === null ? '—' : formatMoney(estimate.total)}
-              </Text>
+            {totalRow}
+            <View style={styles.buttons}>
+              {back ? (
+                <BrandButton
+                  title="Add more"
+                  onPress={() => setStep(back)}
+                  fill={theme.brandSoft}
+                  ink={theme.brandInk}
+                  flex={1}
+                />
+              ) : null}
+              <BrandButton
+                title={tillCta('checkout', mutation.isPending)}
+                onPress={handleSave}
+                disabled={count === 0 || estimate.failed || mutation.isPending}
+                fill={theme.brand}
+                ink={theme.onBrand}
+                flex={2}
+              />
             </View>
-            <Button
-              title={mutation.isPending ? 'Saving…' : 'Save order'}
-              onPress={handleSave}
-              disabled={count === 0 || estimate.failed || mutation.isPending}
-            />
           </>
         }
       >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Back to the menu"
-          onPress={() => setStep('ring')}
-          hitSlop={space.snug}
-          style={({ pressed }) => [styles.backRow, pressed && styles.pressed]}
-        >
-          <Ionicons name="chevron-back" size={20} color={colors.actionInk} />
-          <Text style={styles.backText}>Add more items</Text>
-        </Pressable>
-
         <TicketSlip
           services={services ?? []}
           quantities={quantities}
@@ -418,6 +546,7 @@ export default function Pos() {
           errors={fieldErrors}
           total={estimate.total}
           onChange={(patch) => setIntake((prev) => ({ ...prev, ...patch }))}
+          tone={tone}
         />
         <ErrorText>{saveError}</ErrorText>
 
@@ -428,28 +557,32 @@ export default function Pos() {
 
   return (
     <TillShell
+      band={band}
       scroll={false}
       footer={
         <>
-          <View style={styles.footerRow}>
-            <Text style={styles.footerCount}>{ticketCountLabel(count)}</Text>
+          {totalRow}
+          <View style={styles.buttons}>
+            {/* Clear only exists once there is something to lose, and it is the
+                one control here that is not the shop's colour. */}
             {count > 0 ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Clear the ticket"
+              <BrandButton
+                title="Clear"
                 onPress={confirmClear}
-                hitSlop={space.cosy}
-                style={({ pressed }) => [styles.footerClearKey, pressed && styles.pressed]}
-              >
-                <Text style={styles.footerClear}>Clear</Text>
-              </Pressable>
+                fill={colors.sunken}
+                ink={colors.dangerInk}
+                flex={1}
+              />
             ) : null}
+            <BrandButton
+              title={tillCta('items', false)}
+              onPress={goToCheckout}
+              disabled={count === 0 || estimate.failed}
+              fill={theme.brand}
+              ink={theme.onBrand}
+              flex={2}
+            />
           </View>
-          <Button
-            title={chargeLabel(count, estimate.total)}
-            onPress={goToCheckout}
-            disabled={count === 0 || estimate.failed}
-          />
           {estimate.failed ? (
             <ErrorText>One of these prices cannot be read. Check it under Prices.</ErrorText>
           ) : null}
@@ -457,7 +590,7 @@ export default function Pos() {
       }
     >
       <View style={styles.stripWrap}>
-        <CategoryStrip groups={groups} active={category} onChange={setCategory} />
+        <CategoryStrip groups={groups} active={category} onChange={setCategory} tone={tone} />
       </View>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <ServiceMenu
@@ -466,6 +599,7 @@ export default function Pos() {
           quantities={quantities}
           onTap={handleTile}
           onLess={handleLess}
+          tone={tone}
         />
       </ScrollView>
 
@@ -487,56 +621,30 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
-  footerRow: {
+  totalRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: space.cosy,
   },
-  footerCount: { ...type.label, color: colors.subtle },
-  footerTotal: { ...type.value, fontFamily: mono, color: colors.text },
-  footerClearKey: { minHeight: 32, justifyContent: 'center', paddingHorizontal: space.tight },
-  footerClear: { ...type.label, color: colors.dangerInk },
+  totalLabel: { ...type.caption, color: colors.subtle },
+  totalValue: { ...type.value, color: colors.text },
+  totalMuted: { color: colors.subtle },
+  buttons: { flexDirection: 'row', gap: space.snug },
 
-  backRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.tight,
-    alignSelf: 'flex-start',
-  },
-  backText: { ...type.label, color: colors.actionInk },
-
-  saved: { alignItems: 'stretch', gap: space.cosy },
-  savedMark: {
-    alignSelf: 'center',
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.moneyIn,
-  },
-  savedTitle: { ...type.title, textAlign: 'center', color: colors.text },
-  savedDocket: {
-    fontFamily: mono,
-    fontSize: 13,
-    letterSpacing: 1,
-    textAlign: 'center',
-    color: colors.subtle,
-    marginBottom: space.snug,
-  },
-  savedCard: {
-    backgroundColor: colors.card,
-    ...CROWN,
-    borderWidth: 1,
-    borderColor: colors.border,
+  /**
+   * Clear of the raised tab button. The saved slip draws its own frame rather
+   * than `Screen`'s, so the room the tab bar needs is this file's to keep.
+   */
+  savedContent: {
     padding: space.room,
-    gap: space.tight,
-    alignItems: 'center',
-    marginBottom: space.snug,
+    paddingTop: space.section,
+    paddingBottom: space.gulf * 2,
+    gap: space.section,
   },
-  savedName: { ...type.section, color: colors.text },
-  savedTotal: { ...type.hero, color: colors.text, marginTop: space.tight },
+  savedActions: { gap: space.cosy },
+  openRow: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
+  openText: { ...type.label },
 
   pressed: { opacity: 0.7 },
 });

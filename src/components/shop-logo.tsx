@@ -11,7 +11,7 @@ import { Image } from 'expo-image';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, type } from '@/components/ui-kit';
+import { colors, space, type } from '@/components/ui-kit';
 import { shopInitials } from '@/lib/domain/connected-shops';
 
 interface Accent {
@@ -27,6 +27,17 @@ interface ShopLogoProps {
   accent?: Accent | null;
   /** What to draw with no logo: the shop's initials, or the directory's storefront glyph. */
   fallback?: 'initials' | 'storefront';
+  /**
+   * How the mark is cut.
+   *
+   * `circle` is the avatar: a disc filled edge to edge, which is right at list
+   * sizes where the mark only has to identify a row. `plate` is the
+   * letterhead — the whole logo held inside a rounded square on white, for the
+   * one place on a surface where the logo *is* what is being looked at. A
+   * laundry's mark is usually a badge with its name lettered inside it, and a
+   * disc crop of that at display size cuts the lettering off.
+   */
+  shape?: 'circle' | 'plate';
 }
 
 export function ShopLogo({
@@ -35,8 +46,14 @@ export function ShopLogo({
   size = 44,
   accent = null,
   fallback = 'initials',
+  shape = 'circle',
 }: ShopLogoProps) {
-  const frame = { width: size, height: size, borderRadius: size / 2 };
+  const isPlate = shape === 'plate';
+  const frame = {
+    width: size,
+    height: size,
+    borderRadius: isPlate ? Math.round(size * 0.28) : size / 2,
+  };
   // A logo that will not decode (an upload the old file reader truncated to a
   // few bytes) used to leave an empty disc where the mark should be. The
   // initials are the mark the shop had before it uploaded anything, so a
@@ -47,8 +64,9 @@ export function ShopLogo({
     return (
       <Image
         source={{ uri: logoUrl }}
-        style={[styles.image, frame]}
-        contentFit="cover"
+        style={[isPlate ? styles.plate : styles.image, frame]}
+        // A plate holds the whole mark; a disc fills itself with it.
+        contentFit={isPlate ? 'contain' : 'cover'}
         transition={150}
         accessibilityLabel={`${name} logo`}
         onError={() => setFailedUrl(logoUrl)}
@@ -80,6 +98,12 @@ export function ShopLogo({
 
 const styles = StyleSheet.create({
   image: { backgroundColor: colors.sunken },
+  /**
+   * White, not the app's sunken grey: a logo is artwork drawn for paper, and
+   * the ground it was drawn against is what keeps its own colours true. The
+   * inset is the margin a printed label leaves around a mark.
+   */
+  plate: { backgroundColor: colors.card, padding: space.snug },
   fallback: {
     alignItems: 'center',
     justifyContent: 'center',

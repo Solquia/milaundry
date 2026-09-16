@@ -100,8 +100,19 @@ export function showcasePrice(service: ShowcaseService): ShowcasePrice {
 export interface ShowcaseTone {
   /** The tile: the category's colour at full strength, with the glyph in white on it. */
   bg: string;
-  /** The same hue deep enough to write the title in, on the white card. */
+  /** The same hue deep enough to write the title in, on the card. */
   ink: string;
+  /**
+   * The card's own ground: the same hue at a whisper.
+   *
+   * The cards were white, on the reasoning that colour on them would compete
+   * with the object. Six white boxes in a grid is a spreadsheet, though, and
+   * the category was left to a chip in the corner that nobody reads before the
+   * price. At this strength the ground never competes with the drawing — it is
+   * lighter than the page it sits on — but it does mean a customer sorts wash
+   * from dry-cleaning by the colour of the tile rather than by reading it.
+   */
+  field: string;
 }
 
 /**
@@ -111,12 +122,12 @@ export interface ShowcaseTone {
  * same hue deep enough to clear 4.5:1 as a title on the white card.
  */
 const CATEGORY_TONES: Record<ServiceCategory, ShowcaseTone> = {
-  wash_fold: { bg: '#2B7FE0', ink: '#0F5FB8' },
-  ironing: { bg: '#F0742A', ink: '#B4470F' },
-  dry_cleaning: { bg: '#7B5CE5', ink: '#5B3DB8' },
-  special_items: { bg: '#1FA46A', ink: '#0B6B44' },
-  self_service: { bg: '#F2B233', ink: '#8A5A05' },
-  other: { bg: '#6B7C93', ink: '#43536B' },
+  wash_fold: { bg: '#2B7FE0', ink: '#0F5FB8', field: '#E4EFFC' },
+  ironing: { bg: '#F0742A', ink: '#B4470F', field: '#FDEDE2' },
+  dry_cleaning: { bg: '#7B5CE5', ink: '#5B3DB8', field: '#EDE7FB' },
+  special_items: { bg: '#1FA46A', ink: '#0B6B44', field: '#E0F3EA' },
+  self_service: { bg: '#F2B233', ink: '#8A5A05', field: '#FCF1DC' },
+  other: { bg: '#6B7C93', ink: '#43536B', field: '#ECEFF4' },
 };
 
 export function showcaseTone(category: ServiceCategory): ShowcaseTone {

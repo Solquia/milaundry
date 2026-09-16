@@ -1,9 +1,25 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
+import { AddressBook, type AddressDraftOut } from '@/components/address-book';
+import { BlueField } from '@/components/blue-field';
+import { PaymentPreferenceCard } from '@/components/payment-preference-card';
 import { Button, Screen, colors, elevation, space, type } from '@/components/ui-kit';
+import {
+  deleteAddress,
+  getMyAddresses,
+  getMyOrders,
+  getRegisteredShops,
+  saveAddress,
+  savePaymentPreference,
+  setDefaultAddress,
+} from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { friendlyMerchantError } from '@/lib/domain/merchant-error';
+import { formatPhoneInput } from '@/lib/domain/phone-input';
+import { profileFacts, profileInitials } from '@/lib/domain/ticket-stamp';
 import {
   SETTING_SECTIONS,
   toggleStateLabel,
@@ -25,9 +41,57 @@ import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
  * ends a session, and the one thing that does is red, alone, and last.
  */
 export default function CustomerSettings() {
-  const { profile, signOut } = useAuth();
+  const { profile, refreshProfile, signOut } = useAuth();
   const { settings, toggle } = useAppSettings();
   const haptic = useHaptic();
+
+  // The same two cache keys the home already fills, so opening settings costs
+  // no request and the counts cannot disagree with the screen behind them.
+  const orders = useQuery({ queryKey: ['my-orders'], queryFn: getMyOrders });
+  const shops = useQuery({ queryKey: ['registered-shops'], queryFn: getRegisteredShops });
+
+  // The book: where the laundry goes, and how it gets paid for. Both are read
+  // again by the booking flows off these same cache keys, so an address saved
+  // here is in the next booking without a refetch.
+  const queryClient = useQueryClient();
+  const addresses = useQuery({ queryKey: ['my-addresses'], queryFn: getMyAddresses });
+  const [bookError, setBookError] = React.useState('');
+
+  const refreshAddresses = async () => {
+    setBookError('');
+    await queryClient.invalidateQueries({ queryKey: ['my-addresses'] });
+  };
+  const reportBookError = (err: Error) => setBookError(friendlyMerchantError('save-order', err.message));
+
+  const addressSave = useMutation({
+    mutationFn: (draft: AddressDraftOut) => saveAddress(draft),
+    onSuccess: refreshAddresses,
+    onError: reportBookError,
+  });
+  const addressDelete = useMutation({
+    mutationFn: (id: string) => deleteAddress(id),
+    onSuccess: refreshAddresses,
+    onError: reportBookError,
+  });
+  const addressDefault = useMutation({
+    mutationFn: (id: string) => setDefaultAddress(id),
+    onSuccess: refreshAddresses,
+    onError: reportBookError,
+  });
+
+  const [payError, setPayError] = React.useState('');
+  const payment = useMutation({
+    mutationFn: savePaymentPreference,
+    onSuccess: async () => {
+      setPayError('');
+      // The preference lives on the profile row, which the session holds.
+      await refreshProfile();
+    },
+    onError: (err: Error) => setPayError(friendlyMerchantError('save-order', err.message)),
+  });
+
+  const isAddressBusy =
+    addressSave.isPending || addressDelete.isPending || addressDefault.isPending;
 
   const onToggle = (row: SettingRow) => {
     // The tick fires from the state being left, so turning haptics *off* still
@@ -47,12 +111,56 @@ export default function CustomerSettings() {
 
   return (
     <Screen>
-      {profile?.full_name || profile?.username ? (
-        <View style={styles.who}>
-          <Text style={styles.whoLabel}>SIGNED IN AS</Text>
-          <Text style={styles.whoName}>{profile.full_name ?? profile.username}</Text>
+      {/* Who this account is, on the home's own light. The screen used to open
+          on a grey "SIGNED IN AS" caption above a name — the least that could
+          be said about a person, said as quietly as possible. */}
+      <View style={styles.profile}>
+        <BlueField />
+        <View style={styles.profileRow}>
+          <View style={styles.disc}>
+            <Text style={styles.discText}>{profileInitials(profile?.full_name)}</Text>
+          </View>
+          <View style={styles.profileWords}>
+            <Text style={styles.profileName} numberOfLines={1}>
+              {profile?.full_name || profile?.username || 'Your account'}
+            </Text>
+            {profile?.phone ? (
+              <Text style={styles.profileLine}>0{formatPhoneInput(profile.phone)}</Text>
+            ) : null}
+          </View>
         </View>
-      ) : null}
+        {/* Real figures only: what they have with us and how long they have had
+            it. No completeness bar over a profile nobody was asked to fill. */}
+        <Text style={styles.profileFacts}>
+          {profileFacts({
+            shopCount: (shops.data ?? []).length,
+            orderCount: (orders.data ?? []).length,
+            createdAt: profile?.created_at,
+          })}
+        </Text>
+      </View>
+
+      {/* Typed once. The booking flows read the same list and drop the default
+          straight into the address field. */}
+      <AddressBook
+        addresses={addresses.data ?? []}
+        isBusy={isAddressBusy}
+        error={bookError}
+        onSave={(draft) => addressSave.mutate(draft)}
+        onDelete={(id) => {
+          haptic('warning');
+          addressDelete.mutate(id);
+        }}
+        onMakeDefault={(id) => addressDefault.mutate(id)}
+      />
+
+      <PaymentPreferenceCard
+        method={profile?.preferred_payment_method ?? null}
+        handle={profile?.payment_handle ?? ''}
+        isBusy={payment.isPending}
+        error={payError}
+        onSave={(preference) => payment.mutate(preference)}
+      />
 
       {SETTING_SECTIONS.map((section) => (
         <View key={section.title}>
@@ -133,11 +241,35 @@ function ToggleRow({
 }
 
 const styles = StyleSheet.create({
-  who: {
-    paddingBottom: space.section,
+  /**
+   * The identity card. The field is absolutely positioned inside it, so the
+   * card clips it — the same living blue the home stands on, cut to a corner.
+   */
+  profile: {
+    borderRadius: 24,
+    overflow: 'hidden',
+    padding: space.section,
+    gap: space.room,
+    marginBottom: space.snug,
+    ...elevation.hero,
   },
-  whoLabel: { ...type.label, fontSize: 11, color: colors.subtle, letterSpacing: 0.8 },
-  whoName: { ...type.title, color: colors.text, marginTop: space.tight },
+  profileRow: { flexDirection: 'row', alignItems: 'center', gap: space.room },
+  /** Where a photograph would be, if the product ever asks for one. */
+  disc: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.34)',
+  },
+  discText: { ...type.title, fontSize: 24, color: colors.onAccent },
+  profileWords: { flex: 1, gap: 2 },
+  profileName: { ...type.title, fontSize: 24, color: colors.onAccent },
+  profileLine: { ...type.body, color: 'rgba(255, 255, 255, 0.88)' },
+  profileFacts: { ...type.caption, color: 'rgba(255, 255, 255, 0.78)' },
 
   sectionLabel: {
     ...type.label,

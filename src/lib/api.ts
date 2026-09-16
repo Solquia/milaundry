@@ -15,6 +15,7 @@ import type { ShopPin as ShopLocationPin } from './domain/shop-location';
 import type { ShopPaymentDetails } from './domain/shop-payment';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
+import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
@@ -44,6 +45,10 @@ export interface OrderWithDetails extends OrderRow {
         | 'name'
         | 'slug'
         | 'brand_accent'
+        // The mark the shop uploaded. The order screen prints it at the head of
+        // the docket, so without it here every ticket fell back to initials
+        // however much branding the merchant had actually done.
+        | 'logo_url'
         // The rails ride along so the customer's pay screen can say where the
         // money actually goes without a second fetch racing the first.
         | 'gcash_number'
@@ -61,12 +66,105 @@ export interface OrderWithDetails extends OrderRow {
 // Without it the order screen falls back to the id hash, and a laundry that had
 // chosen teal would be teal everywhere in the app except on its own orders.
 const ORDER_SELECT =
-  '*, shop:shops(id, name, slug, brand_accent, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
+  '*, shop:shops(id, name, slug, brand_accent, logo_url, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
 
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
   if (result.data === null) throw new Error('No data returned');
   return result.data;
+}
+
+// ── the customer's own book ──────────────────────────────────────────────
+//
+// Addresses they have named, and how they usually pay. Both exist so a booking
+// can arrive already filled in; both are theirs alone, and the row-level
+// policies in migration 0024 are what actually enforce that.
+
+export async function getMyAddresses(): Promise<SavedAddress[]> {
+  const result = await supabase
+    .from('customer_addresses')
+    .select('*')
+    .order('created_at', { ascending: false });
+  return unwrap(result) as SavedAddress[];
+}
+
+export interface AddressDraft {
+  /** Set when editing an address the customer already saved. */
+  id?: string;
+  label: string;
+  address: string;
+  notes: string;
+  /** Only ever true; clearing a default happens by making another one. */
+  isDefault?: boolean;
+}
+
+/**
+ * Adds or updates one address.
+ *
+ * `profile_id` is stamped from the session rather than passed in: the insert
+ * policy would refuse another id anyway, and a client that never names one
+ * cannot be talked into naming somebody else's.
+ */
+export async function saveAddress(draft: AddressDraft): Promise<SavedAddress> {
+  const { data: auth } = await supabase.auth.getUser();
+  const profileId = auth.user?.id;
+  if (!profileId) throw new Error('Sign in to save an address.');
+
+  const row = {
+    profile_id: profileId,
+    label: draft.label,
+    address: draft.address,
+    notes: draft.notes,
+  };
+
+  const result = draft.id
+    ? await supabase
+        .from('customer_addresses')
+        .update(row)
+        .eq('id', draft.id)
+        .select()
+        .single()
+    : await supabase.from('customer_addresses').insert(row).select().single();
+
+  const saved = unwrap(result) as SavedAddress;
+  // The first address a customer saves is the one every booking should use;
+  // asking them to then mark it default is asking them to answer a question
+  // with one possible answer.
+  if (draft.isDefault) return setDefaultAddress(saved.id);
+  return saved;
+}
+
+export async function deleteAddress(id: string): Promise<void> {
+  const result = await supabase.from('customer_addresses').delete().eq('id', id);
+  if (result.error) throw new Error(result.error.message);
+}
+
+/** Clears the old default and sets the new one in a single statement (0024). */
+export async function setDefaultAddress(id: string): Promise<SavedAddress> {
+  const result = await supabase.rpc('set_default_address', { p_address_id: id });
+  return unwrap(result) as SavedAddress;
+}
+
+/**
+ * How this customer pays. The handle is the wallet's mobile number and nothing
+ * else — there is no card on file anywhere in this product.
+ */
+export async function savePaymentPreference(preference: {
+  method: PreferredMethod;
+  handle: string;
+}): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const profileId = auth.user?.id;
+  if (!profileId) throw new Error('Sign in to save how you pay.');
+
+  const result = await supabase
+    .from('profiles')
+    .update({
+      preferred_payment_method: preference.method,
+      payment_handle: preference.handle || null,
+    })
+    .eq('id', profileId);
+  if (result.error) throw new Error(result.error.message);
 }
 
 // ── shops ────────────────────────────────────────────────────────────────
@@ -187,6 +285,14 @@ export interface PlaceOrderItem {
 }
 
 export interface PlaceOrderOptions {
+  /**
+   * `online` for a booking made through the shop's public page, `walk_in` for
+   * one taken at the counter. Left unset the database infers it from whether
+   * the caller can operate the shop, which is right for the POS and wrong for
+   * an owner testing their own storefront. The status follows from it: a
+   * walk-in is in the shop, an online booking is not until someone says so.
+   */
+  orderType?: 'walk_in' | 'online';
   customerId?: string;
   notes?: string;
   fulfillment?: Fulfillment;
@@ -208,6 +314,7 @@ export async function placeOrder(
 ): Promise<OrderRow> {
   const result = await supabase.rpc('place_order', {
     p_shop_id: shopId,
+    p_order_type: options.orderType ?? null,
     p_items: items,
     p_customer_id: options.customerId ?? null,
     p_notes: options.notes ?? '',

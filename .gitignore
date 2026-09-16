@@ -51,3 +51,6 @@ build-android*.log
 # local tool caches
 .impeccable/
 supabase/.temp/
+
+.vercel
+.env*

@@ -69,3 +69,40 @@ export function startingPrice(services: readonly PricedService[]): number | null
   if (payable.length === 0) return null;
   return Math.min(...payable);
 }
+
+export interface RatingBand {
+  /** 1–5. */
+  stars: number;
+  count: number;
+  /**
+   * This band against the busiest one, 0–1 — a bar length, not a percentage of
+   * all reviews. A shop where 40 of 50 people said five stars should read as
+   * one full bar and four stubs, not as five bars nobody can compare.
+   */
+  share: number;
+}
+
+/**
+ * How the ratings are spread, best band first.
+ *
+ * An average alone hides the shape behind it: 4.0 from forty fives and ten ones
+ * is a different shop from 4.0 where everybody said four. Always five rows,
+ * including the empty ones — a gap in the middle of the ladder is itself the
+ * information.
+ */
+export function ratingBreakdown(reviews: readonly RatedReview[]): RatingBand[] {
+  const counts = new Map<number, number>();
+  for (const review of reviews) {
+    if (!isUsableRating(review.rating)) continue;
+    const band = Math.round(review.rating);
+    counts.set(band, (counts.get(band) ?? 0) + 1);
+  }
+
+  const busiest = Math.max(0, ...counts.values());
+  const bands: RatingBand[] = [];
+  for (let stars = MAX_STARS; stars >= MIN_STARS; stars -= 1) {
+    const count = counts.get(stars) ?? 0;
+    bands.push({ stars, count, share: busiest === 0 ? 0 : count / busiest });
+  }
+  return bands;
+}

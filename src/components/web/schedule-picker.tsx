@@ -8,9 +8,11 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AddressChips } from '@/components/address-book';
 import { SlotCalendar } from '@/components/slot-calendar';
 import { ErrorText, Field, colors, space, type } from '@/components/ui-kit';
 import type { BookingScheduleErrors } from '@/lib/domain/booking-schedule';
+import type { SavedAddress } from '@/lib/domain/customer-book';
 import {
   BOOKING_WINDOW_DAYS,
   keepDeliveryAfterPickup,
@@ -41,9 +43,17 @@ interface SchedulePickerProps {
   onChange: (next: ScheduleValue) => void;
   errors: BookingScheduleErrors;
   theme: StorefrontTheme;
+  /** What this customer has saved, so the street is picked rather than typed. */
+  addresses?: readonly SavedAddress[];
 }
 
-export function SchedulePicker({ value, onChange, errors, theme }: SchedulePickerProps) {
+export function SchedulePicker({
+  value,
+  onChange,
+  errors,
+  theme,
+  addresses = [],
+}: SchedulePickerProps) {
   const now = new Date();
   const set = (patch: Partial<ScheduleValue>) => onChange({ ...value, ...patch });
   // The calendar takes the shop's accent; its neutrals stay the app's, so a
@@ -73,6 +83,13 @@ export function SchedulePicker({ value, onChange, errors, theme }: SchedulePicke
 
       {value.fulfillment === 'delivery' ? (
         <>
+          {/* The places this customer has saved, over the field rather than
+              instead of it: somewhere new still has to be typeable. */}
+          <AddressChips
+            addresses={addresses}
+            value={value.address}
+            onPick={(pick) => set({ address: pick.address })}
+          />
           <Field
             label="Pickup & delivery address"
             value={value.address}

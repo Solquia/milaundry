@@ -11,9 +11,11 @@ import {
   ViewStyle,
 } from 'react-native';
 
+import { AddressChips } from '@/components/address-book';
 import { PieceCounter, WeightScale } from '@/components/quantity-picker';
 import { Reveal } from '@/components/reveal';
 import { SlotCalendar } from '@/components/slot-calendar';
+import { Odometer } from '@/components/odometer';
 import { StepRail } from '@/components/step-rail';
 import {
   Button,
@@ -28,7 +30,9 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
-import { getServices, placeOrder } from '@/lib/api';
+import { getMyAddresses, getServices, placeOrder } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
+import { defaultAddress } from '@/lib/domain/customer-book';
 import {
   MAX_WEIGHT_KG,
   buildBookingItems,
@@ -143,6 +147,8 @@ function ScheduleLeg({
 
       {isOpen && (
         <Reveal style={styles.legPanel}>
+          {/* The row above already names this leg and states its answer, so
+              the picker does not say either a second time. */}
           <SlotCalendar
             label={label}
             value={value}
@@ -150,6 +156,8 @@ function ScheduleLeg({
             minOffset={minOffset}
             maxOffset={minOffset + BOOKING_WINDOW_DAYS}
             now={now}
+            showHeading={false}
+            framed={false}
           />
         </Reveal>
       )}
@@ -233,9 +241,11 @@ function priceNote(
   step: Step
 ): string {
   if (estimate) {
-    return step === 'items'
-      ? 'Final price confirmed after the shop weighs your laundry.'
-      : 'Pay after the shop weighs it — cash, GCash, Maya, or bank transfer.';
+    // The payment methods are a fact you need once, at the last tap. Naming
+    // them on the schedule step spent two lines on something the customer
+    // cannot act on yet, directly under the loudest figure on the screen.
+    if (step === 'review') return 'Pay after the shop weighs it — cash, GCash, Maya, or bank.';
+    return 'Final price confirmed after the shop weighs your laundry.';
   }
   if (hasSelection) {
     return "This shop's price list may have just changed — pick your items again.";
@@ -247,6 +257,11 @@ function priceNote(
  * The running total, pinned in the screen footer. One shape across all three
  * states: the figure keeps a fixed home so the layout never jumps, and an
  * unpriceable selection reads as unknown rather than as free.
+ *
+ * It is only display-sized on the step that changes it. On Items every tap
+ * moves this number, so it is the feedback and it earns the room. By Schedule
+ * it is a settled fact the customer already agreed to, and a 34pt figure
+ * shouting a price nobody is editing is what made the flow feel loud.
  */
 function PriceSummary({
   estimate,
@@ -257,13 +272,24 @@ function PriceSummary({
   hasSelection: boolean;
   step: Step;
 }) {
+  const valueStyle = step === 'items' ? styles.priceValueLive : styles.priceValueSettled;
   return (
     <>
       <View style={styles.priceRow}>
         <Text style={styles.priceLabel}>Estimated price</Text>
-        <Text style={[styles.priceValue, !estimate && styles.priceValueMuted]}>
-          {priceAmount(estimate, hasSelection)}
-        </Text>
+        {/* An em dash is not a number and has no wheels to turn, so the
+            unpriceable case stays plain text. */}
+        {estimate ? (
+          <Odometer
+            value={priceAmount(estimate, hasSelection)}
+            style={valueStyle}
+            label={`Estimated price ${priceAmount(estimate, hasSelection)}`}
+          />
+        ) : (
+          <Text style={[valueStyle, styles.priceValueMuted]}>
+            {priceAmount(estimate, hasSelection)}
+          </Text>
+        )}
       </View>
       <Text style={styles.priceNote}>{priceNote(estimate, hasSelection, step)}</Text>
     </>
@@ -285,11 +311,29 @@ export default function BookService() {
 
   // Schedule step state, seeded with a sensible default window.
   const [fulfillment, setFulfillment] = useState<Fulfillment>('delivery');
-  const [deliveryAddress, setDeliveryAddress] = useState('');
+  /**
+   * What the customer typed or picked, or null while they have done neither.
+   *
+   * Null rather than an empty string, so the saved default can be *derived*
+   * below instead of written in by an effect: an effect that seeds a field
+   * races the field, and the race is lost by whoever typed first.
+   */
+  const [typedAddress, setTypedAddress] = useState<string | null>(null);
+
+  const { profile } = useAuth();
+  const addresses = useQuery({ queryKey: ['my-addresses'], queryFn: getMyAddresses });
+  const saved = useMemo(() => addresses.data ?? [], [addresses.data]);
+  const deliveryAddress = typedAddress ?? defaultAddress(saved)?.address ?? '';
   const [pickupSlot, setPickupSlot] = useState<SlotValue>({ dayOffset: 0, hour: 16 });
   const [deliverSlot, setDeliverSlot] = useState<SlotValue>({ dayOffset: 1, hour: 16 });
-  /** Which leg is open for editing. Null — the default — is both settled. */
-  const [openLeg, setOpenLeg] = useState<LegName | null>('pickup');
+  /**
+   * Which leg is open for editing. Delivery, because that is the one the
+   * customer does not already know the answer to: pickup defaults to tomorrow
+   * afternoon and reads fine as a settled line, while "when do I get it back"
+   * is the question they came to this step with. Opening it saves the tap that
+   * they only know to make after they have understood the row.
+   */
+  const [openLeg, setOpenLeg] = useState<LegName | null>('deliver');
   const [fieldErrors, setFieldErrors] = useState<BookingScheduleErrors>({});
 
   const {
@@ -352,7 +396,14 @@ export default function BookService() {
           service_id: item.serviceId,
           quantity: item.quantity,
         })),
-        schedule
+        {
+          ...schedule,
+          // Booked with the method this customer always uses, so the pay screen
+          // opens on their own answer instead of on the shop's default.
+          ...(profile?.preferred_payment_method
+            ? { paymentMethod: profile.preferred_payment_method }
+            : {}),
+        }
       ),
     onSuccess: async (order) => {
       await queryClient.invalidateQueries({ queryKey: ['my-orders'] });
@@ -574,10 +625,17 @@ export default function BookService() {
 
             {fulfillment === 'delivery' ? (
               <>
+                {/* The places this customer has saved, over the field rather
+                    than instead of it: somewhere new still has to be typeable. */}
+                <AddressChips
+                  addresses={saved}
+                  value={deliveryAddress}
+                  onPick={(pick) => setTypedAddress(pick.address)}
+                />
                 <Field
                   label="Pickup & delivery address"
                   value={deliveryAddress}
-                  onChangeText={setDeliveryAddress}
+                  onChangeText={setTypedAddress}
                   placeholder="12 Mabini St, Quezon City"
                 />
                 <ErrorText>{fieldErrors.deliveryAddress}</ErrorText>
@@ -733,9 +791,12 @@ const styles = StyleSheet.create({
   /** The answer. Right-aligned into whatever the label leaves, and the reason
       the chips can stay closed. */
   legValue: { ...type.label, flex: 1, textAlign: 'right', color: colors.text },
+  /** No side padding: the chips are rails, and a rail that stops short of the
+      edge looks like it has ended rather than scrolled. Their own 12 holds
+      them off the border. */
   legPanel: {
     gap: space.snug,
-    paddingHorizontal: space.cosy,
+    paddingTop: space.cosy,
     paddingBottom: space.cosy,
     backgroundColor: colors.actionSurface,
   },
@@ -764,10 +825,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.snug,
   },
-  extraName: { ...type.section, color: colors.text, flexShrink: 1 },
+  /**
+   * An extra is an item on a list, not a section of the screen. Set at
+   * `section` it matched the card's own heading, so a card offering three of
+   * them read as four headings stacked — which is what made this step feel
+   * like a wall before a single control had been touched.
+   */
+  extraName: { ...type.body, fontFamily: type.label.fontFamily, color: colors.text, flexShrink: 1 },
   extraCount: { ...type.label, color: colors.primaryDark },
-  extraPrice: { ...type.body, color: colors.subtle },
-  noticeText: { ...type.body, fontWeight: '600', color: colors.primaryDark },
+  extraPrice: { ...type.caption, color: colors.subtle },
+  /** A condition on the price, not an announcement: it sits at caption weight
+      and takes its blue from the ink that carries text, not the identity. */
+  noticeText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk },
 
   // The review: the booking read back to you before the last tap.
   reviewLine: {
@@ -801,7 +870,10 @@ const styles = StyleSheet.create({
     gap: space.snug,
   },
   priceLabel: { ...type.label, color: colors.subtle },
-  priceValue: { ...type.hero, color: colors.text },
+  /** Items: the figure the finger is moving. */
+  priceValueLive: { ...type.hero, color: colors.text },
+  /** Schedule and review: the same figure, done arguing. */
+  priceValueSettled: { ...type.value, color: colors.text },
   priceValueMuted: { color: colors.subtle },
   priceNote: { ...type.caption, color: colors.subtle },
   commitRow: { flexDirection: 'row', gap: space.snug },

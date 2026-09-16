@@ -18,6 +18,7 @@ import {
   type WalkInInput,
 } from '@/lib/domain/walk-in-order';
 
+import { APP_TONE, type QuantityTone } from './quantity-picker';
 import { ErrorText, Field, PhoneField, RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 /** Two or three answers to one question, one of them always lit. */
@@ -26,11 +27,13 @@ function Segmented<T extends string>({
   options,
   value,
   onChange,
+  tone,
 }: {
   label: string;
   options: readonly { key: T; label: string; icon: string }[];
   value: T;
   onChange: (next: T) => void;
+  tone: QuantityTone;
 }) {
   return (
     <View style={styles.group}>
@@ -47,7 +50,7 @@ function Segmented<T extends string>({
               onPress={() => onChange(option.key)}
               style={({ pressed }) => [
                 styles.segment,
-                isActive && styles.segmentActive,
+                isActive && { backgroundColor: tone.brand },
                 pressed && styles.pressed,
               ]}
             >
@@ -72,14 +75,20 @@ export function CheckoutForm({
   errors,
   total,
   onChange,
+  tone = APP_TONE,
 }: {
   value: WalkInInput;
   errors: WalkInErrors;
   total: number | null;
   onChange: (patch: Partial<WalkInInput>) => void;
+  /**
+   * The shop's colour, for what is chosen. Paid and owed keep the app's own
+   * two tones: those say how much money is outstanding, not whose shop it is.
+   */
+  tone?: QuantityTone;
 }) {
   const isDelivery = value.fulfillment === 'delivery';
-  const tone = value.isPaid ? TAG_TONES.settled : TAG_TONES.owed;
+  const moneyTone = value.isPaid ? TAG_TONES.settled : TAG_TONES.owed;
 
   return (
     <View style={styles.form}>
@@ -113,6 +122,7 @@ export function CheckoutForm({
           ]}
           value={value.fulfillment}
           onChange={(fulfillment) => onChange({ fulfillment })}
+          tone={tone}
         />
         {isDelivery ? (
           <>
@@ -141,14 +151,14 @@ export function CheckoutForm({
                 onPress={() => onChange({ paymentMethod: method })}
                 style={({ pressed }) => [
                   styles.method,
-                  isActive && styles.methodActive,
+                  isActive && { backgroundColor: tone.brand, borderColor: tone.brand },
                   pressed && styles.pressed,
                 ]}
               >
                 <Ionicons
                   name={paymentMethodIcon(method) as never}
                   size={22}
-                  color={isActive ? colors.onAccent : colors.actionInk}
+                  color={isActive ? colors.onAccent : tone.ink}
                 />
                 <Text
                   style={[styles.methodText, isActive && styles.methodTextActive]}
@@ -174,17 +184,18 @@ export function CheckoutForm({
           ]}
           value={value.isPaid ? 'paid' : 'later'}
           onChange={(next) => onChange({ isPaid: next === 'paid' })}
+          tone={tone}
         />
 
         {/* The same two tones the order tags wear, so "paid" and "owed" mean
             here exactly what they mean on the orders list. */}
-        <View style={[styles.summary, { backgroundColor: tone.bg }]}>
+        <View style={[styles.summary, { backgroundColor: moneyTone.bg }]}>
           <Ionicons
             name={value.isPaid ? 'checkmark-circle' : 'alert-circle-outline'}
             size={18}
-            color={tone.ink}
+            color={moneyTone.ink}
           />
-          <Text style={[styles.summaryText, { color: tone.ink }]}>
+          <Text style={[styles.summaryText, { color: moneyTone.ink }]}>
             {paymentSummaryLine({
               paymentMethod: value.paymentMethod,
               isPaid: value.isPaid,
@@ -238,7 +249,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.snug,
     borderRadius: RADII.chip,
   },
-  segmentActive: { backgroundColor: colors.action },
   segmentText: { ...type.label, color: colors.text },
   segmentTextActive: { color: colors.onAccent },
 
@@ -257,7 +267,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     paddingHorizontal: space.snug,
   },
-  methodActive: { backgroundColor: colors.action, borderColor: colors.action },
   methodText: { ...type.label, fontSize: 13, color: colors.text, textAlign: 'center' },
   methodTextActive: { color: colors.onAccent },
 

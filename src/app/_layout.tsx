@@ -16,6 +16,7 @@ import { WebFrame } from '@/components/web-frame';
 import { AuthProvider } from '@/lib/auth';
 import { AppSettingsProvider } from '@/lib/use-app-settings';
 import { ViewAsShopProvider } from '@/lib/view-as-shop-context';
+import { claimWebDocument } from '@/lib/web-document';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +30,11 @@ const queryClient = new QueryClient({
 // bar; deep navy is the colour the splash opens on, so the seam disappears.
 // App-level, so it runs module-side rather than in an effect.
 void SystemUI.setBackgroundColorAsync('#04203F');
+
+// The browser's own half of that: the viewport contract with a phone, and the
+// surfaces — selection, caret, scrollbar, focus ring — the document owns
+// rather than the app. No-op off the web. See `lib/web-document.ts`.
+claimWebDocument();
 
 export default function RootLayout() {
   // Tab bars render Ionicons glyphs; without preloading, the first paint shows

@@ -13,14 +13,17 @@ import React, { useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, ErrorText, Loading, colors, formatMoney, space, type } from '@/components/ui-kit';
+import { BrandButton } from '@/components/brand-button';
+import { Odometer } from '@/components/odometer';
 import { CartList } from '@/components/web/cart-list';
 import { GuestForm } from '@/components/web/guest-form';
 import { DEFAULT_SCHEDULE, SchedulePicker, type ScheduleValue } from '@/components/web/schedule-picker';
-import { WebShell } from '@/components/web/web-shell';
-import { getStorefront, placeOrder, registerWithShopBySlug } from '@/lib/api';
+import { PageBand, WebShell, useWebLayout } from '@/components/web/web-shell';
+import { getMyAddresses, getStorefront, placeOrder, registerWithShopBySlug } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { friendlyBookingError, isConnectionError } from '@/lib/domain/booking-error';
 import { validateBookingSchedule, type BookingScheduleErrors } from '@/lib/domain/booking-schedule';
+import { defaultAddress } from '@/lib/domain/customer-book';
 import type { Slot } from '@/lib/domain/booking-slot';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { previousStep } from '@/lib/domain/step-rail';
@@ -87,11 +90,29 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
   const { shop, services } = storefront;
   const theme = storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
   const router = useRouter();
+  const layout = useWebLayout();
   const { session, profile, signOut } = useAuth();
 
   const [step, setStep] = useState<Step>('items');
   const [cart, setCart] = useState<Cart>(() => startingCart(preselected, services));
   const [schedule, setSchedule] = useState<ScheduleValue>(DEFAULT_SCHEDULE);
+
+  // The customer's own book. A guest has none until they sign in on the last
+  // step, which is exactly when the field stops mattering.
+  const addressBook = useQuery({
+    queryKey: ['my-addresses'],
+    queryFn: getMyAddresses,
+    enabled: Boolean(session),
+  });
+  const saved = addressBook.data ?? [];
+  /**
+   * Derived, not seeded: the default fills the field until the customer types
+   * or picks, and an effect that wrote it in would race whatever they typed.
+   */
+  const scheduleWithAddress: ScheduleValue = {
+    ...schedule,
+    address: schedule.address || defaultAddress(saved)?.address || '',
+  };
   const [fieldErrors, setFieldErrors] = useState<BookingScheduleErrors>({});
   const [error, setError] = useState('');
   const [isPlacing, setIsPlacing] = useState(false);
@@ -105,10 +126,10 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
   const validatedSchedule = () =>
     validateBookingSchedule(
       {
-        fulfillment: schedule.fulfillment,
-        deliveryAddress: schedule.address,
-        pickupAt: slotDate(schedule.pickup),
-        deliverBy: slotDate(schedule.deliver),
+        fulfillment: scheduleWithAddress.fulfillment,
+        deliveryAddress: scheduleWithAddress.address,
+        pickupAt: slotDate(scheduleWithAddress.pickup),
+        deliverBy: slotDate(scheduleWithAddress.deliver),
       },
       new Date()
     );
@@ -142,9 +163,23 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
       const order = await placeOrder(
         shopId,
         cartItems(cart).map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
-        { ...result.value, notes: schedule.notes.trim() }
+        // Always an online booking, even when the person tapping Book is the
+        // owner: this is the shop's public page, not its counter.
+        {
+          ...result.value,
+          notes: scheduleWithAddress.notes.trim(),
+          orderType: 'online' as const,
+          // Booked with the method this customer always uses, so the pay screen
+          // opens on their own answer instead of on the shop's default.
+          ...(profile?.preferred_payment_method
+            ? { paymentMethod: profile.preferred_payment_method }
+            : {}),
+        }
       );
-      router.replace(`/track/${order.id}` as never);
+      // The slip first, then tracking. A booking that lands straight on a row of
+      // empty steps is an accurate picture of an order nothing has happened to
+      // yet, and a cold answer to "did that work?".
+      router.replace(`/placed/${order.id}` as never);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : '';
       // A lost reply is not a failed order: place_order may have run. Say so
@@ -171,7 +206,13 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
         <Text style={styles.totalLabel}>
           {count === 0 ? 'Nothing added yet' : `${count} ${count === 1 ? 'line' : 'lines'} · estimate`}
         </Text>
-        <Text style={styles.totalValue}>{formatMoney(total)}</Text>
+        {/* The one number the whole step is producing, so it moves with the
+            ruler that produces it rather than blinking to a new figure. */}
+        <Odometer
+          value={formatMoney(total)}
+          style={{ ...styles.totalValue, color: theme.brandInk }}
+          label={`Estimate ${formatMoney(total)}`}
+        />
       </View>
       <ErrorText>{error}</ErrorText>
       {mayHaveBooked ? (
@@ -183,7 +224,7 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
       ) : null}
       <View style={styles.buttons}>
         {back ? (
-          <FooterButton
+          <BrandButton
             title="Back"
             onPress={() => setStep(back)}
             fill={theme.brandSoft}
@@ -192,7 +233,7 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
           />
         ) : null}
         {step === 'items' ? (
-          <FooterButton
+          <BrandButton
             title="Continue"
             onPress={() => setStep('schedule')}
             disabled={count === 0}
@@ -202,10 +243,10 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
           />
         ) : null}
         {step === 'schedule' ? (
-          <FooterButton title="Continue" onPress={goToContact} fill={theme.brand} ink={theme.onBrand} flex={2} />
+          <BrandButton title="Continue" onPress={goToContact} fill={theme.brand} ink={theme.onBrand} flex={2} />
         ) : null}
         {step === 'contact' && session ? (
-          <FooterButton
+          <BrandButton
             title={isPlacing ? 'Placing…' : 'Place order'}
             onPress={() => void placeBooking()}
             disabled={isPlacing}
@@ -223,15 +264,18 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
       <Head>
         <title>{`Book with ${shop.name}`}</title>
       </Head>
-      <WebShell footer={footer}>
-        <View style={[styles.band, { backgroundColor: theme.brand }]}>
-          <Pressable accessibilityRole="link" onPress={() => router.push(`/s/${slug}` as never)}>
-            <Text style={[styles.bandBack, { color: theme.onBrand }]}>‹ {shop.name}</Text>
-          </Pressable>
-          <Text style={[styles.bandTitle, { color: theme.onBrand }]}>{STEP_TITLES[step]}</Text>
-        </View>
-
-        <View style={styles.body}>
+      <WebShell
+        footer={footer}
+        hero={
+          <PageBand
+            backLabel={shop.name}
+            onBack={() => router.push(`/s/${slug}` as never)}
+            title={STEP_TITLES[step]}
+            theme={theme}
+          />
+        }
+      >
+        <View style={[styles.body, { padding: layout.gutter }]}>
           {step === 'items' ? (
             <>
               <Text style={styles.hint}>
@@ -242,7 +286,13 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
           ) : null}
 
           {step === 'schedule' ? (
-            <SchedulePicker value={schedule} onChange={setSchedule} errors={fieldErrors} theme={theme} />
+            <SchedulePicker
+              value={scheduleWithAddress}
+              onChange={setSchedule}
+              errors={fieldErrors}
+              theme={theme}
+              addresses={saved}
+            />
           ) : null}
 
           {step === 'contact' ? (
@@ -276,37 +326,8 @@ function BookingFlow({ storefront, slug, preselected }: BookingFlowProps) {
   );
 }
 
-interface FooterButtonProps {
-  title: string;
-  onPress: () => void;
-  fill: string;
-  ink: string;
-  flex: number;
-  disabled?: boolean;
-}
-
-function FooterButton({ title, onPress, fill, ink, flex, disabled }: FooterButtonProps) {
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      disabled={disabled}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.button,
-        { flex, backgroundColor: fill, opacity: disabled ? 0.5 : pressed ? 0.8 : 1 },
-      ]}
-    >
-      <Text style={[styles.buttonText, { color: ink }]}>{title}</Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  band: { padding: space.room, gap: space.snug },
-  bandBack: { ...type.caption, fontWeight: '600', opacity: 0.9 },
-  bandTitle: { ...type.title },
-  body: { padding: space.room, gap: space.cosy },
+  body: { gap: space.cosy },
   hint: { ...type.caption, color: colors.subtle },
   card: {
     backgroundColor: colors.card,
@@ -323,14 +344,6 @@ const styles = StyleSheet.create({
   totalLabel: { ...type.caption, color: colors.subtle },
   totalValue: { ...type.value, color: colors.text },
   buttons: { flexDirection: 'row', gap: space.snug },
-  button: {
-    minHeight: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: space.cosy,
-  },
-  buttonText: { ...type.label, fontSize: 16 },
   notice: { padding: space.gulf, marginTop: space.gulf * 2 },
   noticeTitle: { ...type.title, color: colors.text, textAlign: 'center' },
 });

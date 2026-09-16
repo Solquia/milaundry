@@ -118,6 +118,11 @@ export default function MerchantLayout() {
             name={tab.name}
             options={{
               title: tab.title,
+              // The till draws its own band — the shop's colour, the step's
+              // question, the rail counting the steps off, and the settings
+              // cog this header would otherwise carry. Two headers stacked
+              // would be a title above a title.
+              headerShown: tab.name !== 'pos',
               // Every route file must be declared; the ones this role cannot
               // open are declared without a link, so they leave the bar.
               href: canOpenMerchantRoute(shopRole, tab.name) ? undefined : null,

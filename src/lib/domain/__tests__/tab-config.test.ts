@@ -37,9 +37,9 @@ describe('tab bar configuration', () => {
     expect(CUSTOMER_TABS[centerTabIndex(CUSTOMER_TABS)].icon).toBe('qr-code');
   });
 
-  it('brands the customer home tab as MiLaundry', () => {
+  it('names the customer home tab for where it goes, not for the product', () => {
     const home = CUSTOMER_TABS.find((tab) => tab.name === 'orders');
-    expect(home?.title).toBe('MiLaundry');
+    expect(home?.title).toBe('Home');
   });
 
   describe.each(CONFIGS)('$label tabs', ({ tabs }) => {

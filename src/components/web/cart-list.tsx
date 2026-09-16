@@ -18,9 +18,9 @@
  * are `domain/service-rail.ts`.
  */
 import React, { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { PieceCounter, WeightScale } from '@/components/quantity-picker';
+import { PieceCounter, WeightScale, type QuantityTone } from '@/components/quantity-picker';
 import { ServiceScene } from '@/components/service-scene';
 import { RADII, colors, space, type } from '@/components/ui-kit';
 import { formatPriceLine, minimumChargeNotice } from '@/lib/domain/price-label';
@@ -31,7 +31,9 @@ import {
 } from '@/lib/domain/service-rail';
 import { CATEGORY_LABELS, groupServicesByCategory } from '@/lib/domain/service-catalog';
 import { sceneFor } from '@/lib/domain/service-scene';
+import { withAlpha } from '@/lib/domain/brand-gradient';
 import { setLine, type Cart } from '@/lib/domain/web-cart';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
 
@@ -46,6 +48,10 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
   const groups = groupServicesByCategory(services);
   const [opened, setOpened] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
+  // The ruler and the counters are the app's, wearing the shop's colour: on a
+  // storefront the scale is the loudest thing on the page, and it should be
+  // the shop that is loud.
+  const tone: QuantityTone = { brand: theme.brand, soft: theme.brandSoft, ink: theme.brandInk };
 
   const current = selectedRailCategory(groups, opened);
   const group = groups.find((entry) => entry.category === current);
@@ -64,46 +70,24 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
           const held = railLineCount(cart, entry.services);
           return (
             <View key={entry.category} style={styles.railGroup}>
-              <Pressable
-                accessibilityRole="tab"
-                accessibilityState={{ selected: isOpen, expanded: isOpen }}
-                accessibilityLabel={
-                  held > 0
-                    ? `${CATEGORY_LABELS[entry.category]}, ${held} in your basket`
-                    : CATEGORY_LABELS[entry.category]
-                }
+              <RailTile
+                isOpen={isOpen}
+                theme={theme}
+                label={CATEGORY_LABELS[entry.category]}
+                held={held}
                 onPress={() => {
                   setOpened(entry.category);
                   // The pick belongs to the category, so opening a new one
                   // starts clean rather than carrying the last answer over.
                   setPicked(null);
                 }}
-                style={[styles.railItem, isOpen && { backgroundColor: theme.brandSoft }]}
               >
-                <View style={[styles.railEdge, isOpen && { backgroundColor: theme.brand }]} />
-                <View style={styles.railBody}>
-                  <View style={styles.railArt}>
-                    <ServiceScene
-                      scene={sceneFor('', entry.category)}
-                      brand={theme.brand}
-                      surface="white"
-                    />
-                  </View>
-                  <Text
-                    numberOfLines={2}
-                    style={[styles.railText, isOpen && { color: theme.brandInk }]}
-                  >
-                    {CATEGORY_LABELS[entry.category]}
-                  </Text>
-                  {held > 0 ? (
-                    <View style={[styles.railBadge, { backgroundColor: theme.brand }]}>
-                      <Text style={[styles.railBadgeText, { color: theme.onBrand }]}>
-                        {held}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </Pressable>
+                <ServiceScene
+                  scene={sceneFor('', entry.category)}
+                  brand={theme.brand}
+                  surface="white"
+                />
+              </RailTile>
 
               {/* The choices, under the category they belong to. A category of
                   one has nothing to choose, so it never unfolds a list of one. */}
@@ -154,24 +138,30 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
 
       <View style={styles.panel}>
         {service ? (
-          <View style={styles.measure}>
+          <View style={[styles.measure, { shadowColor: theme.brand }]}>
             <View style={styles.measureHead}>
-              <Text style={[styles.measureName, { color: theme.brandInk }]}>
-                {service.name}
-              </Text>
-              <Text style={styles.measurePrice}>{formatPriceLine(service)}</Text>
+              <Text style={[styles.measureName, { color: theme.brandInk }]}>{service.name}</Text>
+              {/* The rate, on its own ground. Loose under the name it read as a
+                  second line of the title rather than as the price. */}
+              <View style={[styles.measurePriceChip, { backgroundColor: theme.brandSoft }]}>
+                <Text style={[styles.measurePrice, { color: theme.brandInk }]}>
+                  {formatPriceLine(service)}
+                </Text>
+              </View>
             </View>
 
             {service.unit === 'per_kg' ? (
               <WeightScale
                 valueKg={cart[service.id] ?? 0}
                 onChange={(kg) => onChange(setLine(cart, service, kg))}
+                tone={tone}
               />
             ) : (
               <PieceCounter
                 value={cart[service.id] ?? 0}
                 onChange={(count) => onChange(setLine(cart, service, count))}
                 label={service.name}
+                tone={tone}
               />
             )}
 
@@ -196,6 +186,102 @@ export function CartList({ services, cart, onChange, theme }: CartListProps) {
   );
 }
 
+/**
+ * One category in the rail: a card that takes the shop's colour when it opens.
+ *
+ * It used to say so with a pale tint and a 3px edge down its left side, which
+ * is the weakest signal a list can give — on a rail of four near-identical
+ * white cards the open one has to be unmistakable from the corner of the eye,
+ * because the panel beside it has already changed and the customer needs to
+ * know which choice did that. So the open tile takes the accent outright, and
+ * the illustration keeps its own white plate inside it so the drawing stays
+ * the drawing rather than a silhouette on colour.
+ */
+function RailTile({
+  isOpen,
+  theme,
+  label,
+  held,
+  onPress,
+  children,
+}: {
+  isOpen: boolean;
+  theme: StorefrontTheme;
+  label: string;
+  /** Lines from this category already on the ticket. */
+  held: number;
+  onPress: () => void;
+  children: React.ReactNode;
+}) {
+  const isReduced = useReducedMotion();
+  const [press] = useState(() => new Animated.Value(1));
+
+  const springTo = (toValue: number) => {
+    if (isReduced) return;
+    Animated.spring(press, {
+      toValue,
+      damping: 15,
+      stiffness: 320,
+      mass: 0.5,
+      useNativeDriver: true,
+    }).start();
+  };
+
+  return (
+    <Animated.View style={{ transform: [{ scale: press }] }}>
+      <Pressable
+        accessibilityRole="tab"
+        accessibilityState={{ selected: isOpen, expanded: isOpen }}
+        accessibilityLabel={held > 0 ? `${label}, ${held} in your basket` : label}
+        onPressIn={() => springTo(0.96)}
+        onPressOut={() => springTo(1)}
+        onPress={onPress}
+        style={[
+          styles.railItem,
+          isOpen && {
+            backgroundColor: theme.brand,
+            borderColor: theme.brand,
+            shadowColor: theme.brand,
+            ...styles.railItemOpen,
+          },
+        ]}
+      >
+        <View
+          style={[
+            styles.railPlate,
+            { backgroundColor: isOpen ? '#FFFFFF' : withAlpha(theme.brand, 0.07) },
+          ]}
+        >
+          <View style={styles.railArt}>{children}</View>
+        </View>
+        <Text
+          numberOfLines={2}
+          style={[styles.railText, isOpen && { color: theme.onBrand, ...styles.railTextOpen }]}
+        >
+          {label}
+        </Text>
+        {held > 0 ? (
+          <View
+            style={[
+              styles.railBadge,
+              { backgroundColor: isOpen ? theme.onBrand : theme.brand },
+            ]}
+          >
+            <Text
+              style={[
+                styles.railBadgeText,
+                { color: isOpen ? theme.brandInk : theme.onBrand },
+              ]}
+            >
+              {held}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    </Animated.View>
+  );
+}
+
 const styles = StyleSheet.create({
   frame: { flexDirection: 'row', gap: space.cosy, alignItems: 'flex-start' },
 
@@ -204,23 +290,33 @@ const styles = StyleSheet.create({
   railInner: { gap: space.snug, paddingBottom: space.snug },
   railGroup: { gap: space.snug },
   railItem: {
-    flexDirection: 'row',
-    borderRadius: RADII.chip,
-    overflow: 'hidden',
-    backgroundColor: colors.card,
-  },
-  /** 3px lit edge — the rail marks the open door without shouting. */
-  railEdge: { width: 3, backgroundColor: 'transparent' },
-  railBody: {
-    flex: 1,
     alignItems: 'center',
-    gap: space.tight,
+    gap: space.snug,
     paddingVertical: space.cosy,
     paddingHorizontal: space.snug,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  railItemOpen: {
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    elevation: 5,
+  },
+  /** A plate under the drawing, so the object always sits on white. */
+  railPlate: {
+    width: 56,
+    height: 56,
+    borderRadius: RADII.pill,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   /** Square, so the scene's own 100-unit viewBox is never squashed. */
-  railArt: { width: 44, height: 44 },
+  railArt: { width: 40, height: 40 },
   railText: { ...type.caption, color: colors.subtle, textAlign: 'center' },
+  railTextOpen: { fontFamily: type.label.fontFamily },
   railBadge: {
     minWidth: 20,
     height: 20,
@@ -229,7 +325,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 5,
   },
-  railBadgeText: { ...type.caption, fontSize: 11 },
+  railBadgeText: { ...type.caption, fontSize: 11, fontFamily: type.label.fontFamily },
 
   /** Indented, so the list reads as belonging to the category above it. */
   choices: { gap: space.snug, paddingLeft: space.cosy },
@@ -249,17 +345,29 @@ const styles = StyleSheet.create({
   choiceDot: { width: 6, height: 6, borderRadius: 3 },
 
   panel: { flex: 1 },
+  /**
+   * The one surface on this step that is doing work, and it is lifted like it.
+   * A 1px outline on white against a white rail made the two panes read as the
+   * same plane, so the measure card looked like a wider rail item.
+   */
   measure: {
-    gap: space.cosy,
+    gap: space.room,
     padding: space.room,
     borderRadius: RADII.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.card,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.14,
+    shadowRadius: 22,
+    elevation: 5,
   },
-  measureHead: { gap: space.tight },
+  measureHead: { gap: space.snug, alignItems: 'flex-start' },
   measureName: { ...type.section },
-  measurePrice: { ...type.body, color: colors.subtle },
+  measurePriceChip: {
+    borderRadius: RADII.pill,
+    paddingVertical: space.tight,
+    paddingHorizontal: space.cosy,
+  },
+  measurePrice: { ...type.caption, fontFamily: type.label.fontFamily },
   measureNotice: { ...type.caption, color: colors.moneyOut },
 
   waiting: {

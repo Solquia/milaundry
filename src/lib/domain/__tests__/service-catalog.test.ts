@@ -1,4 +1,4 @@
-import { CATEGORY_LABELS, CATEGORY_ORDER, CATEGORY_SHORT, STARTER_SERVICES, groupServicesByCategory, splitServicesByStatus, type ServiceCategory } from '../service-catalog';
+import { CATEGORY_LABELS, CATEGORY_ORDER, CATEGORY_SHORT, STARTER_SERVICES, groupServicesByCategory, labelledServices, splitServicesByStatus, type ServiceCategory } from '../service-catalog';
 
 describe('service categories', () => {
   it('defines a canonical category order with labels', () => {
@@ -119,5 +119,38 @@ describe('CATEGORY_SHORT', () => {
   it('never loses which category it names', () => {
     const shorts = CATEGORY_ORDER.map((c) => CATEGORY_SHORT[c]);
     expect(new Set(shorts).size).toBe(CATEGORY_ORDER.length);
+  });
+});
+
+describe('labelledServices', () => {
+  const services = [
+    { id: 'w', name: 'Wash And Fold', category: 'wash_fold' as ServiceCategory },
+    { id: 'i', name: 'Ironing', category: 'ironing' as ServiceCategory },
+    { id: 'd', name: 'Dry Clean', category: 'dry_cleaning' as ServiceCategory },
+  ];
+
+  it('flattens the groups into one list in category order', () => {
+    const ordered = labelledServices(groupServicesByCategory(services));
+
+    expect(ordered.map((entry) => entry.service.id)).toEqual(['w', 'i', 'd']);
+  });
+
+  it('gives every service its own category to wear', () => {
+    const ordered = labelledServices(groupServicesByCategory(services));
+
+    expect(ordered.map((entry) => entry.label)).toEqual(['Wash & Fold', 'Ironing', 'Dry Clean']);
+  });
+
+  it('closes up a shop with one service per category into one block', () => {
+    // The point of flattening: three one-service categories have to become
+    // three consecutive entries the grid can pair up, not three lonely rows
+    // each holding a half-width card and a blank.
+    const ordered = labelledServices(groupServicesByCategory(services));
+
+    expect(ordered).toHaveLength(3);
+  });
+
+  it('returns nothing for a shop that has posted no services', () => {
+    expect(labelledServices(groupServicesByCategory([]))).toEqual([]);
   });
 });
