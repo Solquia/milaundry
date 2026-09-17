@@ -57,10 +57,14 @@ describe('downloadPage', () => {
   test('Android gets a download, and the three things you do after the file lands', () => {
     const page = downloadPage('android');
     expect(page.action.kind).toBe('apk');
-    expect(page.action.label).toMatch(/android/i);
+    expect(page.action.label).toBe('Download app');
     expect(page.steps).toHaveLength(3);
     expect(page.steps.map((step) => step.n)).toEqual([1, 2, 3]);
     expect(page.steps[0].title.toLowerCase()).toContain('download');
+  });
+
+  test('a laptop offers the same Download app button as a phone', () => {
+    expect(downloadPage('other').action.label).toBe('Download app');
   });
 
   test('iPhone is told this preview is Android, and is offered the web app instead', () => {

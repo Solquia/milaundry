@@ -15,7 +15,7 @@ export const APK_VERSION = '1.0.0';
  * own file name so a Downloads folder reads as the app, not as a hash.
  */
 export const APK_URL =
-  'https://expo.dev/artifacts/eas/GcS6ObTh2jaNemRbxMx17z9k3p_nm1WCQypR8VJw3SE.apk';
+  'https://expo.dev/artifacts/eas/c-9HcG0P8qAehnhLyToqrHjb0URTdKqplThsWsL6_0M.apk';
 
 export type DownloadAudience = 'android' | 'ios' | 'other' | 'installed';
 
@@ -102,7 +102,7 @@ export function downloadPage(audience: DownloadAudience): DownloadPage {
       version: APK_VERSION,
       headline: APP_NAME,
       lede: 'The Android app for the shop phone.',
-      action: { kind: 'apk', label: 'Download for Android' },
+      action: { kind: 'apk', label: 'Download app' },
       apk: APK,
       steps: INSTALL_STEPS,
     };
@@ -113,7 +113,7 @@ export function downloadPage(audience: DownloadAudience): DownloadPage {
     version: APK_VERSION,
     headline: APP_NAME,
     lede: 'Put the laundry app on this phone.',
-    action: { kind: 'apk', label: 'Download Android app' },
+    action: { kind: 'apk', label: 'Download app' },
     apk: APK,
     steps: INSTALL_STEPS,
   };
