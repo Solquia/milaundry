@@ -1,23 +1,18 @@
 /**
  * How a page answers the box it is drawn in.
  *
- * The box is a phone: `web-frame.ts` hands every web page a phone-width
- * column, because a phone is what a customer opens a shop's link on. So the
- * sizes that matter most here are the ones phones actually differ by — a 320px
- * handset and a 430px one are not the same page, and neither is one turned
- * sideways.
+ * A shop's public page takes the window it was opened in — `web-frame.ts`
+ * lets `/s/`, `/track/`, `/claim/` and `/join/` through — so the sizes that
+ * matter are the ones devices actually differ by. A 320px handset and a 430px
+ * one are not the same page, and neither is a tablet or a laptop.
  *
  * Five sizes, each earning its own answer rather than interpolating: a small
  * phone, an ordinary one, a tablet or a split window, a laptop, and a large
  * desktop. The steps are where a layout actually breaks, not round numbers:
- * below 380 a 16px gutter either side is a noticeable bite out of a price card,
+ * below 380 even a 12px gutter either side is a bite out of a price card,
  * below 700 there is only room for one column of controls, above 1024 there is
  * room for a second column of supporting material beside the main one, and past
  * 1440 a single column of text would be too long a line to read comfortably.
- *
- * The three wide sizes are unreachable while the frame caps the column at a
- * phone. They are kept, tested and true, because the cap is one constant: the
- * day a shop wants a desktop storefront, the shapes are already here.
  */
 
 export type Breakpoint = 'compact' | 'phone' | 'tablet' | 'laptop' | 'desktop';
@@ -50,7 +45,8 @@ export interface WebLayout {
   breakpoint: Breakpoint;
   /**
    * The widest the content — main column plus any aside — may grow. A phone
-   * gets its whole viewport; past that the content is centred in the window.
+   * or tablet gets its whole viewport; past that the content is centred in
+   * the window so a line of text stays readable.
    */
   contentWidth: number;
   /** The page gutter, and the gap between the two columns. */
@@ -89,16 +85,15 @@ export interface WebLayout {
 const LAYOUTS: Readonly<
   Record<Breakpoint, Omit<WebLayout, 'breakpoint' | 'contentWidth' | 'isTight'>>
 > = {
-  compact: { gutter: 12, priceColumns: 2, heroHeight: 260, heroSweep: 40, hasAside: false, asideWidth: 0 },
-  phone: { gutter: 16, priceColumns: 2, heroHeight: 300, heroSweep: 52, hasAside: false, asideWidth: 0 },
-  tablet: { gutter: 24, priceColumns: 3, heroHeight: 340, heroSweep: 60, hasAside: false, asideWidth: 0 },
-  laptop: { gutter: 28, priceColumns: 3, heroHeight: 380, heroSweep: 68, hasAside: true, asideWidth: 320 },
-  desktop: { gutter: 32, priceColumns: 4, heroHeight: 420, heroSweep: 76, hasAside: true, asideWidth: 360 },
+  compact: { gutter: 8, priceColumns: 2, heroHeight: 260, heroSweep: 40, hasAside: false, asideWidth: 0 },
+  phone: { gutter: 12, priceColumns: 2, heroHeight: 300, heroSweep: 52, hasAside: false, asideWidth: 0 },
+  tablet: { gutter: 16, priceColumns: 3, heroHeight: 340, heroSweep: 60, hasAside: false, asideWidth: 0 },
+  laptop: { gutter: 24, priceColumns: 3, heroHeight: 380, heroSweep: 68, hasAside: true, asideWidth: 320 },
+  desktop: { gutter: 28, priceColumns: 4, heroHeight: 420, heroSweep: 76, hasAside: true, asideWidth: 360 },
 };
 
-/** Where the content stops growing, per size. A phone is handed its viewport. */
-const CONTENT_WIDTHS: Readonly<Record<Exclude<Breakpoint, 'compact' | 'phone'>, number>> = {
-  tablet: 760,
+/** Where the content stops growing, per size. Phones and tablets fill the window. */
+const CONTENT_WIDTHS: Readonly<Record<Exclude<Breakpoint, 'compact' | 'phone' | 'tablet'>, number>> = {
   laptop: 1120,
   desktop: 1320,
 };
@@ -119,7 +114,7 @@ export function webLayout(viewportWidth: number, viewportHeight?: number): WebLa
   // Clamped to the window as well as to the size: a 700px viewport is a
   // tablet, but it is still only 700px wide.
   const room = Math.max(viewportWidth, 0);
-  const fills = breakpoint === 'compact' || breakpoint === 'phone';
+  const fills = breakpoint === 'compact' || breakpoint === 'phone' || breakpoint === 'tablet';
   const contentWidth = fills ? room : Math.min(room, CONTENT_WIDTHS[breakpoint]);
   const size = LAYOUTS[breakpoint];
   const heroHeight = heroHeightIn(size.heroHeight, viewportHeight);

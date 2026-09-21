@@ -1,16 +1,11 @@
 /**
  * The frame every public web page sits in.
  *
- * A shop's page is read on a phone — from a QR code on the counter, a link in
- * a message — so the phone is the layout, and `web-frame.tsx` gives it that
- * same phone-width column on a laptop rather than a second design to keep in
- * step. What changes here is what a phone itself varies: how wide the screen
- * is, how tall, and whether the glass runs under a notch or a home indicator.
- *
- * The hero runs edge to edge. The action the page exists for is pinned across
- * the foot, clear of the home indicator and always within thumb reach. The
- * sizes are `domain/web-layout.ts`; the shape the aside takes when there is
- * ever room for two columns is still here, waiting on that one constant.
+ * A shop's page is read on whatever opened the link — a phone from a QR code,
+ * a tablet on the counter, a laptop at a desk — so the layout answers the
+ * window through `domain/web-layout.ts`. The hero runs edge to edge. The
+ * action the page exists for is pinned across the foot on a narrow window,
+ * and rides the side column once there is room for two.
  */
 import React from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -23,10 +18,10 @@ import { webLayout, type WebLayout } from '@/lib/domain/web-layout';
 /**
  * The box this page is being drawn in, and what that means for its shape.
  *
- * The box, not the browser window: on a laptop the page is a phone-width
- * column and must lay itself out to the column. `components/viewport.tsx`
- * holds that distinction. Height matters too — it is what keeps the hero off
- * a phone held sideways.
+ * The box, not the browser window: the app is a phone-width column and must
+ * lay itself out to the column, while a shop page takes the window.
+ * `components/viewport.tsx` holds that distinction. Height matters too — it
+ * is what keeps the hero off a phone held sideways.
  */
 export function useWebLayout(): WebLayout {
   const { width, height } = useViewport();

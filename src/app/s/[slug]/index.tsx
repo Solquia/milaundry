@@ -210,9 +210,9 @@ function Notice({ title, body }: { title: string; body: string }) {
 const styles = StyleSheet.create({
   body: { gap: space.cosy },
   aside: { gap: space.cosy },
-  // On the field itself rather than on a sheet, so this is the page's only
-  // white ink — the same move the app's shop screen makes.
-  sectionTitle: { ...type.section, color: colors.onAccent, marginTop: space.cosy },
+  // Ink on the page field, not white: the hero already spent the white on
+  // navy, and these headings sit on `colors.bg`.
+  sectionTitle: { ...type.section, color: colors.text, marginTop: space.section },
   actions: { flexDirection: 'row', gap: space.cosy },
   /** In the side column the buttons run full width, one under the other. */
   actionsStacked: { flexDirection: 'column' },

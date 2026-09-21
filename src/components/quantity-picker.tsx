@@ -8,6 +8,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -20,6 +21,7 @@ import {
   TICK_SPACING,
   clampPieces,
   offsetForWeight,
+  parseTypedWeight,
   pieceOptions,
   rulerTicks,
   tickKind,
@@ -99,6 +101,25 @@ export function WeightScale({
   const hasPositioned = useRef(false);
 
   const ticks = rulerTicks(maxKg, WEIGHT_STEP_KG);
+  const [draft, setDraft] = useState<string | null>(null);
+  const isTyping = draft !== null;
+
+  const startTyping = () => {
+    if (!isTyping) setDraft(valueKg.toFixed(1));
+  };
+
+  const commitDraft = () => {
+    if (draft === null) return;
+    const parsed = parseTypedWeight(draft, maxKg);
+    setDraft(null);
+    if (parsed !== null && parsed !== valueKg) onChange(parsed);
+  };
+
+  // A chip or the ruler is a new reading; drop the keypad so the two cannot
+  // disagree about what the scale says.
+  useEffect(() => {
+    setDraft(null);
+  }, [valueKg]);
 
   // Follow the value when something else sets it — a quick chip, or a reset.
   useEffect(() => {
@@ -117,6 +138,7 @@ export function WeightScale({
   };
 
   const readValue = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    if (isTyping) return;
     const offset = event.nativeEvent.contentOffset.x;
     const target = scrollTarget.current;
     if (target !== null) {
@@ -156,16 +178,42 @@ export function WeightScale({
       {/* The reading, on a plinth of the shop's own colour. It used to be
           black text floating above the ruler, which made the number a caption
           for the control rather than the thing the control produces. */}
-      <View style={[styles.readout, { backgroundColor: withAlpha(tone.brand, 0.07) }]}>
-        <View style={styles.readoutRow}>
-          <Odometer
-            value={valueKg.toFixed(1)}
-            style={styles.readoutValue}
-            label={`${valueKg.toFixed(1)} kilograms`}
-          />
-          <Text style={[styles.readoutUnit, { color: tone.ink }]}>kg</Text>
+      {isTyping ? (
+        <View style={[styles.readout, { backgroundColor: withAlpha(tone.brand, 0.07) }]}>
+          <View style={styles.readoutRow}>
+            <TextInput
+              value={draft}
+              onChangeText={setDraft}
+              onBlur={commitDraft}
+              onSubmitEditing={commitDraft}
+              keyboardType="decimal-pad"
+              inputMode="decimal"
+              autoFocus
+              selectTextOnFocus
+              accessibilityLabel="Weight in kilograms"
+              style={styles.readoutInput}
+              returnKeyType="done"
+            />
+            <Text style={[styles.readoutUnit, { color: tone.ink }]}>kg</Text>
+          </View>
         </View>
-      </View>
+      ) : (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${valueKg.toFixed(1)} kilograms. Double tap to type a weight.`}
+          onPress={startTyping}
+          style={[styles.readout, { backgroundColor: withAlpha(tone.brand, 0.07) }]}
+        >
+          <View style={styles.readoutRow}>
+            <Odometer
+              value={valueKg.toFixed(1)}
+              style={styles.readoutValue}
+              label={`${valueKg.toFixed(1)} kilograms`}
+            />
+            <Text style={[styles.readoutUnit, { color: tone.ink }]}>kg</Text>
+          </View>
+        </Pressable>
+      )}
 
       <View
         style={[styles.track, { backgroundColor: tone.soft }]}
@@ -411,6 +459,18 @@ const styles = StyleSheet.create({
     fontFamily: type.hero.fontFamily,
     letterSpacing: -1.4,
     color: colors.text,
+  },
+  readoutInput: {
+    fontSize: 44,
+    lineHeight: 50,
+    fontFamily: type.hero.fontFamily,
+    letterSpacing: -1.4,
+    color: colors.text,
+    minWidth: 96,
+    padding: 0,
+    margin: 0,
+    textAlign: 'right',
+    fontVariant: ['tabular-nums'],
   },
   readoutUnit: { ...type.section, fontSize: 17 },
 

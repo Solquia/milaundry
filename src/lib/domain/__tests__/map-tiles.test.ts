@@ -32,13 +32,38 @@ describe('projectToTile', () => {
 });
 
 describe('tileUrl', () => {
-  it('addresses an OpenStreetMap raster tile', () => {
-    expect(tileUrl({ z: 16, x: 3, y: 7 })).toBe('https://tile.openstreetmap.org/16/3/7.png');
+  it('addresses a Carto Voyager raster tile, not OSM’s volunteer servers', () => {
+    expect(tileUrl({ z: 16, x: 3, y: 7 })).toBe(
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/16/3/7.png'
+    );
   });
 
   it('wraps a column that ran off the east edge of the world', () => {
-    expect(tileUrl({ z: 2, x: 4, y: 1 })).toBe('https://tile.openstreetmap.org/2/0/1.png');
-    expect(tileUrl({ z: 2, x: -1, y: 1 })).toBe('https://tile.openstreetmap.org/2/3/1.png');
+    expect(tileUrl({ z: 2, x: 4, y: 1 })).toBe(
+      'https://b.basemaps.cartocdn.com/rastertiles/voyager/2/0/1.png'
+    );
+    expect(tileUrl({ z: 2, x: -1, y: 1 })).toBe(
+      'https://c.basemaps.cartocdn.com/rastertiles/voyager/2/3/1.png'
+    );
+  });
+
+  it('spreads neighbouring tiles across Carto’s four hosts', () => {
+    const hosts = new Set(
+      [
+        tileUrl({ z: 16, x: 0, y: 0 }),
+        tileUrl({ z: 16, x: 1, y: 0 }),
+        tileUrl({ z: 16, x: 2, y: 0 }),
+        tileUrl({ z: 16, x: 3, y: 0 }),
+      ].map((url) => new URL(url).hostname)
+    );
+    expect(hosts).toEqual(
+      new Set([
+        'a.basemaps.cartocdn.com',
+        'b.basemaps.cartocdn.com',
+        'c.basemaps.cartocdn.com',
+        'd.basemaps.cartocdn.com',
+      ])
+    );
   });
 });
 
@@ -73,8 +98,9 @@ describe('tileMosaic', () => {
     expect(tileMosaic({ pin: MANILA, zoom: 16, width: 0, height: 200 }).tiles).toEqual([]);
   });
 
-  it('carries the credit OpenStreetMap asks every map to show', () => {
+  it('credits both the map data and the tile host', () => {
     expect(mosaic.attribution).toBe(OSM_ATTRIBUTION);
     expect(OSM_ATTRIBUTION).toMatch(/OpenStreetMap/);
+    expect(OSM_ATTRIBUTION).toMatch(/CARTO/);
   });
 });

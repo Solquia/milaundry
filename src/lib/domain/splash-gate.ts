@@ -20,12 +20,11 @@ export type HomeRoute =
 export type OpenDestination = '/splash' | '/welcome' | HomeRoute;
 
 /**
- * Long enough for the water to arrive, cross the wordmark, settle — and then be
- * held there for a beat before the exit begins. A splash that leaves while it
- * is still moving reads as a glitch; one that starts its exit the instant it
- * settles reads as impatient. The pause is the point.
+ * Long enough for the mark to arrive and rest. A splash that leaves while the
+ * name is still fading in reads as a glitch; one that starts its exit the
+ * instant it settles reads as impatient. The pause is the point.
  */
-export const SPLASH_MIN_MS = 3900;
+export const SPLASH_MIN_MS = 2400;
 
 /**
  * The point at which a session check is treated as never arriving. Waiting

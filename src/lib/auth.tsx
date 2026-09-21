@@ -18,8 +18,8 @@ interface AuthContextValue {
   session: Session | null;
   profile: Profile | null;
   isLoading: boolean;
-  signIn: (phone: string, password: string) => Promise<void>;
-  signUp: (phone: string, password: string, fullName: string) => Promise<void>;
+  signIn: (phone: string, password: string) => Promise<Profile | null>;
+  signUp: (phone: string, password: string, fullName: string) => Promise<Profile | null>;
   signOut: () => Promise<void>;
   /**
    * Re-reads the signed-in profile row. The profile carries settings the
@@ -27,7 +27,7 @@ interface AuthContextValue {
    * this the screen that changed it would keep showing the old answer until
    * the next cold start.
    */
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<Profile | null>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -39,10 +39,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const loadProfile = useCallback(async (userId: string | undefined) => {
+  const loadProfile = useCallback(async (userId: string | undefined): Promise<Profile | null> => {
     if (!userId) {
       setProfile(null);
-      return;
+      return null;
     }
     const { data, error } = await supabase
       .from('profiles')
@@ -52,9 +52,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) {
       console.warn('Failed to load profile:', error.message);
       setProfile(null);
-      return;
+      return null;
     }
-    setProfile(data as Profile);
+    const row = data as Profile;
+    setProfile(row);
+    return row;
   }, []);
 
   useEffect(() => {
@@ -89,27 +91,49 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async (loginInput: string, password: string) => {
     const loginId = parseLoginId(loginInput);
     if (!loginId) throw new Error('Enter your mobile number or shop username.');
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: loginIdToAuthEmail(loginId),
       password,
     });
     if (error) throw new Error(error.message);
-  }, []);
+    // The destination after sign-in depends on the role. Wait for the
+    // profile here so a superadmin is not sent to the customer home
+    // while the row is still in flight.
+    userIdRef.current = data.user.id;
+    setSession(data.session);
+    const profile = await loadProfile(data.user.id);
+    if (profile?.role === 'superadmin') return profile;
+    // If this is the first platform account, take the console rather than
+    // waiting on a SQL-editor promotion. Missing function or an existing
+    // superadmin both come back as an error; leave the profile as it is.
+    const claimed = await supabase.rpc('claim_first_superadmin');
+    const row = (Array.isArray(claimed.data) ? claimed.data[0] : claimed.data) as Profile | null;
+    if (!claimed.error && row?.role === 'superadmin') {
+      setProfile(row);
+      return row;
+    }
+    return profile;
+  }, [loadProfile]);
 
   const signUp = useCallback(
     async (phone: string, password: string, fullName: string) => {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: phoneToAuthEmail(phone),
         password,
         options: { data: { full_name: fullName, phone } },
       });
       if (error) throw new Error(error.message);
+      const userId = data.user?.id;
+      if (!userId) return null;
+      userIdRef.current = userId;
+      setSession(data.session);
+      return loadProfile(userId);
     },
-    []
+    [loadProfile]
   );
 
   const refreshProfile = useCallback(async () => {
-    await loadProfile(userIdRef.current);
+    return loadProfile(userIdRef.current);
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {

@@ -1,3 +1,4 @@
+import { usePathname } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
@@ -8,16 +9,22 @@ import { frameLayout } from '@/lib/domain/web-frame';
 const BACKDROP = '#04203F';
 
 /**
- * Holds everything to a phone-width column in a wide browser window, and
+ * Holds the app to a phone-width column in a wide browser window, and
  * tells the tree inside how wide it really is.
  *
- * A phone's browser, and every native screen, falls straight through to the
- * children — the column is the window there, so there is nothing to draw
- * around it. The reasoning is in `domain/web-frame.ts`.
+ * A shop's public page (`/s/`, `/track/`, `/claim/`, `/join/`) takes the
+ * window instead — those routes have their own layout. A phone's browser,
+ * and every native screen, falls straight through. The reasoning is in
+ * `domain/web-frame.ts`.
  */
 export function WebFrame({ children }: { children: React.ReactNode }) {
   const window = useWindowDimensions();
-  const frame = frameLayout({ platform: Platform.OS, viewportWidth: window.width });
+  const pathname = usePathname();
+  const frame = frameLayout({
+    platform: Platform.OS,
+    viewportWidth: window.width,
+    pathname,
+  });
 
   return (
     <ViewportProvider width={frame.width} height={window.height}>

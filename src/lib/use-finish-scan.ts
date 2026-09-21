@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 
 import { claimOrder, getRegisteredShops, registerWithShop } from './api';
+import type { Role } from './domain/splash-gate';
 import { afterAuthRoute, fallbackRouteAfterFailedScan } from './domain/welcome-flow';
 import { takePendingScan } from './pending-scan-store';
 
@@ -18,12 +19,12 @@ import { takePendingScan } from './pending-scan-store';
  * stands. The customer is sent to the shopfront, where the connect control is
  * one tap away, rather than to an error they can do nothing about.
  */
-export function useFinishScan(): () => Promise<string> {
+export function useFinishScan(): (role?: Role | null) => Promise<string> {
   const queryClient = useQueryClient();
 
-  return useCallback(async () => {
+  return useCallback(async (role?: Role | null) => {
     const scan = takePendingScan();
-    if (!scan) return '/';
+    if (!scan) return afterAuthRoute(null, 0, role);
 
     try {
       if (scan.type === 'shop') {

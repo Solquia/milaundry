@@ -20,6 +20,7 @@
  * and the steppers and it becomes a basket row. The card itself is the button
  * in both, which is why there is no Add on it.
  */
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
@@ -139,9 +140,10 @@ export function ServiceTileCard({
   };
 
   /**
-   * The card is the button, which is why there is no Add on it. In basket mode
-   * that holds only until something is on the ticket: once the steppers appear
-   * a card-wide press would fight them, so the card goes inert.
+   * The card is the button. A "Book" mark on it is a cue, not a second target
+   * — the whole tile presses. In basket mode that holds only until something
+   * is on the ticket: once the steppers appear a card-wide press would fight
+   * them, so the card goes inert.
    */
   const cardPress = isBasket ? (held === 0 ? onAdd : undefined) : onBook;
   const Wrapper = cardPress ? Pressable : View;
@@ -151,6 +153,7 @@ export function ServiceTileCard({
         accessibilityLabel: isBasket
           ? `Add ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`
           : `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`,
+        accessibilityHint: isBasket ? undefined : 'Opens booking for this service',
         accessibilityState: { disabled: isDisabled },
         disabled: isDisabled,
         onPress: cardPress,
@@ -169,6 +172,7 @@ export function ServiceTileCard({
       style={[
         styles.card,
         { backgroundColor: tone.field },
+        isBookable && styles.cardBookable,
         isHovered && isBookable && styles.cardHovered,
         isPressed && isBookable && styles.cardPressed,
         held > 0 && { borderColor: bookTone.bg },
@@ -213,6 +217,12 @@ export function ServiceTileCard({
             <Text style={[styles.minimumText, { color: tone.ink }]} numberOfLines={1}>
               {price.minimum}
             </Text>
+          </View>
+        ) : null}
+        {isBookable && !isBasket ? (
+          <View style={styles.bookCue} pointerEvents="none">
+            <Text style={[styles.bookCueText, { color: tone.ink }]}>Book</Text>
+            <Ionicons name="chevron-forward" size={14} color={tone.ink} />
           </View>
         ) : null}
       </View>
@@ -300,6 +310,11 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
+  /**
+   * A bookable card has an edge, so it reads as a control rather than as a
+   * picture of a price. Hover still lifts it; the border is what a thumb sees.
+   */
+  cardBookable: { borderColor: colors.borderStrong },
   cardHovered: { ...elevation.lift, transform: [{ translateY: -4 }] },
   cardPressed: { transform: [{ scale: 0.985 }] },
 
@@ -372,6 +387,27 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   minimumText: { ...type.caption, fontSize: 11, fontFamily: fontFor(600) },
+
+  /**
+   * Under the price, in the words — a chip, not a nested button. The card
+   * itself is the press target; this only says so. Kept in the reading
+   * column so a sticky foot bar cannot cover it on a phone.
+   */
+  bookCue: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+    minHeight: 28,
+    marginTop: 6,
+    paddingLeft: space.snug,
+    paddingRight: 6,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  bookCueText: { ...type.caption, fontFamily: fontFor(700), fontSize: 12 },
 
   /** Bottom-left, clear of the object's corner. */
   stepper: {

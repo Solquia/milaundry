@@ -3,6 +3,7 @@ import {
   TICK_SPACING,
   clampPieces,
   offsetForWeight,
+  parseTypedWeight,
   pieceOptions,
   rulerTicks,
   tickKind,
@@ -87,5 +88,40 @@ describe('pieceOptions / clampPieces', () => {
   it('keeps counts whole', () => {
     expect(clampPieces(2.7)).toBe(3);
     expect(clampPieces(Number.NaN)).toBe(0);
+  });
+});
+
+describe('parseTypedWeight', () => {
+  it('reads the figure a counter types into the scale', () => {
+    expect(parseTypedWeight('2.0', 30)).toBe(2);
+    expect(parseTypedWeight('2', 30)).toBe(2);
+    expect(parseTypedWeight('2.5', 30)).toBe(2.5);
+  });
+
+  it('accepts the unit if they type it after the number', () => {
+    expect(parseTypedWeight('2.0 kg', 30)).toBe(2);
+    expect(parseTypedWeight('7.5kg', 30)).toBe(7.5);
+  });
+
+  it('treats a comma as a decimal, the way a phone keypad often does', () => {
+    expect(parseTypedWeight('2,5', 30)).toBe(2.5);
+  });
+
+  it('rounds to one decimal rather than billing a dust figure', () => {
+    expect(parseTypedWeight('2.37', 30)).toBe(2.4);
+  });
+
+  it('clamps a slipped extra zero to the scale instead of rejecting it', () => {
+    expect(parseTypedWeight('200', 30)).toBe(30);
+  });
+
+  it('lets them type zero, so they can clear a guess', () => {
+    expect(parseTypedWeight('0', 30)).toBe(0);
+  });
+
+  it('refuses anything that is not a weight, so the last reading stays', () => {
+    expect(parseTypedWeight('', 30)).toBeNull();
+    expect(parseTypedWeight('.', 30)).toBeNull();
+    expect(parseTypedWeight('heavy', 30)).toBeNull();
   });
 });

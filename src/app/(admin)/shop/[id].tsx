@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -20,6 +21,7 @@ import {
   ToggleRow,
   adminColors,
 } from '@/components/admin-ui';
+import { AdminShopServices } from '@/components/admin-shop-services';
 import {
   ErrorText,
   Field,
@@ -36,7 +38,9 @@ import {
   adminSetShopActive,
   adminUpdateShop,
   getAllShops,
+  setShopBranding,
   uploadBrandLogo,
+  uploadShopCover,
 } from '@/lib/api';
 import { friendlyAdminError } from '@/lib/domain/admin-error';
 import type { CredentialsHandoff } from '@/lib/domain/credentials-handoff';
@@ -47,10 +51,11 @@ import type { ShopAccountRole } from '@/lib/domain/shop-account';
 import { SHOP_ACCOUNT_ROLES, validateShopAccountForm } from '@/lib/domain/shop-account';
 import { validateShopForm } from '@/lib/domain/shop-form';
 import { canRemoveMember, describeMemberRole } from '@/lib/domain/shop-member';
-import { generateTempPassword } from '@/lib/domain/temp-password';
+import { COVER_ASPECT, COVER_QUALITY, coverTooLarge, heroBackdrop } from '@/lib/domain/shop-cover';
+import { generateTempPassword, type PasswordSource } from '@/lib/domain/temp-password';
 import { useViewAsShop } from '@/lib/view-as-shop-context';
 
-const SEGMENTS = ['General', 'Accounts', 'Features', 'Integrations', 'Delivery'] as const;
+const SEGMENTS = ['General', 'Accounts', 'Services', 'Features', 'Integrations', 'Delivery'] as const;
 type Segment = (typeof SEGMENTS)[number];
 
 export default function AdminShopDetail() {
@@ -144,6 +149,17 @@ export default function AdminShopDetail() {
               setMessage(text);
             }}
             refresh={refresh}
+          />
+        )}
+
+        {segment === 'Services' && (
+          <AdminShopServices
+            shopId={shopId}
+            onError={(err) => report(err, '')}
+            onMessage={(text) => {
+              setError('');
+              setMessage(text);
+            }}
           />
         )}
 
@@ -252,6 +268,9 @@ function GeneralSegment({
     name: string;
     slug: string;
     logo_url: string;
+    cover_url: string;
+    brand_accent: number | null;
+    tagline: string;
     address: string;
     phone: string;
     qr_token: string;
@@ -267,6 +286,8 @@ function GeneralSegment({
   const [address, setAddress] = useState(shop.address);
   const [phoneInput, setPhoneInput] = useState(formatPhoneInput(shop.phone));
   const [logoUri, setLogoUri] = useState('');
+  const [coverUri, setCoverUri] = useState('');
+  const [coverError, setCoverError] = useState('');
 
   const pickLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -280,24 +301,75 @@ function GeneralSegment({
     }
   };
 
+  const pickCover = async () => {
+    setCoverError('');
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: COVER_ASPECT,
+      quality: COVER_QUALITY,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (coverTooLarge(asset.fileSize)) {
+      setCoverError('That photo is too large. Pick one under 6 MB.');
+      return;
+    }
+    setCoverUri(asset.uri);
+  };
+
   const save = useMutation({
     mutationFn: async () => {
       const validated = validateShopForm({ name, address, phoneInput });
       if (!validated.ok) throw new Error(validated.message);
       let logoUrl: string | undefined;
       if (logoUri) logoUrl = await uploadBrandLogo(shop.id, logoUri);
-      return adminUpdateShop(shop.id, validated.values, { logoUrl });
+      await adminUpdateShop(shop.id, validated.values, { logoUrl });
+      if (coverUri) {
+        const coverUrl = await uploadShopCover(shop.id, coverUri);
+        await setShopBranding(shop.id, {
+          accent: shop.brand_accent,
+          tagline: shop.tagline ?? '',
+          coverUrl,
+        });
+      }
     },
     onSuccess: () => {
       setLogoUri('');
+      setCoverUri('');
       onSaved();
     },
     onError,
   });
 
+  const backdrop = heroBackdrop(shop, coverUri);
+
   return (
     <>
       <View style={styles.card}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Change background photo"
+          onPress={pickCover}
+          style={styles.coverPicker}
+        >
+          {backdrop.kind === 'photo' ? (
+            <Image
+              source={{ uri: backdrop.uri }}
+              style={styles.coverImage}
+              contentFit="cover"
+              accessibilityLabel={`Background photo of ${shop.name}`}
+            />
+          ) : (
+            <View style={styles.coverEmpty}>
+              <Text style={styles.logoHint}>Add background photo</Text>
+            </View>
+          )}
+          <Text style={styles.logoHint}>
+            {coverUri ? 'New photo ready — save to publish' : 'Change background photo'}
+          </Text>
+        </Pressable>
+        {coverError ? <ErrorText>{coverError}</ErrorText> : null}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Change logo"
@@ -364,6 +436,7 @@ function AccountsSegment({
 }) {
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [passwordSource, setPasswordSource] = useState<PasswordSource>('generate');
   const [password, setPassword] = useState(() => generateTempPassword());
   const [role, setRole] = useState<ShopAccountRole>('staff');
   const [existingPhone, setExistingPhone] = useState('');
@@ -390,7 +463,7 @@ function AccountsSegment({
       );
       setFullName('');
       setPhone('');
-      setPassword(generateTempPassword());
+      setPassword(passwordSource === 'generate' ? generateTempPassword() : '');
       onMessage('');
       refresh();
     },
@@ -482,10 +555,42 @@ function AccountsSegment({
           placeholder="Maria Santos"
         />
         <PhoneField value={phone} onChangeText={setPhone} />
-        <PasswordField label="Temporary password" value={password} onChangeText={setPassword} />
-        <Subtle onPress={() => setPassword(generateTempPassword())}>
-          Generate a new temporary password
-        </Subtle>
+        <Subtle>Password</Subtle>
+        <View style={styles.roleRow}>
+          <Chip
+            label="Generate"
+            isSelected={passwordSource === 'generate'}
+            onPress={() => {
+              setPasswordSource('generate');
+              setPassword(generateTempPassword());
+            }}
+          />
+          <Chip
+            label="Type my own"
+            isSelected={passwordSource === 'choose'}
+            onPress={() => {
+              setPasswordSource('choose');
+              setPassword('');
+            }}
+          />
+        </View>
+        {passwordSource === 'generate' ? (
+          <>
+            <Text selectable style={styles.credentialLine}>
+              {password}
+            </Text>
+            <Subtle onPress={() => setPassword(generateTempPassword())}>
+              Make another easy password
+            </Subtle>
+          </>
+        ) : (
+          <PasswordField
+            label="Password"
+            value={password}
+            onChangeText={setPassword}
+            placeholder="At least 8 characters"
+          />
+        )}
         <View style={styles.roleRow}>
           {SHOP_ACCOUNT_ROLES.map((option) => (
             <Chip
@@ -538,6 +643,17 @@ const styles = StyleSheet.create({
   cardTitle: { fontSize: 16, fontWeight: '800', color: adminColors.text },
   logoPicker: { alignItems: 'center', gap: 6, paddingVertical: 6 },
   logoHint: { color: adminColors.accent, fontWeight: '700', fontSize: 14 },
+  coverPicker: { gap: 8 },
+  coverImage: { width: '100%', height: 140, borderRadius: 12 },
+  coverEmpty: {
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: adminColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: adminColors.paper,
+  },
   memberRow: {
     flexDirection: 'row',
     alignItems: 'center',

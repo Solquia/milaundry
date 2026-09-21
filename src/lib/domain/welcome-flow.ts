@@ -1,5 +1,6 @@
 import type { QrPayload } from './qr';
 import type { SavedAccount } from './saved-accounts';
+import { type Role, homeRouteForRole } from './splash-gate';
 
 /**
  * The front door.
@@ -128,10 +129,16 @@ function isUsableCount(value: number): boolean {
 /**
  * Where a fresh session lands. A finished shop scan carries the pre-join count
  * so the shopfront can stage the connection welcome; a count that cannot be
- * trusted is dropped rather than risk a false "your first laundry".
+ * trusted is dropped rather than risk a false "your first laundry". With
+ * nothing to finish, the account goes to the screen its role owns — the
+ * superadmin console, the shop dashboard, or the customer home.
  */
-export function afterAuthRoute(scan: PendingScan | null, priorShopCount: number): string {
-  if (!scan) return '/';
+export function afterAuthRoute(
+  scan: PendingScan | null,
+  priorShopCount: number,
+  role?: Role | null
+): string {
+  if (!scan) return homeRouteForRole(role);
   if (scan.type === 'order') return `/(customer)/order/${scan.id}`;
   const base = `/(customer)/shop/${scan.id}`;
   return isUsableCount(priorShopCount) ? `${base}?welcome=${priorShopCount}` : base;

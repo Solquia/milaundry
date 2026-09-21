@@ -7,7 +7,8 @@
  * deciding whether to walk there does not want a link; they want to see the
  * street. `domain/map-tiles` does the arithmetic, this draws it, and it draws
  * the same on either platform, so a build with no maps module gets a real map
- * instead of an apology.
+ * instead of an apology. The pictures come from Carto, not from OSM's own
+ * volunteer servers, which block this app.
  *
  * The tiles are washed toward the shop's own colour. A raster basemap is grey
  * and belongs to nobody; a map that carries the shop's accent reads as part of

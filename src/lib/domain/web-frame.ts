@@ -1,29 +1,38 @@
 /**
  * How this product sits in a browser window.
  *
- * Every screen here — the app's own and the shop pages a customer reaches
- * from a QR code, a text message or a search result — was drawn for a phone,
- * and a phone is what almost everyone opens it on. Stretched across a desktop
- * window the buttons ran the full width of the monitor and the tab bar's icons
- * sat a metre apart; grown into a desktop storefront it became a second design
- * to keep in step with the first, for the smallest share of the traffic.
+ * The app's own screens were drawn for a phone. Stretched across a desktop
+ * window the buttons ran the full width of the monitor and the tab bar's
+ * icons sat a metre apart, so those screens stay in a phone-width column on
+ * the same deep navy the splash opens on.
  *
- * So on the web there is one presentation: a phone-width column in the middle
- * of the window, on the same deep navy the splash opens on. A narrow window —
- * a phone's browser — is simply left to fill itself, which is the same layout
- * without the backdrop around it. One codepath, one thing to get right.
- *
- * The column's width is the only dial. The page inside it reads that width
- * rather than the window's (see `web-layout.ts` and `components/viewport.tsx`),
- * so widening this constant is all it would take to let the pages spread out
- * again — the wider layouts are still there, waiting for a number.
+ * A shop's public page is a different surface. A customer opens `/s/<slug>`
+ * from a QR code, a text, or a search result, on whatever they are holding —
+ * a small Android, a large iPhone, a tablet, a laptop. Capping that page at
+ * a phone column left a navy strip either side of a squeezed price grid, so
+ * those routes take the window they were opened in and answer it through
+ * `web-layout.ts`.
  */
 
 /**
  * The column, in CSS pixels: the widest phone anyone is likely to hold, so
- * the page is never asked to draw a size a real phone never gives it.
+ * the app is never asked to draw a size a real phone never gives it.
  */
 export const FRAME_MAX_WIDTH = 430;
+
+/**
+ * Public shop pages that own their layout instead of sitting in the phone
+ * column. Trailing-slash prefixes so `/s/sparkle` matches and `/settings`
+ * does not.
+ */
+const OWN_LAYOUT_PREFIXES = ['/s/', '/track/', '/claim/', '/join/'] as const;
+
+/** True when this address is a shop's public page, not the app. */
+export function hasOwnWebLayout(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  const path = pathname.startsWith('/') ? pathname : `/${pathname}`;
+  return OWN_LAYOUT_PREFIXES.some((prefix) => path.startsWith(prefix));
+}
 
 export interface FrameLayout {
   /** True when the window is wider than a phone and the backdrop is drawn. */
@@ -35,16 +44,16 @@ export interface FrameLayout {
 export function frameLayout(input: {
   platform: string;
   viewportWidth: number;
-  /**
-   * The address on screen. Kept for callers that pass it and for the day a
-   * route wants out of the column; no route asks for that today.
-   */
+  /** The address on screen. Public shop pages take the whole window. */
   pathname?: string | null;
 }): FrameLayout {
   // `!(w > FRAME)` rather than `w <= FRAME`: an unmeasured width arrives as 0
   // or NaN, and NaN fails both comparisons. Not framing is the safe answer —
   // it is what a phone gets, and it fits every window.
   if (input.platform !== 'web' || !(input.viewportWidth > FRAME_MAX_WIDTH)) {
+    return { isFramed: false, width: input.viewportWidth };
+  }
+  if (hasOwnWebLayout(input.pathname)) {
     return { isFramed: false, width: input.viewportWidth };
   }
   return { isFramed: true, width: FRAME_MAX_WIDTH };

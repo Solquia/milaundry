@@ -1,9 +1,11 @@
 import { Redirect, Tabs , usePathname } from 'expo-router';
 import React from 'react';
 
+import { AdminBootstrapGate } from '@/components/admin-bootstrap-gate';
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
+import { needsAdminBootstrap } from '@/lib/domain/admin-bootstrap';
 import { routeForRole, screenFromPathname } from '@/lib/domain/route-groups';
 import { CUSTOMER_TABS } from '@/lib/domain/tab-config';
 
@@ -21,6 +23,7 @@ export default function CustomerLayout() {
   if (profile && profile.role !== 'customer') {
     return <Redirect href={routeForRole(profile.role, screenFromPathname(pathname)) as never} />;
   }
+  if (needsAdminBootstrap(profile)) return <AdminBootstrapGate />;
 
   return (
     <Tabs

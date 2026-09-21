@@ -9,9 +9,9 @@ describe('generateBrandedAccount', () => {
     expect(account.username).toBe('sparklewash');
   });
 
-  it('builds a password from the brand word plus random characters', () => {
+  it('builds a password from the brand word, a short word, and a number', () => {
     const account = generateBrandedAccount('Sparkle Wash', zeroRandom);
-    expect(account.password).toBe('Sparkle-AAAAAA');
+    expect(account.password).toBe('Sparkle-blue-10');
     expect(account.password.length).toBeGreaterThanOrEqual(8);
   });
 

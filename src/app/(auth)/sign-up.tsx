@@ -61,8 +61,8 @@ export default function SignUp() {
     setError('');
     setIsSubmitting(true);
     try {
-      await signUp(validated.phone, password, fullName.trim());
-      const destination = await finishScan();
+      const signedUp = await signUp(validated.phone, password, fullName.trim());
+      const destination = await finishScan(signedUp?.role);
       router.replace(destination as never);
     } catch (err: unknown) {
       setError(

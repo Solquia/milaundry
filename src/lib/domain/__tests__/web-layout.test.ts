@@ -31,6 +31,11 @@ describe('webLayout', () => {
     expect(webLayout(320).contentWidth).toBe(320);
   });
 
+  it('gives a tablet its whole viewport rather than a capped column', () => {
+    expect(webLayout(700).contentWidth).toBe(700);
+    expect(webLayout(834).contentWidth).toBe(834);
+  });
+
   it('never asks a phone to carry a second column', () => {
     const layout = webLayout(390);
     expect(layout.hasAside).toBe(false);
@@ -120,6 +125,13 @@ describe('the small end of the phone range', () => {
     const large = webLayout(430);
     expect(small.gutter).toBeLessThan(large.gutter);
     expect(small.heroHeight).toBeLessThan(large.heroHeight);
+  });
+
+  it('keeps phone gutters tight so the cards own the screen', () => {
+    expect(webLayout(320).gutter).toBe(8);
+    expect(webLayout(390).gutter).toBe(12);
+    expect(webLayout(430).gutter).toBe(12);
+    expect(webLayout(834).gutter).toBe(16);
   });
 
   it('still deals two price cards a row on the smallest phone', () => {

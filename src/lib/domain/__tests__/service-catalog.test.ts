@@ -1,4 +1,5 @@
 import { CATEGORY_LABELS, CATEGORY_ORDER, CATEGORY_SHORT, STARTER_SERVICES, groupServicesByCategory, labelledServices, splitServicesByStatus, type ServiceCategory } from '../service-catalog';
+import { gridRows } from '../web-layout';
 
 describe('service categories', () => {
   it('defines a canonical category order with labels', () => {
@@ -152,5 +153,12 @@ describe('labelledServices', () => {
 
   it('returns nothing for a shop that has posted no services', () => {
     expect(labelledServices(groupServicesByCategory([]))).toEqual([]);
+  });
+
+  it('puts wash and fold beside ironing on a two-up grid, not on the next row', () => {
+    const rows = gridRows(labelledServices(groupServicesByCategory(services)), 2);
+
+    expect(rows[0]?.map((entry) => entry?.service.id)).toEqual(['w', 'i']);
+    expect(rows[1]?.map((entry) => entry?.service.id)).toEqual(['d', undefined]);
   });
 });

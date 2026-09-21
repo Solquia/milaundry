@@ -7,7 +7,7 @@
  *
  * Three ways of drawing that corner, in the order they are preferred:
  * the phone's own map when this build shipped `expo-maps` and has a key for
- * it; OpenStreetMap tiles through `components/shop-map` when it did not,
+ * it; Carto tiles through `components/shop-map` when it did not,
  * which is what an Expo Go or pre-`expo-maps` build now gets instead of a
  * blank card; and the address alone for a shop that has never placed a pin.
  * Nobody gets less than they had, and most builds get a great deal more.

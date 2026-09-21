@@ -114,8 +114,15 @@ describe('authHandoffNote', () => {
 });
 
 describe('afterAuthRoute', () => {
-  it('goes home when there is nothing to finish', () => {
-    expect(afterAuthRoute(null, 0)).toBe('/');
+  it('hands a signed-in account to the screen its role owns', () => {
+    expect(afterAuthRoute(null, 0, 'superadmin')).toBe('/(admin)');
+    expect(afterAuthRoute(null, 0, 'merchant')).toBe('/(merchant)/orders');
+    expect(afterAuthRoute(null, 0, 'customer')).toBe('/(customer)/orders');
+  });
+
+  it('treats a missing role as a customer, the safe landing', () => {
+    expect(afterAuthRoute(null, 0)).toBe('/(customer)/orders');
+    expect(afterAuthRoute(null, 0, null)).toBe('/(customer)/orders');
   });
 
   it('lands on the shopfront carrying the pre-join count for the welcome', () => {

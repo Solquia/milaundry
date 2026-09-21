@@ -2,6 +2,7 @@ import React from 'react';
 import { Alert, Text, View } from 'react-native';
 
 import { BrandingCard } from '@/components/branding-card';
+import { DoorbellCard } from '@/components/doorbell-card';
 import { PaymentRailsCard } from '@/components/payment-rails-card';
 import { PrinterCard } from '@/components/printer-card';
 import { ShopLocationCard } from '@/components/shop-location-card';
@@ -71,6 +72,7 @@ export default function MerchantSettings() {
       {shop && isOwner ? <WebPageCard shop={shop} /> : null}
       {shop && isOwner ? <ShopLocationCard shop={shop} /> : null}
       {shop && isOwner ? <PaymentRailsCard shop={shop} /> : null}
+      {shop ? <DoorbellCard /> : null}
       {shop ? <PrinterCard shop={shop} /> : null}
 
       {/* Last of the owner cards: adding a person is rarer than changing a

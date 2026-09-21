@@ -65,3 +65,24 @@ export function clampPieces(count: number, max: number = MAX_PIECES): number {
   if (!Number.isFinite(count)) return 0;
   return Math.min(max, Math.max(0, Math.round(count)));
 }
+
+/**
+ * A weight typed into the scale, not dragged.
+ *
+ * The ruler snaps to half kilos because a finger cannot aim finer. A keypad
+ * can, so this keeps one decimal and only refuses strings that are not a
+ * number — the last reading stays on screen rather than jumping to zero.
+ * Anything past the scale is a slipped extra zero, not a 200 kg load.
+ */
+export function parseTypedWeight(raw: string, maxKg: number): number | null {
+  const cleaned = raw
+    .trim()
+    .replace(/,/g, '.')
+    .replace(/\s*kgs?\.?\s*$/i, '')
+    .trim();
+  if (cleaned === '' || cleaned === '.') return null;
+  if (!/^\d+(\.\d*)?$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.min(maxKg, roundKg(value));
+}

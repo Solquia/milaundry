@@ -1,10 +1,31 @@
-// Temporary passwords get read over the phone or written on a slip of paper
-// before the shop owner signs in for the first time, so the alphabet drops
-// every glyph pair that is easy to confuse: 0/O, 1/l/I, 5/S, 8/B.
-export const TEMP_PASSWORD_ALPHABET =
-  'ACDEFGHJKMNPQRTUVWXYZacdefghjkmnpqrtuvwxyz234679';
+import { MIN_PASSWORD_LENGTH } from './credentials';
 
-export const TEMP_PASSWORD_LENGTH = 12;
+/**
+ * Temporary passwords are read over the phone or written on a slip, so they
+ * are two short words and a number — not a 12-character soup of mixed case.
+ * Words stay lowercase and unaccented so they type the same as they sound.
+ */
+export const TEMP_PASSWORD_WORDS = [
+  'blue',
+  'clean',
+  'fresh',
+  'soft',
+  'warm',
+  'quick',
+  'soap',
+  'wash',
+  'fold',
+  'steam',
+  'press',
+  'load',
+] as const;
+
+export type TempPasswordWord = (typeof TEMP_PASSWORD_WORDS)[number];
+
+/** How a superadmin sets the first password: invent one, or type their own. */
+export type PasswordSource = 'generate' | 'choose';
+
+export const PASSWORD_SOURCES: readonly PasswordSource[] = ['generate', 'choose'];
 
 /** Returns an integer in [0, maxExclusive). */
 export type RandomInt = (maxExclusive: number) => number;
@@ -12,16 +33,26 @@ export type RandomInt = (maxExclusive: number) => number;
 const defaultRandomInt: RandomInt = (maxExclusive) =>
   Math.floor(Math.random() * maxExclusive);
 
+const WORD_COUNT = TEMP_PASSWORD_WORDS.length;
+
 /**
- * Builds a temporary password for a freshly provisioned shop account.
- * The random source is injectable so the mapping is testable without stubbing
- * globals; production callers use the default.
+ * `fresh-soap-24` — two different words from the list and a number 10–99.
+ * Always at least `MIN_PASSWORD_LENGTH` characters.
  */
 export function generateTempPassword(randomInt: RandomInt = defaultRandomInt): string {
-  const characters: string[] = [];
-  for (let index = 0; index < TEMP_PASSWORD_LENGTH; index += 1) {
-    const draw = randomInt(TEMP_PASSWORD_ALPHABET.length);
-    characters.push(TEMP_PASSWORD_ALPHABET[draw % TEMP_PASSWORD_ALPHABET.length]);
+  const firstIndex = randomInt(WORD_COUNT) % WORD_COUNT;
+  let secondIndex = randomInt(WORD_COUNT) % WORD_COUNT;
+  if (secondIndex === firstIndex) {
+    secondIndex = (firstIndex + 1) % WORD_COUNT;
   }
-  return characters.join('');
+  const number = 10 + (randomInt(90) % 90);
+  const password = `${TEMP_PASSWORD_WORDS[firstIndex]}-${TEMP_PASSWORD_WORDS[secondIndex]}-${number}`;
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    throw new Error('generated password shorter than the shared minimum');
+  }
+  return password;
+}
+
+export function isPasswordSource(value: string): value is PasswordSource {
+  return (PASSWORD_SOURCES as readonly string[]).includes(value);
 }

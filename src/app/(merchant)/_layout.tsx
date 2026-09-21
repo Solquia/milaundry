@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { DoorbellBanner } from '@/components/doorbell-banner';
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading, colors, space, type } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
@@ -19,6 +20,7 @@ import {
   canEnterMerchantDashboard,
   viewAsBannerText,
 } from '@/lib/domain/view-as-shop';
+import { useShopDoorbell, useShopDoorbellWatch } from '@/lib/use-shop-doorbell';
 import { useViewAsShop } from '@/lib/view-as-shop-context';
 
 // Built once per tab set: a fresh function identity here would remount the
@@ -29,6 +31,15 @@ import { useViewAsShop } from '@/lib/view-as-shop-context';
 function makeTabBar(tabs: readonly TabConfig[]) {
   const renderTabBar = (props: TabBarProps) => <RaisedTabBar {...props} tabs={tabs} />;
   return renderTabBar;
+}
+
+function ShopDoorbellHost() {
+  useShopDoorbellWatch();
+  const doorbell = useShopDoorbell();
+  if (!doorbell.banner) return null;
+  return (
+    <DoorbellBanner notice={doorbell.banner} onOpen={doorbell.open} onDismiss={doorbell.dismiss} />
+  );
 }
 
 export default function MerchantLayout() {
@@ -70,7 +81,8 @@ export default function MerchantLayout() {
   };
 
   return (
-    <>
+    <View style={styles.shell}>
+      <ShopDoorbellHost />
       {isViewingAs && viewAsShop && (
         <SafeAreaView edges={['top']} style={styles.bannerSafeArea}>
           <View style={styles.banner}>
@@ -136,11 +148,12 @@ export default function MerchantLayout() {
           options={{ href: null, title: 'Settings', headerRight: undefined }}
         />
       </Tabs>
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  shell: { flex: 1 },
   // `type.title`, not the navigator default: the screen name is the largest
   // word on the screen and was rendering a step below the type scale.
   headerTitle: { ...type.title, color: colors.text },

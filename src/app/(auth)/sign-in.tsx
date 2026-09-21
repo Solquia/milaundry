@@ -89,10 +89,10 @@ export default function SignIn() {
     setError('');
     setIsSubmitting(true);
     try {
-      await signIn(loginInput, password);
+      const signedIn = await signIn(loginInput, password);
       // Only a login that actually worked is worth offering next time.
       await rememberSignIn(loginInput);
-      const destination = await finishScan();
+      const destination = await finishScan(signedIn?.role);
       router.replace(destination as never);
     } catch (err: unknown) {
       setError(

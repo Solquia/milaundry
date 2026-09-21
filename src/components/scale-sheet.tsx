@@ -8,7 +8,7 @@
  */
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { quickWeights, scaleSheetCta } from '@/lib/domain/pos-ticket';
@@ -69,7 +69,10 @@ function OpenScale({
           onPress={onClose}
           style={styles.scrim}
         />
-        <View style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, space.room) }]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, space.room) }]}
+        >
           <View style={styles.grip} />
           <View style={styles.head}>
             <View style={styles.headText}>
@@ -136,7 +139,7 @@ function OpenScale({
               <Text style={styles.removeText}>Take it off the ticket</Text>
             </Pressable>
           ) : null}
-        </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );

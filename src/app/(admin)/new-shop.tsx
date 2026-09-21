@@ -1,4 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { Image } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
@@ -6,21 +7,27 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import {
   AdminHero,
+  Chip,
   PillButton,
   ShopLogo,
   adminColors,
 } from '@/components/admin-ui';
-import { Field, PhoneField } from '@/components/ui-kit';
+import { Field, PasswordField, PhoneField } from '@/components/ui-kit';
 import {
   adminCreateBrandedOwner,
   adminCreateShop,
   adminUpdateShop,
+  setShopBranding,
   uploadBrandLogo,
+  uploadShopCover,
 } from '@/lib/api';
 import { friendlyAdminError } from '@/lib/domain/admin-error';
 import { generateBrandedAccount } from '@/lib/domain/branded-account';
+import { MIN_PASSWORD_LENGTH } from '@/lib/domain/credentials';
+import { COVER_ASPECT, COVER_QUALITY, coverTooLarge } from '@/lib/domain/shop-cover';
 import { validateShopForm } from '@/lib/domain/shop-form';
 import { slugifyShopName } from '@/lib/domain/shop-slug';
+import { generateTempPassword, type PasswordSource } from '@/lib/domain/temp-password';
 
 interface CreatedCredentials {
   shopId: string;
@@ -37,6 +44,9 @@ export default function NewShop() {
   const [address, setAddress] = useState('');
   const [phone, setPhone] = useState('');
   const [logoUri, setLogoUri] = useState('');
+  const [coverUri, setCoverUri] = useState('');
+  const [passwordSource, setPasswordSource] = useState<PasswordSource>('generate');
+  const [password, setPassword] = useState(() => generateTempPassword());
   const [error, setError] = useState('');
   const [created, setCreated] = useState<CreatedCredentials | null>(null);
 
@@ -54,6 +64,23 @@ export default function NewShop() {
     }
   };
 
+  const pickCover = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: COVER_ASPECT,
+      quality: COVER_QUALITY,
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    if (coverTooLarge(asset.fileSize)) {
+      setError('That photo is too large. Pick one under 6 MB.');
+      return;
+    }
+    setError('');
+    setCoverUri(asset.uri);
+  };
+
   const createShop = useMutation({
     mutationFn: async () => {
       const validated = validateShopForm({ name, address, phoneInput: phone });
@@ -66,11 +93,20 @@ export default function NewShop() {
         logoUrl = await uploadBrandLogo(shop.id, logoUri);
         await adminUpdateShop(shop.id, validated.values, { logoUrl });
       }
+      if (coverUri) {
+        const coverUrl = await uploadShopCover(shop.id, coverUri);
+        await setShopBranding(shop.id, { accent: null, tagline: '', coverUrl });
+      }
+
+      if (passwordSource === 'choose' && password.trim().length < MIN_PASSWORD_LENGTH) {
+        throw new Error(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      }
 
       // The branded owner login is generated from the shop's own name. If the
       // username is already taken (a similarly named shop), retry with -2/-3
       // style suffixes rather than stranding a shop with no login.
       const account = generateBrandedAccount(validated.values.name);
+      const ownerPassword = password.trim();
       let lastError: Error | null = null;
       for (const suffix of ['', '2', '3']) {
         const username = `${account.username}${suffix}`;
@@ -78,13 +114,13 @@ export default function NewShop() {
           await adminCreateBrandedOwner(shop.id, {
             fullName: `${validated.values.name} Owner`,
             username,
-            password: account.password,
+            password: ownerPassword,
           });
           return {
             shopId: shop.id,
             shopName: shop.name,
             username,
-            password: account.password,
+            password: ownerPassword,
           };
         } catch (err: unknown) {
           lastError = err instanceof Error ? err : new Error('Account creation failed');
@@ -142,10 +178,29 @@ export default function NewShop() {
     <View style={styles.screen}>
       <AdminHero
         title="Add laundry shop"
-        subtitle="Name, logo and location — the login is generated for you"
+        subtitle="Name, photos and location — then a login for the shop"
       />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Pick a background photo"
+            onPress={pickCover}
+            style={styles.coverPicker}
+          >
+            {coverUri ? (
+              <Image
+                source={{ uri: coverUri }}
+                style={styles.coverImage}
+                contentFit="cover"
+                accessibilityLabel="Background photo"
+              />
+            ) : (
+              <View style={styles.coverEmpty}>
+                <Text style={styles.logoHint}>Add background photo</Text>
+              </View>
+            )}
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Pick a logo"
@@ -178,16 +233,53 @@ export default function NewShop() {
           />
         </View>
 
-        {name.trim() ? (
-          <View style={styles.card}>
-            <Text style={styles.previewLabel}>AUTO-GENERATED LOGIN</Text>
-            <Text style={styles.previewText}>
-              Username <Text style={styles.previewStrong}>{generatePreviewUsername(name)}</Text>{' '}
-              and a branded password are created with the shop. You&apos;ll see
-              them once, right after this.
-            </Text>
+        <View style={styles.card}>
+          <Text style={styles.previewLabel}>SHOP LOGIN PASSWORD</Text>
+          <View style={styles.choiceRow}>
+            <Chip
+              label="Generate"
+              isSelected={passwordSource === 'generate'}
+              onPress={() => {
+                setPasswordSource('generate');
+                setPassword(generateTempPassword());
+              }}
+            />
+            <Chip
+              label="Type my own"
+              isSelected={passwordSource === 'choose'}
+              onPress={() => {
+                setPasswordSource('choose');
+                setPassword('');
+              }}
+            />
           </View>
-        ) : null}
+          {passwordSource === 'generate' ? (
+            <>
+              <Text selectable style={styles.previewText}>
+                Password <Text style={styles.previewStrong}>{password}</Text>
+              </Text>
+              <Text
+                style={styles.logoHint}
+                onPress={() => setPassword(generateTempPassword())}
+              >
+                Make another easy password
+              </Text>
+            </>
+          ) : (
+            <PasswordField
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="At least 8 characters"
+            />
+          )}
+          {name.trim() ? (
+            <Text style={styles.previewText}>
+              Username will be{' '}
+              <Text style={styles.previewStrong}>{generatePreviewUsername(name)}</Text>
+            </Text>
+          ) : null}
+        </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
@@ -219,6 +311,18 @@ const styles = StyleSheet.create({
   },
   logoPicker: { alignItems: 'center', gap: 6, paddingVertical: 6 },
   logoHint: { color: adminColors.accent, fontWeight: '700', fontSize: 14 },
+  coverPicker: { gap: 8 },
+  coverImage: { width: '100%', height: 140, borderRadius: 12 },
+  coverEmpty: {
+    height: 140,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: adminColors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: adminColors.paper,
+  },
+  choiceRow: { flexDirection: 'row', gap: 8 },
   slugPreview: { color: adminColors.subtle, fontSize: 13, marginTop: -4 },
   previewLabel: {
     fontSize: 11,

@@ -1,4 +1,30 @@
-import { FRAME_MAX_WIDTH, frameLayout } from '../web-frame';
+import { FRAME_MAX_WIDTH, frameLayout, hasOwnWebLayout } from '../web-frame';
+
+describe('hasOwnWebLayout', () => {
+  it('lets a shop page, a tracking page, a claim and a join out of the column', () => {
+    for (const pathname of ['/s/sparkle', '/s/sparkle/book', '/track/abc', '/claim/abc', '/join/abc']) {
+      expect(hasOwnWebLayout(pathname)).toBe(true);
+    }
+  });
+
+  it('leaves the app in the column', () => {
+    for (const pathname of ['/', '/shops', '/settings', '/splash', '/download']) {
+      expect(hasOwnWebLayout(pathname)).toBe(false);
+    }
+  });
+
+  it('does not match near-misses of the public prefixes', () => {
+    for (const pathname of ['/settings/shops', '/tracking', '/joined', '/s', '/track']) {
+      expect(hasOwnWebLayout(pathname)).toBe(false);
+    }
+  });
+
+  it('treats a missing path as the app', () => {
+    expect(hasOwnWebLayout(null)).toBe(false);
+    expect(hasOwnWebLayout(undefined)).toBe(false);
+    expect(hasOwnWebLayout('')).toBe(false);
+  });
+});
 
 describe('frameLayout', () => {
   it('lets a phone fill its screen', () => {
@@ -14,18 +40,23 @@ describe('frameLayout', () => {
     });
   });
 
-  it('holds a wide browser window to a phone-width column', () => {
+  it('holds the app to a phone-width column in a wide browser window', () => {
     expect(frameLayout({ platform: 'web', viewportWidth: 1280 })).toEqual({ isFramed: true, width: FRAME_MAX_WIDTH });
+    expect(frameLayout({ platform: 'web', viewportWidth: 1440, pathname: '/shops' })).toEqual({
+      isFramed: true,
+      width: FRAME_MAX_WIDTH,
+    });
   });
 
-  // The decision this file exists to record: a shop's public page is the
-  // surface most of its customers meet on a phone, so it wears the phone
-  // column on a laptop too rather than growing a desktop layout of its own.
-  it('gives a shop page the same phone column as the app', () => {
+  it('lets a shop page use the window it was opened in', () => {
     for (const pathname of ['/s/sparkle', '/s/sparkle/book', '/track/abc', '/claim/abc', '/join/abc']) {
       expect(frameLayout({ platform: 'web', viewportWidth: 1440, pathname })).toEqual({
-        isFramed: true,
-        width: FRAME_MAX_WIDTH,
+        isFramed: false,
+        width: 1440,
+      });
+      expect(frameLayout({ platform: 'web', viewportWidth: 768, pathname })).toEqual({
+        isFramed: false,
+        width: 768,
       });
     }
   });

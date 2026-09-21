@@ -13,24 +13,21 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { tileBadge } from '@/lib/domain/pos-ticket';
 import { priceSubtitle } from '@/lib/domain/price-label';
-import { CATEGORY_LABELS, type ServiceGroup } from '@/lib/domain/service-catalog';
+import {
+  CATEGORY_LABELS,
+  labelledServices,
+  type ServiceGroup,
+} from '@/lib/domain/service-catalog';
 import { serviceIcon } from '@/lib/domain/service-icon';
+import { showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
 import { categoryIcon } from '@/lib/domain/shop-home';
+import { gridRows } from '@/lib/domain/web-layout';
 import type { ServiceRow } from '@/lib/types';
 
 import { APP_TONE, type QuantityTone } from './quantity-picker';
-import { RADII, colors, space, type } from './ui-kit';
+import { RADII, colors, fontFor, space, type } from './ui-kit';
 
 export const ALL_CATEGORIES = 'all';
-
-/** Tiles two to a row; an odd last tile keeps its width with a blank beside it. */
-function pairs<T>(items: readonly T[]): (T | null)[][] {
-  const rows: (T | null)[][] = [];
-  for (let i = 0; i < items.length; i += 2) {
-    rows.push([items[i], items[i + 1] ?? null]);
-  }
-  return rows;
-}
 
 export function CategoryStrip({
   groups,
@@ -103,12 +100,14 @@ export function CategoryStrip({
  */
 function ServiceTile({
   service,
+  categoryLabel,
   quantity,
   tone,
   onPress,
   onLess,
 }: {
   service: ServiceRow;
+  categoryLabel: string;
   quantity: number;
   tone: QuantityTone;
   onPress: () => void;
@@ -117,6 +116,7 @@ function ServiceTile({
 }) {
   const badge = tileBadge(service, quantity);
   const isChosen = badge !== null;
+  const field = showcaseTone(service.category);
   const hint =
     service.unit === 'per_kg'
       ? 'Opens the scale'
@@ -128,7 +128,8 @@ function ServiceTile({
     <View
       style={[
         styles.tile,
-        isChosen && { borderColor: tone.brand, backgroundColor: tone.soft },
+        { backgroundColor: field.field },
+        isChosen && { borderColor: tone.brand },
       ]}
     >
       <Pressable
@@ -141,15 +142,20 @@ function ServiceTile({
         onPress={onPress}
         style={({ pressed }) => [styles.tileHit, pressed && styles.tilePressed]}
       >
+        <View style={[styles.tag, { backgroundColor: colors.card }]}>
+          <Text style={[styles.tagText, { color: field.ink }]} numberOfLines={1}>
+            {categoryLabel}
+          </Text>
+        </View>
         <View style={[styles.tileIcon, isChosen && { backgroundColor: tone.brand }]}>
           <Ionicons
             name={serviceIcon(service.name, service.category) as never}
             size={20}
-            color={isChosen ? colors.onAccent : tone.ink}
+            color={isChosen ? colors.onAccent : field.ink}
           />
         </View>
-        <Text style={styles.tileName} numberOfLines={2}>
-          {service.name}
+        <Text style={[styles.tileName, { color: field.ink }]} numberOfLines={2}>
+          {showcaseTitle(service.name)}
         </Text>
         <Text style={[styles.tilePrice, isChosen && { color: tone.ink }]} numberOfLines={1}>
           {priceSubtitle(service)}
@@ -208,33 +214,27 @@ export function ServiceMenu({
 }) {
   const shown =
     active === ALL_CATEGORIES ? groups : groups.filter((group) => group.category === active);
-  const showHeadings = active === ALL_CATEGORIES && groups.length > 1;
+  const tiles = labelledServices(shown);
 
   return (
     <View style={styles.menu}>
-      {shown.map((group) => (
-        <View key={group.category} style={styles.section}>
-          {showHeadings ? (
-            <Text style={styles.sectionLabel}>{CATEGORY_LABELS[group.category]}</Text>
-          ) : null}
-          {pairs(group.services).map((row, index) => (
-            <View key={index} style={styles.row}>
-              {row.map((service, column) =>
-                service ? (
-                  <ServiceTile
-                    key={service.id}
-                    service={service}
-                    quantity={quantities[service.id] ?? 0}
-                    tone={tone}
-                    onPress={() => onTap(service)}
-                    onLess={() => onLess(service)}
-                  />
-                ) : (
-                  <View key={`blank-${column}`} style={styles.blank} />
-                )
-              )}
-            </View>
-          ))}
+      {gridRows(tiles, 2).map((row, index) => (
+        <View key={index} style={styles.row}>
+          {row.map((entry, column) =>
+            entry ? (
+              <ServiceTile
+                key={entry.service.id}
+                service={entry.service}
+                categoryLabel={entry.label}
+                quantity={quantities[entry.service.id] ?? 0}
+                tone={tone}
+                onPress={() => onTap(entry.service)}
+                onLess={() => onLess(entry.service)}
+              />
+            ) : (
+              <View key={`blank-${column}`} style={styles.blank} />
+            )
+          )}
         </View>
       ))}
     </View>
@@ -258,27 +258,39 @@ const styles = StyleSheet.create({
   chipText: { ...type.label, color: colors.text },
   chipTextActive: { color: colors.onAccent },
 
-  menu: { gap: space.section },
-  section: { gap: space.cosy },
-  sectionLabel: { ...type.label, color: colors.subtle, letterSpacing: 0.3 },
-  row: { flexDirection: 'row', gap: space.cosy },
+  menu: { gap: space.snug },
+  row: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
   blank: { flex: 1 },
 
   /**
    * A tile, not a list row: the till is tapped from across a counter, so each
    * target is tall, and the price sits on the tile because a POS that hides
    * prices is a POS you have to trust.
+   *
+   * One grid, every service in it — the category lives in the card now, so
+   * wash-and-fold sits beside ironing instead of above a heading and a blank.
    */
   tile: {
     flex: 1,
-    minHeight: 118,
+    minWidth: 0,
+    minHeight: 132,
     borderRadius: RADII.card,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: 'transparent',
+    overflow: 'hidden',
   },
   /** The press area is the whole tile; the padding lives here so it is hit. */
-  tileHit: { flex: 1, padding: space.cosy, gap: space.tight },
+  tileHit: { flex: 1, padding: space.cosy, paddingTop: space.room + 18, gap: space.tight },
+  tag: {
+    position: 'absolute',
+    top: space.snug,
+    left: space.snug,
+    paddingHorizontal: space.snug,
+    paddingVertical: 2,
+    borderRadius: RADII.pill,
+    maxWidth: '70%',
+  },
+  tagText: { ...type.caption, fontSize: 10.5, fontFamily: fontFor(700), letterSpacing: 0.3 },
   tilePressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
   tileIcon: {
     width: 36,

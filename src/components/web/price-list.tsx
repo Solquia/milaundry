@@ -66,7 +66,7 @@ export function PriceList({ services, theme, onBook, columns = 2 }: PriceListPro
           )}
         </View>
       ))}
-      {onBook ? <Text style={styles.footnote}>Tap a service to book it.</Text> : null}
+      {onBook ? <Text style={styles.footnote}>Tap a card to book that service.</Text> : null}
     </View>
   );
 }
@@ -78,7 +78,8 @@ const styles = StyleSheet.create({
   blank: { flex: 1 },
   footnote: {
     ...type.caption,
-    color: colors.subtle,
+    fontSize: 13,
+    color: colors.actionInk,
     paddingHorizontal: space.tight,
     marginTop: space.tight,
   },
