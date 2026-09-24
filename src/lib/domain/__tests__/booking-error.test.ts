@@ -124,3 +124,37 @@ describe('friendlyBookingError', () => {
     );
   });
 });
+
+describe('unavailable shops and services', () => {
+  const base = { hasShopId: true, loadError: null, isServiceFound: true };
+
+  it('says the shop is not taking bookings, without a pointless retry', () => {
+    const problem = describeCatalogProblem({ ...base, isShopAvailable: false });
+    expect(problem?.title).toMatch(/isn't taking bookings/i);
+    expect(problem?.canRetry).toBe(false);
+  });
+
+  it('ranks a closed shop above a missing service', () => {
+    const problem = describeCatalogProblem({ ...base, isShopAvailable: false, isServiceFound: false });
+    expect(problem?.title).toMatch(/isn't taking bookings/i);
+  });
+
+  it('names the service from last time when a rebook finds it gone', () => {
+    const problem = describeCatalogProblem({
+      ...base,
+      isServiceFound: false,
+      rebookServiceName: 'Wash & Fold',
+    });
+    expect(problem?.title).toBe("Wash & Fold isn't offered anymore");
+  });
+
+  it('turns server refusals into sentences', () => {
+    expect(friendlyBookingError('not registered with this shop')).toMatch(/connect/i);
+    expect(friendlyBookingError('unknown service: 1b4e28ba-2fa1-11d2-883f-0016d3cca427')).toMatch(
+      /isn't offered/i
+    );
+    expect(friendlyBookingError('delivery orders need an address')).toBe(
+      'Enter the pickup & delivery address.'
+    );
+  });
+});

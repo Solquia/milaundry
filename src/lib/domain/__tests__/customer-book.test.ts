@@ -1,6 +1,8 @@
 import {
   addressPickerLabel,
   defaultAddress,
+  formatAddressLine,
+  matchSavedAddress,
   needsHandle,
   paymentPreferenceSummary,
   sortAddresses,
@@ -64,7 +66,14 @@ describe('validateAddress', () => {
     const result = validateAddress({ label: '  Home ', address: ' 12 Mabini St ', notes: ' gate ' });
     expect(result).toEqual({
       ok: true,
-      value: { label: 'Home', address: '12 Mabini St', notes: 'gate' },
+      value: {
+        label: 'Home',
+        address: '12 Mabini St',
+        notes: 'gate',
+        building: '',
+        unit: '',
+        landmark: '',
+      },
     });
   });
 
@@ -140,5 +149,79 @@ describe('paymentPreferenceSummary', () => {
 describe('addressPickerLabel', () => {
   test('is the label and the street, so two "Home"s are still distinguishable', () => {
     expect(addressPickerLabel(address())).toBe('Home · 12 Mabini St, Quezon City');
+  });
+});
+
+describe('building, unit and landmark', () => {
+  test('are trimmed and kept', () => {
+    const result = validateAddress({
+      label: 'Home',
+      address: '12 Mabini St',
+      notes: '',
+      building: ' Tower 2 ',
+      unit: ' 4B ',
+      landmark: ' near 7-Eleven ',
+    });
+    expect(result.ok && result.value).toMatchObject({
+      building: 'Tower 2',
+      unit: '4B',
+      landmark: 'near 7-Eleven',
+    });
+  });
+
+  test('are refused past what their columns hold', () => {
+    const result = validateAddress({
+      label: 'Home',
+      address: '12 Mabini St',
+      notes: '',
+      building: 'b'.repeat(81),
+      unit: 'u'.repeat(41),
+      landmark: 'l'.repeat(121),
+    });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.errors.building).toMatch(/shorter/i);
+      expect(result.errors.unit).toMatch(/shorter/i);
+      expect(result.errors.landmark).toMatch(/shorter/i);
+    }
+  });
+});
+
+describe('formatAddressLine', () => {
+  test('puts unit and building ahead of the street, landmark after', () => {
+    expect(
+      formatAddressLine({
+        address: '12 Mabini St, Quezon City',
+        building: 'Tower 2',
+        unit: '4B',
+        landmark: '7-Eleven',
+      })
+    ).toBe('Unit 4B, Tower 2, 12 Mabini St, Quezon City (near 7-Eleven)');
+  });
+
+  test('does not say "near" twice or "Unit" twice', () => {
+    expect(
+      formatAddressLine({ address: '12 Mabini St', building: '', unit: 'Unit 3', landmark: 'Near the church' })
+    ).toBe('Unit 3, 12 Mabini St (near the church)');
+  });
+
+  test('is just the street for an address saved before the extra fields', () => {
+    expect(formatAddressLine(address())).toBe('12 Mabini St, Quezon City');
+  });
+});
+
+describe('matchSavedAddress', () => {
+  const tower = address({ id: 'a2', unit: '4B', building: 'Tower 2' });
+
+  test('finds the saved address a booking line was made from', () => {
+    expect(matchSavedAddress([address(), tower], 'Unit 4B, Tower 2, 12 Mabini St, Quezon City')?.id).toBe('a2');
+  });
+
+  test('ignores case and stray spaces', () => {
+    expect(matchSavedAddress([address()], '  12 mabini st, quezon city ')?.id).toBe('a1');
+  });
+
+  test('is null for somewhere new', () => {
+    expect(matchSavedAddress([address()], '9 Rizal Ave')).toBeNull();
   });
 });
