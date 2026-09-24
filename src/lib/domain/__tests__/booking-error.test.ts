@@ -158,3 +158,16 @@ describe('unavailable shops and services', () => {
     );
   });
 });
+describe('a rebook whose order will not load', () => {
+  const base = { hasShopId: true, loadError: null, isServiceFound: true };
+
+  it('says so and offers a retry instead of a silently blank booking', () => {
+    const problem = describeCatalogProblem({ ...base, rebookLoadError: new Error('Failed to fetch') });
+    expect(problem?.title).toMatch(/previous order/i);
+    expect(problem?.canRetry).toBe(true);
+  });
+
+  it('stays quiet when the order loaded', () => {
+    expect(describeCatalogProblem({ ...base, rebookLoadError: null })).toBeNull();
+  });
+});

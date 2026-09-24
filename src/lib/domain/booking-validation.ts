@@ -20,7 +20,8 @@ export const MIN_BOOKING_WEIGHT_KG = 1;
 export const SLOT_LEAD_MINUTES = 60;
 
 const ADDRESS_MAX = 300;
-const ADDRESS_MIN = 8;
+/** Short enough for "SM MOA" or "Blk 5A", long enough to catch a stray keypress. */
+const ADDRESS_MIN = 5;
 
 interface PricedService {
   id: string;

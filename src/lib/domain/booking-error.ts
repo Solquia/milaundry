@@ -40,6 +40,12 @@ const SHOP_UNAVAILABLE: CatalogProblem = {
   canRetry: false,
 };
 
+const REBOOK_UNLOADED: CatalogProblem = {
+  title: "We couldn't load your previous order",
+  body: 'Check your connection and try again, or go back and book from the shop.',
+  canRetry: true,
+};
+
 /** A rebook whose service was dropped: name what it was, not "this service". */
 function goneSince(serviceName: string): CatalogProblem {
   return {
@@ -65,9 +71,15 @@ export function describeCatalogProblem(input: {
   isShopAvailable?: boolean;
   /** Set when this booking is a "Book again" of a named service. */
   rebookServiceName?: string;
+  /**
+   * The "Book again" order failed to load. Said out loud rather than falling
+   * through to a blank booking the customer did not ask for.
+   */
+  rebookLoadError?: Error | null;
 }): CatalogProblem | null {
   if (!input.hasShopId) return LOST_SHOP;
   if (input.loadError) return CANNOT_LOAD_PRICES;
+  if (input.rebookLoadError) return REBOOK_UNLOADED;
   if (input.isShopAvailable === false) return SHOP_UNAVAILABLE;
   if (!input.isServiceFound) {
     return input.rebookServiceName ? goneSince(input.rebookServiceName) : OFF_MENU;

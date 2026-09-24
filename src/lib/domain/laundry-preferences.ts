@@ -5,7 +5,8 @@
  * The same person wants the same unscented detergent and the same air-dried
  * shirts on every load, and used to have to remember to type it into a note
  * each time — or, more often, to not bother and get the shop's default. The
- * preferences live on the profile (`profiles.laundry_preferences`) and ride
+ * preferences live in `customer_laundry_preferences`, readable by the customer
+ * alone (never on `profiles`, which connected shops can read), and ride
  * onto each order as plain lines in `orders.notes`, which is the field every
  * shop screen and printed ticket already shows. No shop-side change is needed
  * for the counter to read them.

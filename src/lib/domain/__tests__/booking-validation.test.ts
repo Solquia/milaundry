@@ -174,3 +174,10 @@ describe('slotProblems', () => {
     ).toMatch(/after pickup/i);
   });
 });
+
+describe('validateDeliveryAddress, short real places', () => {
+  it('accepts a short landmark address a rider knows', () => {
+    expect(validateDeliveryAddress('SM MOA')).toBeNull();
+    expect(validateDeliveryAddress('Blk 5A')).toBeNull();
+  });
+});

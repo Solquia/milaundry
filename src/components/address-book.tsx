@@ -27,17 +27,25 @@ import {
   type,
 } from './ui-kit';
 import {
+  formatAddressLine,
   sortAddresses,
   validateAddress,
   type AddressErrors,
-  type AddressInput,
+  type CleanAddress,
   type SavedAddress,
 } from '@/lib/domain/customer-book';
 
-const EMPTY: AddressInput = { label: '', address: '', notes: '' };
+const EMPTY: CleanAddress = {
+  label: '',
+  address: '',
+  notes: '',
+  building: '',
+  unit: '',
+  landmark: '',
+};
 
 /** What the card hands back when a row is saved. */
-export type AddressDraftOut = AddressInput & { id?: string; isDefault?: boolean };
+export type AddressDraftOut = CleanAddress & { id?: string; isDefault?: boolean };
 
 interface AddressBookProps {
   addresses: readonly SavedAddress[];
@@ -95,8 +103,8 @@ export function AddressBook({
                 </View>
               ) : null}
             </View>
-            <Text style={styles.rowAddress}>{row.address}</Text>
-            {row.notes ? <Text style={styles.rowNotes}>{row.notes}</Text> : null}
+            <Text style={styles.rowAddress}>{formatAddressLine(row)}</Text>
+            {row.notes ? <Text style={styles.rowNotes}>Rider: {row.notes}</Text> : null}
             {/* Offered rather than implied: a row that is already the default
                 has nothing to promote, so it carries no dead control. */}
             {!row.is_default ? (
@@ -180,13 +188,13 @@ export function AddressChips({
   return (
     <View style={styles.chips}>
       {rows.map((row) => {
-        const isActive = row.address.trim() === value.trim();
+        const isActive = formatAddressLine(row).toLowerCase() === value.trim().toLowerCase();
         return (
           <Pressable
             key={row.id}
             accessibilityRole="button"
             accessibilityState={{ selected: isActive }}
-            accessibilityLabel={`Send it to ${row.label}, ${row.address}`}
+            accessibilityLabel={`Send it to ${row.label}, ${formatAddressLine(row)}`}
             onPress={() => onPick(row)}
             style={({ pressed }) => [
               styles.chip,
@@ -289,11 +297,20 @@ function OpenAddressSheet({
 }) {
   const insets = useSafeAreaInsets();
   const isNew = editing === 'new';
-  const [draft, setDraft] = useState<AddressInput>(() =>
+  const [draft, setDraft] = useState<CleanAddress>(() =>
     isNew
       ? EMPTY
-      : { label: editing.label, address: editing.address, notes: editing.notes }
+      : {
+          label: editing.label,
+          address: editing.address,
+          notes: editing.notes,
+          building: editing.building ?? '',
+          unit: editing.unit ?? '',
+          landmark: editing.landmark ?? '',
+        }
   );
+  const setField = (field: keyof CleanAddress) => (text: string) =>
+    setDraft((prev) => ({ ...prev, [field]: text }));
   const [errors, setErrors] = useState<AddressErrors>({});
 
   const submit = () => {
@@ -327,7 +344,7 @@ function OpenAddressSheet({
             <Field
               label="Name it"
               value={draft.label}
-              onChangeText={(label) => setDraft((prev) => ({ ...prev, label }))}
+              onChangeText={setField('label')}
               placeholder="Home"
               autoCapitalize="words"
               returnKeyType="next"
@@ -335,17 +352,48 @@ function OpenAddressSheet({
             <ErrorText>{errors.label}</ErrorText>
 
             <Field
-              label="Address"
+              label="Street & city"
               value={draft.address}
-              onChangeText={(address) => setDraft((prev) => ({ ...prev, address }))}
+              onChangeText={setField('address')}
               placeholder="12 Mabini St, Quezon City"
             />
             <ErrorText>{errors.address}</ErrorText>
 
+            {/* Unit and building side by side: they are one answer, "which
+                door", and together they fit a row a phone can hold. */}
+            <View style={styles.pair}>
+              <View style={styles.pairCell}>
+                <Field
+                  label="Unit (optional)"
+                  value={draft.unit}
+                  onChangeText={setField('unit')}
+                  placeholder="4B"
+                />
+                <ErrorText>{errors.unit}</ErrorText>
+              </View>
+              <View style={styles.pairWide}>
+                <Field
+                  label="Building (optional)"
+                  value={draft.building}
+                  onChangeText={setField('building')}
+                  placeholder="Tower 2, Sunrise Condo"
+                />
+                <ErrorText>{errors.building}</ErrorText>
+              </View>
+            </View>
+
             <Field
-              label="Anything the rider needs (optional)"
+              label="Landmark (optional)"
+              value={draft.landmark}
+              onChangeText={setField('landmark')}
+              placeholder="Across the 7-Eleven"
+            />
+            <ErrorText>{errors.landmark}</ErrorText>
+
+            <Field
+              label="Rider instructions (optional)"
               value={draft.notes}
-              onChangeText={(notes) => setDraft((prev) => ({ ...prev, notes }))}
+              onChangeText={setField('notes')}
               placeholder="Green gate, ring twice"
             />
             <ErrorText>{errors.notes}</ErrorText>
@@ -468,6 +516,9 @@ const styles = StyleSheet.create({
     marginBottom: space.cosy,
   },
   sheetBody: { gap: space.snug, paddingBottom: space.room },
+  pair: { flexDirection: 'row', gap: space.snug },
+  pairCell: { flex: 2 },
+  pairWide: { flex: 3 },
   sheetTitle: { ...type.title, color: colors.text, marginBottom: space.tight },
   save: {
     minHeight: 52,

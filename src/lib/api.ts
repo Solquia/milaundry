@@ -16,6 +16,7 @@ import type { ShopPaymentDetails } from './domain/shop-payment';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
+import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
@@ -93,7 +94,11 @@ export interface AddressDraft {
   id?: string;
   label: string;
   address: string;
+  /** Rider instructions. */
   notes: string;
+  building: string;
+  unit: string;
+  landmark: string;
   /** Only ever true; clearing a default happens by making another one. */
   isDefault?: boolean;
 }
@@ -115,6 +120,9 @@ export async function saveAddress(draft: AddressDraft): Promise<SavedAddress> {
     label: draft.label,
     address: draft.address,
     notes: draft.notes,
+    building: draft.building,
+    unit: draft.unit,
+    landmark: draft.landmark,
   };
 
   const result = draft.id
@@ -164,6 +172,34 @@ export async function savePaymentPreference(preference: {
       payment_handle: preference.handle || null,
     })
     .eq('id', profileId);
+  if (result.error) throw new Error(result.error.message);
+}
+
+/**
+ * How this customer likes their laundry done, or none when they never said.
+ * Its own table (0027), readable by the customer alone — shops see preferences
+ * only as they arrive on an order placed with them.
+ */
+export async function getMyLaundryPreferences(): Promise<LaundryPreferences> {
+  const result = await supabase
+    .from('customer_laundry_preferences')
+    .select('preferences')
+    .maybeSingle();
+  if (result.error) throw new Error(result.error.message);
+  return normalizePreferences(result.data?.preferences);
+}
+
+/** Validated by the caller (`validatePreferences`). One row per customer. */
+export async function saveLaundryPreferences(preferences: LaundryPreferences): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const profileId = auth.user?.id;
+  if (!profileId) throw new Error('Sign in to save your laundry preferences.');
+
+  const result = await supabase.from('customer_laundry_preferences').upsert({
+    profile_id: profileId,
+    preferences,
+    updated_at: new Date().toISOString(),
+  });
   if (result.error) throw new Error(result.error.message);
 }
 

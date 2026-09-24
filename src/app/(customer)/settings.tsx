@@ -5,18 +5,22 @@ import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AddressBook, type AddressDraftOut } from '@/components/address-book';
 import { BlueField } from '@/components/blue-field';
+import { LaundryPreferencesCard } from '@/components/laundry-preferences';
 import { PaymentPreferenceCard } from '@/components/payment-preference-card';
 import { Button, Screen, colors, elevation, space, type } from '@/components/ui-kit';
 import {
   deleteAddress,
   getMyAddresses,
+  getMyLaundryPreferences,
   getMyOrders,
   getRegisteredShops,
   saveAddress,
+  saveLaundryPreferences,
   savePaymentPreference,
   setDefaultAddress,
 } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { NO_PREFERENCES } from '@/lib/domain/laundry-preferences';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { formatPhoneInput } from '@/lib/domain/phone-input';
 import { profileFacts, profileInitials } from '@/lib/domain/ticket-stamp';
@@ -90,6 +94,23 @@ export default function CustomerSettings() {
     onError: (err: Error) => setPayError(friendlyMerchantError('save-order', err.message)),
   });
 
+  // The usual wash, from the customer's own table; the booking reads the
+  // same cache key, so a change here is in the next booking without a refetch.
+  const preferencesQuery = useQuery({
+    queryKey: ['my-laundry-preferences'],
+    queryFn: getMyLaundryPreferences,
+  });
+  const laundryPreferences = preferencesQuery.data ?? NO_PREFERENCES;
+  const [prefsError, setPrefsError] = React.useState('');
+  const preferencesSave = useMutation({
+    mutationFn: saveLaundryPreferences,
+    onSuccess: async () => {
+      setPrefsError('');
+      await queryClient.invalidateQueries({ queryKey: ['my-laundry-preferences'] });
+    },
+    onError: (err: Error) => setPrefsError(friendlyMerchantError('save-order', err.message)),
+  });
+
   const isAddressBusy =
     addressSave.isPending || addressDelete.isPending || addressDefault.isPending;
 
@@ -160,6 +181,16 @@ export default function CustomerSettings() {
         isBusy={payment.isPending}
         error={payError}
         onSave={(preference) => payment.mutate(preference)}
+      />
+
+      <LaundryPreferencesCard
+        // Keyed on the saved value, so the draft restarts from the profile
+        // once it loads or once a save comes back.
+        key={JSON.stringify(laundryPreferences)}
+        value={laundryPreferences}
+        isBusy={preferencesSave.isPending}
+        error={prefsError}
+        onSave={(next) => preferencesSave.mutate(next)}
       />
 
       {SETTING_SECTIONS.map((section) => (

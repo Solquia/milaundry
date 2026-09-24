@@ -75,6 +75,12 @@ interface SlotCalendarProps {
    * look busier than the two questions it actually asks.
    */
   framed?: boolean;
+  /**
+   * The hours a rider can still make on the chosen day. Hours outside it are
+   * drawn but cannot be picked, so "8 AM" at 5 PM reads as gone rather than
+   * as a choice that fails later. Omitted, every hour is offered.
+   */
+  openHours?: readonly number[];
 }
 
 export function SlotCalendar({
@@ -87,6 +93,7 @@ export function SlotCalendar({
   tone = SLOT_TONE,
   showHeading = true,
   framed = true,
+  openHours,
 }: SlotCalendarProps) {
   const days = railDays(minOffset, maxOffset, now);
 
@@ -120,15 +127,18 @@ export function SlotCalendar({
         >
           {SLOT_HOURS.map((hour) => {
             const isOn = hour === value.hour;
+            const isClosed = openHours ? !openHours.includes(hour) : false;
             return (
               <Pressable
                 key={hour}
                 accessibilityRole="button"
-                accessibilityState={{ selected: isOn }}
-                accessibilityLabel={`${label} at ${hourLabel(hour)}`}
+                accessibilityState={{ selected: isOn, disabled: isClosed }}
+                accessibilityLabel={`${label} at ${hourLabel(hour)}${isClosed ? ', not available' : ''}`}
+                disabled={isClosed}
                 onPress={() => onChange({ ...value, hour })}
                 style={[
                   styles.hour,
+                  isClosed && styles.hourClosed,
                   isOn && {
                     backgroundColor: tone.accent,
                     borderColor: tone.accent,
@@ -370,6 +380,8 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   hourText: { ...type.label, color: colors.text },
+  /** Still drawn, so the row keeps its shape; plainly not on offer. */
+  hourClosed: { opacity: 0.35 },
 
   empty: { paddingHorizontal: space.cosy },
   emptyText: { ...type.caption, color: colors.subtle },

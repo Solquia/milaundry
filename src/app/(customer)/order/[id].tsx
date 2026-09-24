@@ -38,6 +38,7 @@ import { bookingPaymentStage } from '@/lib/domain/booking-status';
 import { docketNumber, stampLabel } from '@/lib/domain/docket';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
+import { canBookAgain, rebookHref } from '@/lib/domain/rebook';
 import { weighEvidence } from '@/lib/domain/weigh-evidence';
 import { supabase } from '@/lib/supabase';
 
@@ -150,6 +151,7 @@ export default function CustomerOrderDetail() {
     ];
   const money = BILL_TONES[bill.stage];
   const stamp = stampLabel(bill.stage);
+  const againHref = canBookAgain(order) ? rebookHref(order) : null;
 
   return (
     <Screen>
@@ -410,8 +412,19 @@ export default function CustomerOrderDetail() {
         the field instead of a field of red.
       */}
       <View style={styles.actions}>
+        {/* A finished load's likeliest next step is the same load again. It
+            opens a filled review — same shop, service, weight, address and
+            instructions — where every answer can still be changed. */}
+        {againHref && (
+          <Button
+            title="Book again"
+            accessibilityLabel={`Book again at ${order.shop?.name ?? 'this shop'}, same as this order`}
+            onPress={() => router.push(againHref as never)}
+          />
+        )}
         <Button
           title="Done"
+          variant={againHref ? 'outline' : undefined}
           accessibilityLabel={`Done. Back to ${order.shop?.name ?? 'the shop'}`}
           // Replace, not push: "Done" closes this order. Pushing would leave a
           // shop → order → shop stack where Back walks into the screen the

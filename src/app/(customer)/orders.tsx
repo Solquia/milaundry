@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlueField } from '@/components/blue-field';
 import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
 import { OrderStub } from '@/components/order-stub';
+import { QuickBookCard, RecentShopRow } from '@/components/quick-book';
 import {
   ACCENTS,
   BLUE_FIELD,
@@ -39,6 +40,7 @@ import {
   type AttentionCard,
 } from '@/lib/domain/home-attention';
 import { homeGreeting } from '@/lib/domain/home-greeting';
+import { quickBookTarget, recentShops } from '@/lib/domain/recent-shops';
 import { homeSubline, type HeadlineOrder } from '@/lib/domain/home-headline';
 import { formatOrderTime } from '@/lib/domain/order-card';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
@@ -156,10 +158,24 @@ export default function CustomerOrders() {
     queryFn: getRegisteredShops,
   });
 
-  const { tiles: shopTiles, hiddenCount: hiddenShopCount } = useMemo(
-    () => connectedShopTiles(shops ?? []),
-    [shops]
+  // The laundries actually used, newest first, each carrying last time's load.
+  const recent = useMemo(() => recentShops(orders ?? []), [orders]);
+  const quickBook = useMemo(() => quickBookTarget(recent, shops ?? []), [recent, shops]);
+  const recentAccents = useMemo(
+    () =>
+      assignBrandAccents(
+        recent.map((shop) => ({ id: shop.shopId, brand_accent: shop.brandAccent })),
+        ACCENTS.length
+      ),
+    [recent]
   );
+
+  // "Your shops" lists the rest, so a laundry is never on the sheet twice.
+  const { tiles: shopTiles, hiddenCount: hiddenShopCount } = useMemo(() => {
+    const recentIds = new Set(recent.map((shop) => shop.shopId));
+    return connectedShopTiles((shops ?? []).filter((shop) => !recentIds.has(shop.id)));
+  }, [shops, recent]);
+  const hasAnyShop = (shops ?? []).length > 0 || recent.length > 0;
 
   const { active, past } = useMemo(() => {
     const all = orders ?? [];
@@ -323,22 +339,53 @@ export default function CustomerOrders() {
         />
       ))}
 
+      {/* Quick book: the fastest way from opening the app to a booking —
+          last time's load, landing on a filled review. Absent for a customer
+          with no shop at all; the empty state below already says what to do. */}
+      {quickBook.kind !== 'find' && (
+        <QuickBookCard target={quickBook} onPress={() => go(quickBook.href)} />
+      )}
+
+      {/* The laundries actually used, most recent first, each one tap from
+          booking the same thing again. */}
+      {recent.length > 0 && (
+        <>
+          <Text style={styles.sectionLabel}>RECENT SHOPS</Text>
+          {recent.map((shop, index) => {
+            const href = shop.rebookHref;
+            return (
+              <RecentShopRow
+                key={shop.shopId}
+                shop={shop}
+                accent={ACCENTS[recentAccents[index]]}
+                onOpen={() => go(`/(customer)/shop/${shop.shopId}`)}
+                onBook={href ? () => go(href) : undefined}
+              />
+            );
+          })}
+        </>
+      )}
+
       {/* Connected shops: the customer's own laundries, one tap from home. */}
-      <View style={styles.sectionHead}>
-        <Text style={styles.sectionLabel}>YOUR SHOPS</Text>
-        {hiddenShopCount > 0 && (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`See all shops, ${hiddenShopCount} more`}
-            hitSlop={12}
-            onPress={() => go('/(customer)/shops')}
-          >
-            <Text style={styles.sectionLink}>See all ({hiddenShopCount} more)</Text>
-          </Pressable>
-        )}
-      </View>
+      {(shopTiles.length > 0 || !hasAnyShop) && (
+        <View style={styles.sectionHead}>
+          <Text style={styles.sectionLabel}>
+            {recent.length > 0 ? 'OTHER SHOPS' : 'YOUR SHOPS'}
+          </Text>
+          {hiddenShopCount > 0 && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`See all shops, ${hiddenShopCount} more`}
+              hitSlop={12}
+              onPress={() => go('/(customer)/shops')}
+            >
+              <Text style={styles.sectionLink}>See all ({hiddenShopCount} more)</Text>
+            </Pressable>
+          )}
+        </View>
+      )}
       {shopsError ? <ErrorText>{(shopsError as Error).message}</ErrorText> : null}
-      {shopTiles.length === 0 && !areShopsLoading && (
+      {!hasAnyShop && !areShopsLoading && (
         <View style={styles.panel}>
           <EmptyState message="Connect to a laundry shop and it will show up here every time you open the app." />
           <Button

@@ -26,6 +26,7 @@ export interface Profile {
   payment_handle: string | null;
 }
 
+
 export interface Shop {
   id: string;
   name: string;
@@ -60,6 +61,11 @@ export interface Shop {
   bank_account_number: string;
   /** Whether the shop's public web page at /s/<slug> is switched on. */
   web_enabled: boolean;
+  /**
+   * Which laundry preferences the shop honours (migration 0027). Read through
+   * `supportedPreferenceKeys`; absent means every one, as before the column.
+   */
+  supported_preferences?: string[] | null;
 }
 
 /** A login account attached to a shop, as returned by admin_list_shop_members. */
