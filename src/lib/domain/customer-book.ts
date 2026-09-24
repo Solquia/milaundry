@@ -24,8 +24,16 @@ export interface SavedAddress {
   profile_id: string;
   label: string;
   address: string;
-  /** Gate codes, landmarks, which floor. Empty when the customer added none. */
+  /** Rider instructions: gate codes, which bell. Empty when the customer added none. */
   notes: string;
+  /**
+   * Where in the street (migration 0027). Optional on the type because a
+   * backend without the migration returns rows without them; read them
+   * through `formatAddressLine`, which treats a missing field as empty.
+   */
+  building?: string;
+  unit?: string;
+  landmark?: string;
   is_default: boolean;
   created_at: string;
 }
@@ -35,7 +43,14 @@ export const PREFERRED_METHODS = CUSTOMER_PAYMENT_METHODS;
 export type PreferredMethod = (typeof PREFERRED_METHODS)[number];
 
 /** What the columns hold; checked here so a write never fails on length. */
-const LIMITS = { label: 40, address: 300, notes: 200 } as const;
+const LIMITS = {
+  label: 40,
+  address: 300,
+  notes: 200,
+  building: 80,
+  unit: 40,
+  landmark: 120,
+} as const;
 
 /**
  * Default first, then newest.
@@ -67,20 +82,63 @@ export function addressPickerLabel(saved: SavedAddress): string {
   return `${saved.label} · ${saved.address}`;
 }
 
+/**
+ * The one line a rider reads: unit and building ahead of the street, landmark
+ * after it. This is what a booking sends as its delivery address, so the shop
+ * gets the whole of it on the order without a second lookup.
+ */
+export function formatAddressLine(
+  saved: Pick<SavedAddress, 'address' | 'building' | 'unit' | 'landmark'>
+): string {
+  const unit = (saved.unit ?? '').trim();
+  const building = (saved.building ?? '').trim();
+  const landmark = (saved.landmark ?? '').trim().replace(/^near\s+/i, '');
+  const parts = [
+    unit ? (/^unit\b/i.test(unit) ? unit : `Unit ${unit}`) : '',
+    building,
+    saved.address.trim(),
+  ].filter(Boolean);
+  const line = parts.join(', ');
+  return landmark ? `${line} (near ${landmark})` : line;
+}
+
+function sameLine(a: string, b: string): boolean {
+  return a.trim().replace(/\s+/g, ' ').toLowerCase() === b.trim().replace(/\s+/g, ' ').toLowerCase();
+}
+
+/** The saved address a booking's address line came from, or null for somewhere new. */
+export function matchSavedAddress(
+  addresses: readonly SavedAddress[],
+  line: string
+): SavedAddress | null {
+  if (!line.trim()) return null;
+  return addresses.find((saved) => sameLine(formatAddressLine(saved), line)) ?? null;
+}
+
 export interface AddressInput {
   label: string;
   address: string;
+  /** Rider instructions. */
   notes: string;
+  building?: string;
+  unit?: string;
+  landmark?: string;
 }
+
+/** A validated address: every field present, every field trimmed. */
+export type CleanAddress = Required<AddressInput>;
 
 export interface AddressErrors {
   label?: string;
   address?: string;
   notes?: string;
+  building?: string;
+  unit?: string;
+  landmark?: string;
 }
 
 export type AddressResult =
-  | { ok: true; value: AddressInput }
+  | { ok: true; value: CleanAddress }
   | { ok: false; errors: AddressErrors };
 
 function tooLong(field: keyof typeof LIMITS): string {
@@ -97,6 +155,9 @@ export function validateAddress(input: AddressInput): AddressResult {
   const label = input.label.trim();
   const address = input.address.trim();
   const notes = input.notes.trim();
+  const building = (input.building ?? '').trim();
+  const unit = (input.unit ?? '').trim();
+  const landmark = (input.landmark ?? '').trim();
   const errors: AddressErrors = {};
 
   if (!label) errors.label = 'Give this address a name, like Home or Office.';
@@ -106,9 +167,12 @@ export function validateAddress(input: AddressInput): AddressResult {
   else if (address.length > LIMITS.address) errors.address = tooLong('address');
 
   if (notes.length > LIMITS.notes) errors.notes = tooLong('notes');
+  if (building.length > LIMITS.building) errors.building = tooLong('building');
+  if (unit.length > LIMITS.unit) errors.unit = tooLong('unit');
+  if (landmark.length > LIMITS.landmark) errors.landmark = tooLong('landmark');
 
   if (Object.keys(errors).length > 0) return { ok: false, errors };
-  return { ok: true, value: { label, address, notes } };
+  return { ok: true, value: { label, address, notes, building, unit, landmark } };
 }
 
 /** Wallets are paid by sending to a number; cash and a transfer are not. */

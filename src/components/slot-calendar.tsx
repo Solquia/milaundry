@@ -19,15 +19,20 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { BOOKING_WINDOW_DAYS, hourLabel, slotSummary, type Slot } from '@/lib/domain/booking-slot';
+import {
+  BOOKING_WINDOW_DAYS,
+  SLOT_HOURS,
+  hourLabel,
+  slotSummary,
+  type Slot,
+} from '@/lib/domain/booking-slot';
 import { railDays, railIndexOf, type RailDay } from '@/lib/domain/day-rail';
 import { RADII } from '@/lib/domain/design-scale';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { colors, space, type } from './ui-kit';
 
-/** The hours a rider calls. Two-hourly from eight to six. */
-export const SLOT_HOURS = [8, 10, 12, 14, 16, 18];
+export { SLOT_HOURS };
 
 /** One card, and the gap after it. The rail scrolls by exactly this much. */
 const CARD_WIDTH = 68;

@@ -1,3 +1,4 @@
+import { validateDeliveryAddress } from './booking-validation';
 import type { Fulfillment } from './walk-in-order';
 
 /** Default promise between rider pickup and delivery back to the customer. */
@@ -68,9 +69,8 @@ export function validateBookingSchedule(
   const errors: BookingScheduleErrors = {};
 
   const deliveryAddress = input.deliveryAddress.trim();
-  if (!deliveryAddress) {
-    errors.deliveryAddress = 'Enter the pickup & delivery address.';
-  }
+  const addressProblem = validateDeliveryAddress(deliveryAddress);
+  if (addressProblem) errors.deliveryAddress = addressProblem;
 
   if (!input.pickupAt) {
     errors.pickupAt = 'Choose a pickup time.';

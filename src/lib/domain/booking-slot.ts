@@ -84,6 +84,9 @@ export function turnaroundNote(pickup: Slot, deliver: Slot): string {
  */
 export const BOOKING_WINDOW_DAYS = 30;
 
+/** The hours a rider calls. Two-hourly from eight to six. */
+export const SLOT_HOURS: readonly number[] = [8, 10, 12, 14, 16, 18];
+
 /**
  * Delivery, kept after the pickup it depends on.
  *

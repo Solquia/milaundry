@@ -34,20 +34,44 @@ const OFF_MENU: CatalogProblem = {
   canRetry: false,
 };
 
+const SHOP_UNAVAILABLE: CatalogProblem = {
+  title: "This shop isn't taking bookings",
+  body: 'It may be closed for now or no longer on MiLaundry. Pick another laundry shop.',
+  canRetry: false,
+};
+
+/** A rebook whose service was dropped: name what it was, not "this service". */
+function goneSince(serviceName: string): CatalogProblem {
+  return {
+    title: `${serviceName} isn't offered anymore`,
+    body: 'The shop changed its price list since your last order. Open the shop to pick another service.',
+    canRetry: false,
+  };
+}
+
 /**
  * The problem blocking the booking screen, or null when it can render.
  *
  * A load failure outranks a missing service: when the price list never arrived,
  * "we couldn't reach the shop" is the true cause and "off the menu" is a guess.
+ * A closed shop outranks a missing service for the same reason: its whole menu
+ * is off, not one line of it.
  */
 export function describeCatalogProblem(input: {
   hasShopId: boolean;
   loadError: Error | null;
   isServiceFound: boolean;
+  /** False once the shop is switched off or hidden; undefined while unknown. */
+  isShopAvailable?: boolean;
+  /** Set when this booking is a "Book again" of a named service. */
+  rebookServiceName?: string;
 }): CatalogProblem | null {
   if (!input.hasShopId) return LOST_SHOP;
   if (input.loadError) return CANNOT_LOAD_PRICES;
-  if (!input.isServiceFound) return OFF_MENU;
+  if (input.isShopAvailable === false) return SHOP_UNAVAILABLE;
+  if (!input.isServiceFound) {
+    return input.rebookServiceName ? goneSince(input.rebookServiceName) : OFF_MENU;
+  }
   return null;
 }
 
@@ -70,6 +94,13 @@ const BOOKING_OFFLINE = "We couldn't reach the shop. Check your connection and t
 const BOOKING_UNAVAILABLE =
   "This shop can't take online bookings yet. Please contact the shop to place your order.";
 
+const SERVER_REFUSALS: readonly (readonly [RegExp, string])[] = [
+  [/not registered with this shop/i, "You're not connected to this shop yet — open the shop to connect, then book."],
+  [/unknown service/i, "One of these services isn't offered anymore. Go back and pick again."],
+  [/delivery orders need an address/i, 'Enter the pickup & delivery address.'],
+  [/delivery must come after pickup/i, 'Delivery must come after pickup.'],
+];
+
 /** Whether a failure means the request may never have reached the shop, or its answer never came back. */
 export function isConnectionError(rawMessage: string): boolean {
   return CONNECTION_RE.test(rawMessage);
@@ -83,6 +114,10 @@ export function isConnectionError(rawMessage: string): boolean {
 export function friendlyBookingError(rawMessage: string): string {
   const message = rawMessage.trim();
   if (!message) return BOOKING_FALLBACK;
+  // place_order's own refusals, in words the customer can act on. Checked
+  // first: "unknown service: <uuid>" would otherwise be shown verbatim.
+  const refusal = SERVER_REFUSALS.find(([pattern]) => pattern.test(message));
+  if (refusal) return refusal[1];
   if (CONNECTION_RE.test(message)) return BOOKING_OFFLINE;
   // Checked before TECHNICAL_RE: this failure has a cause worth naming, where
   // the generic "please try again" would send the customer in circles.
