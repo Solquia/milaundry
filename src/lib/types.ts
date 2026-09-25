@@ -4,6 +4,7 @@ import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
 import type { ServiceCategory } from './domain/service-catalog';
 import type { ShopAccountRole } from './domain/shop-account';
+import type { AddonGroupRules, ShopAddon } from './domain/shop-addons';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 
 export type Role = 'customer' | 'merchant' | 'superadmin';
@@ -206,6 +207,8 @@ export interface StorefrontShop {
   latitude: number | null;
   longitude: number | null;
   qr_token: string;
+  /** The wash preferences the shop honours (0031); absent from older replies. */
+  supported_preferences?: string[] | null;
 }
 
 export type StorefrontService = Pick<
@@ -224,4 +227,8 @@ export interface Storefront {
   shop: StorefrontShop;
   services: StorefrontService[];
   reviews: StorefrontReview[];
+  /** The shop's active add-on shelf (0031), so a signed-out visitor sees it too. */
+  addons?: ShopAddon[];
+  /** Pick-one or pick-several per add-on kind (0031). */
+  addon_groups?: AddonGroupRules;
 }

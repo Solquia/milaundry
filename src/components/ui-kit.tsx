@@ -649,7 +649,7 @@ const styles = StyleSheet.create({
   screenCentered: { flexGrow: 1, justifyContent: 'center' },
   screenHeader: {
     paddingHorizontal: space.room,
-    paddingVertical: space.cosy,
+    paddingVertical: space.snug,
     backgroundColor: colors.card,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,

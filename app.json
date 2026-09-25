@@ -121,6 +121,12 @@
         "projectId": "5590276c-07eb-45d8-b1c3-ce071aa17afe"
       }
     },
-    "owner": "hyansolquia"
+    "owner": "hyansolquia",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/5590276c-07eb-45d8-b1c3-ce071aa17afe"
+    }
   }
 }

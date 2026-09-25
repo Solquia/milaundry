@@ -11,8 +11,8 @@
  * category doors; this module is what the same doors need to say when they are
  * standing over a live order rather than over a price list.
  *
- * The difference is the whole point. `categoryPriceSummary` next door tells an
- * owner auditing prices what a section holds. Mid-order that question is
+ * The difference is the whole point. A price list tells an owner auditing
+ * prices what a section holds. Mid-order that question is
  * already answered and a new one has replaced it: *what did I put in there*.
  * So a category that has been taken from stops quoting the shop's price spread
  * and starts quoting this order's charge, and every figure it quotes comes from

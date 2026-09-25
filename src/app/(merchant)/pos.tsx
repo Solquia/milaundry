@@ -30,6 +30,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AddonShelf } from '@/components/addon-shelf';
 import { BrandButton } from '@/components/brand-button';
 import { CheckoutForm } from '@/components/checkout-form';
 import { CounterBand } from '@/components/counter-band';
@@ -62,7 +63,14 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
-import { getOrder, getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
+import {
+  getOrder,
+  getServices,
+  getShopAddonGroups,
+  getShopAddons,
+  placeOrder,
+  type PlaceOrderOptions,
+} from '@/lib/api';
 import { actualBill } from '@/lib/domain/actual-bill';
 import { docketNumber } from '@/lib/domain/docket';
 import { shopRoleBadge } from '@/lib/domain/merchant-access';
@@ -75,6 +83,15 @@ import { tapTile, ticketCount, ticketCountLabel, untapTile } from '@/lib/domain/
 import { estimateOrderTotal } from '@/lib/domain/pricing';
 import { buildOrderQr } from '@/lib/domain/qr';
 import { groupServicesByCategory } from '@/lib/domain/service-catalog';
+import {
+  addonPayload,
+  addonPriceLabel,
+  addonsTotal,
+  pickAddon,
+  selectedAddons,
+  setAddonQuantity,
+  type PickedAddon,
+} from '@/lib/domain/shop-addons';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { previousStep } from '@/lib/domain/step-rail';
 import {
@@ -154,6 +171,30 @@ function TillShell({
   );
 }
 
+/**
+ * The add-ons on the ticket, under the services: name, count, and what they
+ * add. The server prices them again when the order is saved.
+ */
+function AddonLines({ picked, total }: { picked: readonly PickedAddon[]; total: number }) {
+  if (picked.length === 0) return null;
+  return (
+    <View style={styles.addonLines}>
+      <View style={styles.addonHead}>
+        <Text style={styles.addonTitle}>Add-ons</Text>
+        <Text style={styles.addonTitle}>{addonPriceLabel(total)}</Text>
+      </View>
+      {picked.map(({ addon, quantity }) => (
+        <View key={addon.id} style={styles.addonLine}>
+          <Text style={styles.addonName} numberOfLines={1}>
+            {quantity > 1 ? `${addon.name} ×${quantity}` : addon.name}
+          </Text>
+          <Text style={styles.addonAmount}>{addonPriceLabel(addon.price * quantity)}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default function Pos() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -168,6 +209,7 @@ export default function Pos() {
   const [fieldErrors, setFieldErrors] = useState<WalkInErrors>({});
   const [saveError, setSaveError] = useState('');
   const [lastOrder, setLastOrder] = useState<OrderRow | null>(null);
+  const [addonPicks, setAddonPicks] = useState<Record<string, number>>({});
 
   const shopId = shop?.id;
   const { data: services, isLoading: isLoadingServices } = useQuery({
@@ -175,6 +217,22 @@ export default function Pos() {
     queryFn: () => getServices(shopId!),
     enabled: Boolean(shopId),
   });
+  // The shop's own soaps, fabcons and extras, sold at the counter as they are
+  // online. Failing to load them costs the shelf, not the ticket.
+  const { data: shopAddons = [] } = useQuery({
+    queryKey: ['shop-addons', shopId],
+    queryFn: () => getShopAddons(shopId!),
+    enabled: Boolean(shopId),
+    retry: false,
+  });
+  const { data: addonRules = {} } = useQuery({
+    queryKey: ['shop-addon-groups', shopId],
+    queryFn: () => getShopAddonGroups(shopId!),
+    enabled: Boolean(shopId),
+    retry: false,
+  });
+  const pickedAddons = selectedAddons(shopAddons, addonPicks);
+  const addonExtra = addonsTotal(shopAddons, addonPicks);
 
   const selectedItems = useMemo(
     () =>
@@ -192,11 +250,11 @@ export default function Pos() {
       return { total: null as number | null, failed: false };
     }
     try {
-      return { total: estimateOrderTotal(services, selectedItems).total, failed: false };
+      return { total: estimateOrderTotal(services, selectedItems).total + addonExtra, failed: false };
     } catch {
       return { total: null as number | null, failed: true };
     }
-  }, [services, selectedItems]);
+  }, [services, selectedItems, addonExtra]);
 
   const printer = usePrinter();
 
@@ -221,7 +279,7 @@ export default function Pos() {
       placeOrder(
         shopId!,
         selectedItems.map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
-        options
+        { ...options, addons: addonPayload(pickedAddons) }
       ),
     onSuccess: async (order) => {
       haptic('success');
@@ -265,7 +323,10 @@ export default function Pos() {
         confirmLabel: 'Clear',
         dismissLabel: 'Keep',
       },
-      () => setQuantities({})
+      () => {
+        setQuantities({});
+        setAddonPicks({});
+      }
     );
   };
 
@@ -319,6 +380,7 @@ export default function Pos() {
   const startNext = () => {
     setLastOrder(null);
     setQuantities({});
+    setAddonPicks({});
     setIntake(EMPTY_INTAKE);
     setFieldErrors({});
     setSaveError('');
@@ -537,6 +599,7 @@ export default function Pos() {
           onWeigh={setWeighing}
           onRemove={handleRemove}
         />
+        <AddonLines picked={pickedAddons} total={addonExtra} />
         {estimate.failed ? (
           <ErrorText>
             One of these prices cannot be read. Open Prices and check it before saving.
@@ -606,6 +669,26 @@ export default function Pos() {
           onLess={handleLess}
           tone={tone}
         />
+        {/* Add-ons ride on a service, so the shelf opens once one is on the
+            ticket, under the menu the counter works from. */}
+        {count > 0 && shopAddons.some((addon) => addon.is_active) ? (
+          <View style={styles.addonCard}>
+            <Text style={styles.addonCardTitle}>Add-ons</Text>
+            <AddonShelf
+              addons={shopAddons}
+              picks={addonPicks}
+              rules={addonRules}
+              onToggle={(addon) => {
+                haptic('select');
+                setAddonPicks((prev) => pickAddon(prev, addon, shopAddons, addonRules));
+              }}
+              onQuantity={(addon, quantity) => {
+                haptic('select');
+                setAddonPicks((prev) => setAddonQuantity(prev, addon, quantity));
+              }}
+            />
+          </View>
+        ) : null}
       </ScrollView>
 
       {scaleSheet}
@@ -615,6 +698,28 @@ export default function Pos() {
 
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: colors.bg },
+  addonCard: {
+    gap: space.cosy,
+    padding: space.room,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  addonCardTitle: { ...type.section, color: colors.text },
+  addonLines: {
+    gap: space.tight,
+    padding: space.room,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  addonHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: space.tight },
+  addonTitle: { ...type.label, color: colors.text },
+  addonLine: { flexDirection: 'row', justifyContent: 'space-between', gap: space.snug },
+  addonName: { ...type.body, color: colors.text, flex: 1 },
+  addonAmount: { ...type.body, color: colors.text },
   content: { padding: space.room, paddingBottom: space.section, gap: space.cosy },
   stripWrap: { paddingTop: space.cosy, paddingBottom: space.tight },
   footer: {

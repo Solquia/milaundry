@@ -26,15 +26,15 @@ import {
 import { getServices, seedStarterServices } from '@/lib/api';
 import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import { priceSubtitle } from '@/lib/domain/price-label';
-import { categoryPriceSummary, savedNotice, unpricedNotice } from '@/lib/domain/price-sections';
+import { formatMoneyCompact } from '@/lib/domain/money';
+import { minimumLabel, unitCaption } from '@/lib/domain/price-label';
+import { savedNotice, unpricedNotice } from '@/lib/domain/price-sections';
 import {
   CATEGORY_LABELS,
   STARTER_SERVICES,
   groupServicesByCategory,
   type ServiceGroup,
 } from '@/lib/domain/service-catalog';
-import { categoryIcon } from '@/lib/domain/shop-home';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
@@ -52,87 +52,86 @@ const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
 
 type PricesView = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; service: ServiceRecord };
 
+/** `₱176/kg`, or `₱150` for a flat price. */
+function priceFigure(service: ServiceRecord): string {
+  return `${formatMoneyCompact(service.price)}${unitCaption(service.unit) ?? ''}`;
+}
+
 /**
- * One price: the whole row opens it. The unit rides with the figure, because
- * "₱176" on its own does not say whether that is a kilo or a whole load.
+ * One price, read like a line on a price board: name on the left, figure on
+ * the right, the minimum beneath in small type. The whole row opens it.
  */
 function PriceRow({
   service,
-  isFirst,
   isHighlighted,
   onOpen,
 }: {
   service: ServiceRecord;
-  isFirst: boolean;
   isHighlighted: boolean;
   onOpen: () => void;
 }) {
   const isUnpriced = !(service.price > 0);
-  const priceText = isUnpriced ? 'no price set' : priceSubtitle(service);
+  const figure = isUnpriced ? 'no price set' : priceFigure(service);
+  const minimum = minimumLabel(service);
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${service.name}, ${priceText}`}
+      accessibilityLabel={`${service.name}, ${figure}${minimum ? `, ${minimum}` : ''}`}
       accessibilityHint="Opens it to change any detail"
       onPress={onOpen}
       style={({ pressed }) => [
         styles.row,
-        !isFirst && styles.rowDivided,
         isHighlighted && styles.rowHighlighted,
         pressed && styles.pressed,
       ]}
     >
       <View style={styles.rowText}>
-        <Text style={styles.rowName}>{service.name}</Text>
-        {isUnpriced ? null : <Text style={styles.rowPrice}>{priceText}</Text>}
-        {service.description ? <Subtle>{service.description}</Subtle> : null}
+        <Text style={styles.rowName} numberOfLines={1}>
+          {service.name}
+        </Text>
+        {minimum ? <Text style={styles.rowMeta}>{minimum}</Text> : null}
       </View>
       {isUnpriced ? (
         <View style={styles.flag}>
           <Text style={styles.flagText}>Set price</Text>
         </View>
-      ) : null}
-      <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+      ) : (
+        <Text style={styles.rowPrice}>{figure}</Text>
+      )}
     </Pressable>
   );
 }
 
 /**
- * One category, always open. The list used to be an accordion that opened one
- * section at a time, so most categories showed a count and a range instead of
- * their one price, and two categories could never be compared side by side.
+ * One category inside the shared sheet: a small label, then its rows. Each
+ * category used to be a heading, a range summary and a card of its own, so a
+ * shop with one price per category read as a stack of big boxes that each
+ * said the same number twice.
  */
-function PriceSection({
+function PriceGroup({
   group,
+  isFirst,
   highlightName,
   onOpen,
 }: {
   group: ServiceGroup<ServiceRecord>;
+  isFirst: boolean;
   highlightName: string | null;
   onOpen: (service: ServiceRecord) => void;
 }) {
   return (
-    <View style={styles.section}>
-      <View style={styles.sectionHead}>
-        <Ionicons
-          name={categoryIcon(group.category) as never}
-          size={18}
-          color={colors.actionInk}
+    <View style={!isFirst && styles.groupDivided}>
+      <Text style={styles.groupLabel} accessibilityRole="header">
+        {CATEGORY_LABELS[group.category]}
+      </Text>
+      {group.services.map((service) => (
+        <PriceRow
+          key={service.id}
+          service={service}
+          isHighlighted={service.name === highlightName}
+          onOpen={() => onOpen(service)}
         />
-        <Text style={styles.sectionName}>{CATEGORY_LABELS[group.category]}</Text>
-        <Text style={styles.sectionSummary}>{categoryPriceSummary(group.services)}</Text>
-      </View>
-      <View style={styles.sheet}>
-        {group.services.map((service, index) => (
-          <PriceRow
-            key={service.id}
-            service={service}
-            isFirst={index === 0}
-            isHighlighted={service.name === highlightName}
-            onOpen={() => onOpen(service)}
-          />
-        ))}
-      </View>
+      ))}
     </View>
   );
 }
@@ -145,6 +144,22 @@ function Notice({ tone, children }: { tone: keyof typeof TAG_TONES; children: st
     >
       <Text style={[styles.noticeText, { color: TAG_TONES[tone].ink }]}>{children}</Text>
     </View>
+  );
+}
+
+/** Small, beside the switch: adding is always one tap away without a slab of blue. */
+function AddButton({ onPress }: { onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Add a service"
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [styles.add, pressed && styles.addPressed]}
+    >
+      <Ionicons name="add" size={18} color={colors.onAccent} />
+      <Text style={styles.addText}>Add</Text>
+    </Pressable>
   );
 }
 
@@ -241,13 +256,23 @@ export default function MerchantServices() {
     );
   }
 
-  const modeSwitch = isOwner ? (
-    <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} />
-  ) : undefined;
+  const isAddons = isOwner && mode === 'addons';
+  const header = (
+    <View style={styles.headerRow}>
+      {isOwner ? (
+        <View style={styles.switch}>
+          <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} />
+        </View>
+      ) : (
+        <Text style={styles.headerTitle}>Services</Text>
+      )}
+      {isAddons ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
+    </View>
+  );
 
-  if (isOwner && mode === 'addons') {
+  if (isAddons) {
     return (
-      <Screen key="addons" header={modeSwitch}>
+      <Screen key="addons" header={header}>
         <MerchantAddons shopId={shop.id} />
       </Screen>
     );
@@ -259,39 +284,46 @@ export default function MerchantServices() {
   const highlightName = outcome && outcome.verb !== 'removed' ? outcome.name : null;
 
   return (
-    <Screen
-      key="list"
-      header={modeSwitch}
-      footer={<Button title="Add a service" onPress={() => openForm({ kind: 'add' })} />}
-    >
+    <Screen key="list" header={header}>
       {outcome ? <Notice tone="settled">{savedNotice(outcome)}</Notice> : null}
       {unpriced ? <Notice tone="owed">{unpriced}</Notice> : null}
       {list.length === 0 && <StarterCard shopId={shop.id} onSeeded={refresh} />}
 
-      {groups.map((group) => (
-        <PriceSection
-          key={group.category}
-          group={group}
-          highlightName={highlightName}
-          onOpen={(service) => openForm({ kind: 'edit', service })}
-        />
-      ))}
+      {groups.length > 0 ? (
+        <View style={styles.sheet}>
+          {groups.map((group, index) => (
+            <PriceGroup
+              key={group.category}
+              group={group}
+              isFirst={index === 0}
+              highlightName={highlightName}
+              onOpen={(service) => openForm({ kind: 'edit', service })}
+            />
+          ))}
+        </View>
+      ) : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  section: { gap: space.snug },
-  sectionHead: {
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  switch: { flex: 1 },
+  headerTitle: { ...type.label, fontFamily: fontFor(600), color: colors.text, flex: 1 },
+  add: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.snug,
-    paddingHorizontal: space.tight,
+    gap: 2,
+    minHeight: 40,
+    paddingLeft: space.snug,
+    paddingRight: space.cosy,
+    borderRadius: 999,
+    backgroundColor: colors.action,
   },
-  sectionName: { ...type.label, fontFamily: fontFor(600), color: colors.text, flex: 1 },
-  sectionSummary: { ...type.caption, color: colors.subtle },
+  addPressed: { opacity: 0.85 },
+  addText: { ...type.label, fontFamily: fontFor(600), color: colors.onAccent },
 
-  /** A category's prices: one sheet, ruled inside, like a printed price board. */
+  /** The whole price list: one sheet, ruled inside, like a printed price board. */
   sheet: {
     backgroundColor: colors.card,
     ...CROWN,
@@ -299,20 +331,29 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
+  groupDivided: { borderTopWidth: 1, borderTopColor: colors.border },
+  groupLabel: {
+    ...type.caption,
+    fontFamily: fontFor(600),
+    color: colors.subtle,
+    paddingHorizontal: space.room,
+    paddingTop: space.cosy,
+    paddingBottom: space.tight,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.snug,
+    gap: space.cosy,
     paddingHorizontal: space.room,
-    paddingVertical: space.cosy,
-    minHeight: 56,
+    paddingVertical: space.snug,
+    minHeight: 44,
   },
-  rowDivided: { borderTopWidth: 1, borderTopColor: colors.border },
   rowHighlighted: { backgroundColor: TAG_TONES.settled.bg },
   pressed: { backgroundColor: colors.sunken },
-  rowText: { flex: 1, minWidth: 0, gap: 2 },
-  rowName: { ...type.body, fontFamily: fontFor(600), color: colors.text },
-  rowPrice: { ...type.caption, color: colors.subtle },
+  rowText: { flex: 1, minWidth: 0 },
+  rowName: { ...type.body, color: colors.text },
+  rowMeta: { ...type.caption, color: colors.subtle },
+  rowPrice: { ...type.body, fontFamily: fontFor(600), color: colors.text },
 
   flag: {
     paddingHorizontal: space.snug,
@@ -322,6 +363,6 @@ const styles = StyleSheet.create({
   },
   flagText: { ...type.caption, fontFamily: fontFor(600), color: TAG_TONES.owed.ink },
 
-  notice: { padding: space.cosy, borderRadius: RADII.control },
-  noticeText: { ...type.label, fontFamily: fontFor(400) },
+  notice: { paddingHorizontal: space.cosy, paddingVertical: space.snug, borderRadius: RADII.control },
+  noticeText: { ...type.caption },
 });
