@@ -31,20 +31,46 @@ export const PREFERENCE_KEYS = [
 ] as const;
 export type PreferenceKey = (typeof PREFERENCE_KEYS)[number];
 
-export const DETERGENTS = ['regular', 'unscented', 'hypoallergenic', 'own'] as const;
+/**
+ * The soaps a Filipino household actually names. "Regular" meant nothing at a
+ * counter where every shop stocks Ariel or Breeze; the brand is what the
+ * customer has an opinion about, and what the washer can reach for. The plain
+ * kinds stay, for skin that cannot take a scented powder and for "I'll bring
+ * my own", and so tickets written before the brands still read back.
+ */
+export const DETERGENT_BRANDS = ['ariel', 'tide', 'breeze', 'surf', 'champion', 'pride', 'perla'] as const;
+export const DETERGENTS = [
+  ...DETERGENT_BRANDS,
+  'regular',
+  'unscented',
+  'hypoallergenic',
+  'own',
+] as const;
 export type Detergent = (typeof DETERGENTS)[number];
 
-export const SOFTENER_CHOICES = ['with', 'without'] as const;
+export const SOFTENER_BRANDS = ['downy', 'surf_fabcon', 'del'] as const;
+export const SOFTENER_CHOICES = [...SOFTENER_BRANDS, 'with', 'without'] as const;
 export type SoftenerChoice = (typeof SOFTENER_CHOICES)[number];
 
 export const DETERGENT_LABELS: Record<Detergent, string> = {
+  ariel: 'Ariel',
+  tide: 'Tide',
+  breeze: 'Breeze',
+  surf: 'Surf',
+  champion: 'Champion',
+  pride: 'Pride',
+  perla: 'Perla',
   regular: 'Regular',
   unscented: 'Unscented',
   hypoallergenic: 'Hypoallergenic',
   own: "I'll bring my own",
 };
 
+/** How each softener reads on a ticket — and the line `parseBookingNotes` matches. */
 export const SOFTENER_LABELS: Record<SoftenerChoice, string> = {
+  downy: 'Fabric conditioner: Downy',
+  surf_fabcon: 'Fabric conditioner: Surf',
+  del: 'Fabric conditioner: Del',
   with: 'With fabric softener',
   without: 'No fabric softener',
 };

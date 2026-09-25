@@ -17,6 +17,7 @@ import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
+import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
@@ -341,6 +342,8 @@ export interface PlaceOrderOptions {
   /** Rider pickup / delivery-back schedule for online bookings. */
   pickupAt?: Date | null;
   deliverBy?: Date | null;
+  /** The shop's add-ons picked for this load, and how many of each. Priced by the server, not sent. */
+  addons?: readonly { id: string; quantity: number }[];
 }
 
 export async function placeOrder(
@@ -348,7 +351,11 @@ export async function placeOrder(
   items: PlaceOrderItem[],
   options: PlaceOrderOptions = {}
 ): Promise<OrderRow> {
-  const result = await supabase.rpc('place_order', {
+  const addons = options.addons ?? [];
+  // Only a booking with add-ons goes through the wrapper, so every other
+  // caller — the POS, the web booking — keeps the function it always used.
+  const result = await supabase.rpc(addons.length > 0 ? 'place_order_with_addons' : 'place_order', {
+    ...(addons.length > 0 ? { p_addons: addons } : {}),
     p_shop_id: shopId,
     p_order_type: options.orderType ?? null,
     p_items: items,
@@ -748,6 +755,75 @@ export function uploadBrandLogo(shopId: string, localUri: string): Promise<strin
  */
 export function uploadShopCover(shopId: string, localUri: string): Promise<string> {
   return uploadShopAsset(shopId, localUri, 'cover');
+}
+
+/** The owner's own photo of an add-on — the Ariel on their shelf. Same bucket policy. */
+export function uploadAddonPhoto(shopId: string, localUri: string): Promise<string> {
+  return uploadShopAsset(shopId, localUri, 'addon');
+}
+
+// ── shop add-ons: soaps, fabcons, extras ──────────────────────────────────
+export async function getShopAddons(shopId: string): Promise<ShopAddon[]> {
+  const result = await supabase
+    .from('shop_addons')
+    .select('*')
+    .eq('shop_id', shopId)
+    .order('sort_order', { ascending: true })
+    .order('created_at', { ascending: true });
+  const rows = unwrap(result) as (Omit<ShopAddon, 'price'> & { price: number | string })[];
+  // numeric comes back as a string from PostgREST.
+  return rows.map((row) => ({ ...row, price: Number(row.price) }));
+}
+
+export async function saveShopAddon(
+  addon: Pick<ShopAddon, 'shop_id' | 'kind' | 'name' | 'price'> &
+    Partial<Pick<ShopAddon, 'note' | 'image_url' | 'sort_order' | 'max_quantity'>>
+): Promise<void> {
+  const { error } = await supabase.from('shop_addons').insert(addon);
+  if (error) throw new Error(error.message);
+}
+
+export async function updateShopAddon(
+  addonId: string,
+  patch: Partial<
+    Pick<ShopAddon, 'name' | 'note' | 'price' | 'image_url' | 'is_active' | 'sort_order' | 'max_quantity'>
+  >
+): Promise<void> {
+  const { error } = await supabase.from('shop_addons').update(patch).eq('id', addonId);
+  if (error) throw new Error(error.message);
+}
+
+/**
+ * The shop's pick-one or pick-several setting for each kind. A kind it has not
+ * set is left out, and `allowsMultiple` fills in the house rule.
+ */
+export async function getShopAddonGroups(shopId: string): Promise<AddonGroupRules> {
+  const result = await supabase
+    .from('shop_addon_groups')
+    .select('kind, allow_multiple')
+    .eq('shop_id', shopId);
+  const rows = unwrap(result) as { kind: AddonKind; allow_multiple: boolean }[];
+  return Object.fromEntries(rows.map((row) => [row.kind, row.allow_multiple]));
+}
+
+export async function setShopAddonGroup(
+  shopId: string,
+  kind: AddonKind,
+  allowMultiple: boolean
+): Promise<void> {
+  const { error } = await supabase
+    .from('shop_addon_groups')
+    .upsert({ shop_id: shopId, kind, allow_multiple: allowMultiple });
+  if (error) throw new Error(error.message);
+}
+
+export async function seedStarterAddons(
+  shopId: string,
+  starters: readonly Pick<ShopAddon, 'kind' | 'name' | 'note' | 'price'>[]
+): Promise<void> {
+  const rows = starters.map((starter, index) => ({ ...starter, shop_id: shopId, sort_order: index }));
+  const { error } = await supabase.from('shop_addons').insert(rows);
+  if (error) throw new Error(error.message);
 }
 
 /**

@@ -28,10 +28,17 @@ type Props = TabBarProps & { tabs: readonly TabConfig[] };
  * inside one container tall enough to hold the lifted button, so the circle is
  * never clipped (Android clips children that overflow their parent).
  */
-export function RaisedTabBar({ state, navigation, tabs }: Props) {
+export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
   const insets = useSafeAreaInsets();
-  const activeRouteName = state.routes[state.index]?.name;
+  const activeRoute = state.routes[state.index];
+  const activeRouteName = activeRoute?.name;
   const haptic = useHaptic();
+
+  // A flow the customer has committed to — booking — asks for the bar to go:
+  // one stray tap on Home would throw the half-built order away.
+  const barStyle = activeRoute ? descriptors[activeRoute.key]?.options.tabBarStyle : undefined;
+  const flatBarStyle = StyleSheet.flatten(barStyle) as { display?: string } | undefined;
+  if (flatBarStyle?.display === 'none') return null;
 
   return (
     <View style={[styles.container, { height: BAR_HEIGHT + LIFT + insets.bottom }]}>

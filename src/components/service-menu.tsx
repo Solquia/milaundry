@@ -2,30 +2,38 @@
  * The menu side of the till.
  *
  * A strip of categories to narrow by, and a grid of tiles big enough to hit
- * with a thumb while the other hand holds a bag. Every tile states its price,
- * so the menu is also the price list; a tile already on the ticket takes the
- * shop's own colour and wears what it carries, so the grid doubles as a
- * checklist on the way back down.
+ * with a thumb while the other hand holds a bag.
+ *
+ * The tiles used to be their own composition — a glyph in a rounded square, a
+ * name, a price line — which meant the counter and the customer were looking
+ * at two different drawings of the same service. They are shelf cards now, cut
+ * to the till: a machine front with the category on its control strip, the
+ * object behind a washer door, and the name above the rate. What the till keeps
+ * for itself is everything about a running ticket — a chosen tile's light comes
+ * on, its door fills with the shop's colour and tumbles with each tap, the
+ * door's display says what is on the ticket, and the strip carries the key that
+ * takes it back off.
  */
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { tileBadge } from '@/lib/domain/pos-ticket';
-import { priceSubtitle } from '@/lib/domain/price-label';
+import { portholeLevel } from '@/lib/domain/porthole';
 import {
   CATEGORY_LABELS,
   labelledServices,
   type ServiceGroup,
 } from '@/lib/domain/service-catalog';
-import { serviceIcon } from '@/lib/domain/service-icon';
-import { showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
+import { shelfPill } from '@/lib/domain/service-shelf';
+import { showcasePrice, showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
 import { categoryIcon } from '@/lib/domain/shop-home';
 import { gridRows } from '@/lib/domain/web-layout';
 import type { ServiceRow } from '@/lib/types';
 
 import { APP_TONE, type QuantityTone } from './quantity-picker';
-import { RADII, colors, fontFor, space, type } from './ui-kit';
+import { ServicePorthole } from './service-porthole';
+import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
 export const ALL_CATEGORIES = 'all';
 
@@ -94,9 +102,8 @@ export function CategoryStrip({
  *
  * A View holding two targets, not a button holding a button: the tile's own
  * press area fills it, and the key that takes a line back off floats above the
- * top-right corner. Nesting the second Pressable inside the first was invalid
- * on the web — a <button> inside a <button> — and the browser said so on every
- * chosen tile.
+ * well. Nesting the second Pressable inside the first was invalid on the web —
+ * a <button> inside a <button> — and the browser said so on every chosen tile.
  */
 function ServiceTile({
   service,
@@ -117,6 +124,8 @@ function ServiceTile({
   const badge = tileBadge(service, quantity);
   const isChosen = badge !== null;
   const field = showcaseTone(service.category);
+  const price = showcasePrice(service);
+  const pill = shelfPill(service);
   const hint =
     service.unit === 'per_kg'
       ? 'Opens the scale'
@@ -125,72 +134,90 @@ function ServiceTile({
         : 'Adds one more';
 
   return (
-    <View
-      style={[
-        styles.tile,
-        { backgroundColor: field.field },
-        isChosen && { borderColor: tone.brand },
-      ]}
-    >
+    <View style={[styles.tile, isChosen && { borderColor: tone.brand }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={
-          isChosen ? `${service.name}, ${badge} on the ticket` : `Add ${service.name}`
+          isChosen
+            ? `${showcaseTitle(service.name)}, ${badge} on the ticket`
+            : `Add ${showcaseTitle(service.name)}`
         }
         accessibilityHint={hint}
         accessibilityState={{ selected: isChosen }}
         onPress={onPress}
         style={({ pressed }) => [styles.tileHit, pressed && styles.tilePressed]}
       >
-        <View style={[styles.tag, { backgroundColor: colors.card }]}>
-          <Text style={[styles.tagText, { color: field.ink }]} numberOfLines={1}>
+        {/* The machine's control strip. Once the tile is on the ticket it
+            takes the shop's colour and its light comes on, and its right end
+            is where the way back lives. */}
+        <View style={[styles.panel, isChosen && { backgroundColor: tone.soft }]}>
+          <Text
+            style={[styles.panelLabel, { color: isChosen ? tone.ink : field.ink }]}
+            numberOfLines={1}
+          >
             {categoryLabel}
           </Text>
+          <View
+            style={[styles.light, isChosen && { backgroundColor: tone.brand, borderColor: tone.brand }]}
+          />
+          {isChosen ? <View style={styles.lessRoom} /> : null}
         </View>
-        <View style={[styles.tileIcon, isChosen && { backgroundColor: tone.brand }]}>
-          <Ionicons
-            name={serviceIcon(service.name, service.category) as never}
-            size={20}
-            color={isChosen ? colors.onAccent : field.ink}
+
+        {/* The same door the customer sees on the shopfront, cut smaller. The
+            water rises as the ticket loads, in the shop's colour, and the
+            door's display says what is on it. */}
+        <View style={styles.door}>
+          <ServicePorthole
+            service={service}
+            size={DOOR_SIZE}
+            level={portholeLevel(service.unit, quantity)}
+            waterTint={isChosen ? tone.brand : field.bg}
+            tumbleKey={quantity}
+            isSloshing={isChosen}
+            readout={badge}
           />
         </View>
-        <Text style={[styles.tileName, { color: field.ink }]} numberOfLines={2}>
-          {showcaseTitle(service.name)}
-        </Text>
-        <Text style={[styles.tilePrice, isChosen && { color: tone.ink }]} numberOfLines={1}>
-          {priceSubtitle(service)}
-        </Text>
+
+        <View style={styles.foot}>
+          <Text style={styles.tileName} numberOfLines={2}>
+            {showcaseTitle(service.name)}
+          </Text>
+          <Text style={styles.rateLine} numberOfLines={1}>
+            <Text style={[styles.rate, { color: isChosen ? tone.ink : field.ink }]}>
+              <Text style={styles.peso}>{price.symbol}</Text>
+              {price.amount}
+              {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
+            </Text>
+            {pill.kind === 'rule' ? <Text style={styles.rule}> · {pill.text}</Text> : null}
+          </Text>
+        </View>
       </Pressable>
 
-      {badge ? (
-        <View style={styles.badgeRow}>
-          {/* The way back sits on the tile itself, so a mis-tap is undone
-              where it happened rather than by clearing the whole ticket. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              service.unit === 'per_item'
-                ? `One less ${service.name}`
-                : `Take ${service.name} off the ticket`
-            }
-            onPress={onLess}
-            hitSlop={space.snug}
-            style={({ pressed }) => [
-              styles.lessKey,
-              { borderColor: tone.soft },
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={service.unit === 'per_item' ? 'remove' : 'close'}
-              size={16}
-              color={tone.ink}
-            />
-          </Pressable>
-          <View style={[styles.badge, { backgroundColor: tone.brand }]}>
-            <Text style={styles.badgeText}>{badge}</Text>
-          </View>
-        </View>
+      {isChosen ? (
+        // The way back sits on the tile itself, so a mis-tap is undone where
+        // it happened rather than by clearing the whole ticket. Floated over
+        // the strip rather than nested in the tile's own button.
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            service.unit === 'per_item'
+              ? `One less ${service.name}`
+              : `Take ${service.name} off the ticket`
+          }
+          onPress={onLess}
+          hitSlop={space.snug}
+          style={({ pressed }) => [
+            styles.lessKey,
+            { borderColor: tone.brand },
+            pressed && styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name={service.unit === 'per_item' ? 'remove' : 'close'}
+            size={15}
+            color={tone.ink}
+          />
+        </Pressable>
       ) : null}
     </View>
   );
@@ -241,6 +268,16 @@ export function ServiceMenu({
   );
 }
 
+/**
+ * Smaller than the customer's door. The counter is tapping, not browsing: the
+ * object is there to be recognised across a counter in a glance, and the height
+ * it does not take is a row of the ticket that stays on screen.
+ */
+const DOOR_SIZE = 80;
+/** The control strip's height, and the round key that takes a line back off. */
+const PANEL_HEIGHT = 32;
+const LESS_KEY = 26;
+
 const styles = StyleSheet.create({
   strip: { flexDirection: 'row', gap: space.snug, paddingHorizontal: space.room },
   chip: {
@@ -250,7 +287,7 @@ const styles = StyleSheet.create({
     // The control a counter thumb hits most: never under the 44pt target.
     height: 44,
     paddingHorizontal: 14,
-    borderRadius: 999,
+    borderRadius: RADII.pill,
     borderWidth: 1,
     borderColor: colors.border,
     backgroundColor: colors.card,
@@ -267,69 +304,84 @@ const styles = StyleSheet.create({
    * target is tall, and the price sits on the tile because a POS that hides
    * prices is a POS you have to trust.
    *
-   * One grid, every service in it — the category lives in the card now, so
-   * wash-and-fold sits beside ironing instead of above a heading and a blank.
+   * One grid, every service in it — the category lives in the tile's own
+   * corner, so wash-and-fold sits beside ironing instead of above a heading
+   * and a blank.
    */
   tile: {
     flex: 1,
     minWidth: 0,
-    minHeight: 132,
-    borderRadius: RADII.card,
+    ...CROWN,
+    backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
     overflow: 'hidden',
+    ...elevation.rest,
   },
-  /** The press area is the whole tile; the padding lives here so it is hit. */
-  tileHit: { flex: 1, padding: space.cosy, paddingTop: space.room + 18, gap: space.tight },
-  tag: {
-    position: 'absolute',
-    top: space.snug,
-    left: space.snug,
-    paddingHorizontal: space.snug,
-    paddingVertical: 2,
-    borderRadius: RADII.pill,
-    maxWidth: '70%',
-  },
-  tagText: { ...type.caption, fontSize: 10.5, fontFamily: fontFor(700), letterSpacing: 0.3 },
-  tilePressed: { transform: [{ scale: 0.97 }], opacity: 0.9 },
-  tileIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: RADII.control,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
-  },
-  tileIconChosen: { backgroundColor: colors.action },
-  tileName: { ...type.body, fontWeight: '700', color: colors.text, marginTop: space.tight },
-  tilePrice: { ...type.caption, fontSize: 13, color: colors.subtle },
-  tilePriceChosen: { color: colors.actionInk },
-  /** Floated over the tile's own corner rather than nested inside its button. */
-  badgeRow: {
-    position: 'absolute',
-    top: space.cosy,
-    right: space.cosy,
+  /** The press area is the whole tile; the well and the foot fill it. */
+  tileHit: { flex: 1 },
+  tilePressed: { opacity: 0.9 },
+
+
+  /** The control strip: recessed a step from the white, a hairline under it. */
+  panel: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.tight,
+    gap: space.snug,
+    height: PANEL_HEIGHT,
+    paddingHorizontal: space.cosy,
+    backgroundColor: colors.sunken,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
+  panelLabel: {
+    flex: 1,
+    ...type.caption,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: fontFor(800),
+    letterSpacing: 0.2,
+  },
+  light: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.border,
+  },
+  /** Holds the strip's right end clear for the floated key. */
+  lessRoom: { width: LESS_KEY - space.tight },
+
+  door: { alignItems: 'center', paddingTop: space.cosy, paddingBottom: space.snug + 2 },
+
+  foot: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: space.cosy,
+    paddingBottom: space.cosy,
+    gap: 2,
+  },
+  tileName: { ...type.label, fontFamily: fontFor(800), fontSize: 15, lineHeight: 19, color: colors.text },
+  rateLine: { ...type.caption, fontSize: 13, lineHeight: 17 },
+  rate: { fontFamily: fontFor(800), fontVariant: ['tabular-nums'] },
+  peso: { fontFamily: fontFor(600), fontSize: 11.5 },
+  unit: { fontFamily: fontFor(600), fontSize: 11.5 },
+  rule: { fontFamily: fontFor(600), fontSize: 11.5, color: colors.subtle },
+
+  /** Floated over the strip's right end rather than nested inside its button. */
   lessKey: {
-    width: 28,
-    height: 28,
-    borderRadius: RADII.card,
+    position: 'absolute',
+    top: (PANEL_HEIGHT - LESS_KEY) / 2,
+    right: space.tight + 2,
+    width: LESS_KEY,
+    height: LESS_KEY,
+    borderRadius: LESS_KEY / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    borderWidth: 1.5,
     backgroundColor: colors.card,
   },
-  /** What this tile has put on the ticket; white on the accent clears 4.5:1. */
-  badge: {
-    minHeight: 24,
-    paddingHorizontal: space.snug,
-    borderRadius: 999,
-    justifyContent: 'center',
-  },
-  badgeText: { ...type.caption, fontWeight: '700', color: colors.onAccent },
 
   pressed: { opacity: 0.7 },
 });

@@ -39,8 +39,15 @@ export function showcaseTitle(name: string): string {
   if (!isShouted) return trimmed;
   return trimmed
     .toLowerCase()
-    .replace(/(^|[\s(\-/—–])(\p{L})/gu, (_, before: string, letter: string) => before + letter.toUpperCase());
+    .replace(/(^|[\s(\-/—–])(\p{L}+)/gu, (match: string, before: string, word: string, offset: number) =>
+      offset > 0 && MINOR_WORDS.has(word)
+        ? match
+        : before + word.charAt(0).toUpperCase() + word.slice(1)
+    );
 }
+
+/** Joining words a title leaves low: "Wash and Fold", not "Wash And Fold". */
+const MINOR_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'per', 'the', 'to', 'with']);
 
 const CATEGORY_BLURBS: Record<ServiceCategory, string> = {
   wash_fold: 'Washed, dried and folded, ready to wear.',

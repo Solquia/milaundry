@@ -1,33 +1,30 @@
 /**
- * One service as a card: what it is, what it costs, and the thing itself.
+ * One service on the shelf, drawn as the front of a machine.
  *
- * The words sit top-left and the object bottom-right, big enough to be looked
- * at rather than referred to. That split is what makes a grid of these
- * scannable — every name starts in the same place, so a column reads like a
- * list, while the objects fill the space the words do not need.
+ * The card used to be a white sheet with the object standing in a well across
+ * its top — clean, but the same card any shop app draws around any product.
+ * A laundry sells what goes through its machines, so the card is a small
+ * front-loader now: a control strip across the head with the service's kind on
+ * it and a status light, the door in the middle with the object behind the
+ * glass (`service-porthole.tsx`), and the name and rate on the panel below.
  *
- * The card wears its category as a ground, not just as a chip in the corner.
+ * The category's colour lives in three places and nowhere else: the water in
+ * the door, the rate's pill, and the light once a finger is on the card. That
+ * is enough to sort wash from dry-cleaning across a grid of six without turning
+ * it into six differently coloured panels. There is no turnaround field, so
+ * nothing here promises a time; the shop's own minimum rides with the rate.
  *
- * It was white, on the reasoning that colour would compete with the object.
- * What white actually produced was a grid of identical boxes in which the only
- * thing separating wash from dry-cleaning was a 10px label nobody reads before
- * the price. The ground is the same hue at a whisper — lighter than the page it
- * sits on, so it never fights the drawing — and it lets a customer sort the
- * grid by colour at a glance. The chips go white on it, which is what keeps
- * them reading as chips. The tint per category is `domain/service-showcase.ts`.
- *
- * The same card serves the price list and the ordering step. Pass `quantity`
- * and the steppers and it becomes a basket row. The card itself is the button
- * in both, which is why there is no Add on it.
+ * The card is the button in every mode. Pass `quantity` and the stepper takes
+ * the key's place in the foot, and the door's display shows what is held.
  */
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import React from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
+import { portholeLevel } from '@/lib/domain/porthole';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
-import { sceneFor } from '@/lib/domain/service-scene';
+import { shelfPill } from '@/lib/domain/service-shelf';
 import {
   showcasePrice,
   showcaseTitle,
@@ -35,14 +32,14 @@ import {
   type ShowcaseService,
 } from '@/lib/domain/service-showcase';
 
-import { ServiceScene } from './service-scene';
+import { ServicePorthole } from './service-porthole';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
   name: string;
   /**
    * A photograph of this service, when the shop has one. A picture of the
-   * shop's own work beats any drawing, so it wins the frame whenever it
+   * shop's own work beats any drawing, so it wins the door whenever it
    * exists; the drawing is what a service wears until then.
    */
   image_url?: string | null;
@@ -56,16 +53,16 @@ interface ServiceTileCardProps {
   onBook?: () => void;
   /** Shown but not bookable yet — the app before the customer has connected. */
   isDisabled?: boolean;
-  /**
-   * The category, worn in the card's own corner. Given one, the list above no
-   * longer needs a heading per group, which is what let the cards close up.
-   */
+  /** The category, printed on the machine's control strip. */
   categoryLabel?: string;
   /** Basket mode: the card carries − and + and shows what is on the ticket. */
   quantity?: number;
   onAdd?: () => void;
   onRemove?: () => void;
 }
+
+/** The door's diameter: the object is a picture at this size, not a glyph. */
+const DOOR_SIZE = 104;
 
 function Step({
   label,
@@ -103,19 +100,18 @@ export function ServiceTileCard({
 }: ServiceTileCardProps) {
   const [isHovered, setIsHovered] = React.useState(false);
   const [isPressed, setIsPressed] = React.useState(false);
-  const [isPhotoBroken, setIsPhotoBroken] = React.useState(false);
   const isReduced = useReducedMotion();
 
   const tone = showcaseTone(service.category);
   const price = showcasePrice(service);
-  const scene = sceneFor(service.name, service.category);
-  const photo = (service.image_url ?? '').trim();
-  const hasPhoto = photo.length > 0 && !isPhotoBroken;
+  const pill = shelfPill(service);
+  const title = showcaseTitle(service.name);
 
   const isBasket = quantity !== undefined;
   const held = quantity ?? 0;
   const isBookable = (isBasket ? held === 0 : Boolean(onBook)) && !isDisabled;
   const isEngaged = isBookable && (isHovered || isPressed);
+  const isLit = isEngaged || held > 0;
 
   const [lift] = React.useState(() => new Animated.Value(0));
   React.useEffect(() => {
@@ -125,34 +121,40 @@ export function ServiceTileCard({
     }
     Animated.spring(lift, {
       toValue: isEngaged ? 1 : 0,
-      damping: 14,
-      stiffness: 190,
+      damping: 12,
+      stiffness: 170,
       mass: 0.9,
       useNativeDriver: true,
     }).start();
   }, [isEngaged, isReduced, lift]);
 
-  const objectStyle = {
+  /** The key leans the way it will take you: up and to the right, a nudge. */
+  const keyStyle = {
     transform: [
-      { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -7] }) },
-      { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.07] }) },
+      { translateX: lift.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
+      { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) },
     ],
   };
 
   /**
-   * The card is the button. A "Book" mark on it is a cue, not a second target
-   * — the whole tile presses. In basket mode that holds only until something
-   * is on the ticket: once the steppers appear a card-wide press would fight
-   * them, so the card goes inert.
+   * The card is the button. The round key is a cue drawn on it, not a second
+   * target — which is what keeps this a single tap area and, on the web, a
+   * single <button> rather than one nested in another.
    */
   const cardPress = isBasket ? (held === 0 ? onAdd : undefined) : onBook;
   const Wrapper = cardPress ? Pressable : View;
   const pressProps = cardPress
     ? {
         accessibilityRole: 'button' as const,
-        accessibilityLabel: isBasket
-          ? `Add ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`
-          : `Book ${showcaseTitle(service.name)}. ${formatPriceLine(service)}`,
+        // The minimum is deliberately not read twice: `formatPriceLine` already
+        // carries the unit and the minimum the rate line shows.
+        accessibilityLabel: [
+          isBasket ? `Add ${title}` : `Book ${title}`,
+          categoryLabel,
+          formatPriceLine(service),
+        ]
+          .filter(Boolean)
+          .join('. '),
         accessibilityHint: isBasket ? undefined : 'Opens booking for this service',
         accessibilityState: { disabled: isDisabled },
         disabled: isDisabled,
@@ -161,6 +163,9 @@ export function ServiceTileCard({
         onPressOut: () => setIsPressed(false),
       }
     : {};
+
+  const readout =
+    held > 0 ? (service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)) : null;
 
   return (
     <Wrapper
@@ -171,249 +176,207 @@ export function ServiceTileCard({
       // style, which once dropped every card style and collapsed the grid.
       style={[
         styles.card,
-        { backgroundColor: tone.field },
-        isBookable && styles.cardBookable,
         isHovered && isBookable && styles.cardHovered,
         isPressed && isBookable && styles.cardPressed,
         held > 0 && { borderColor: bookTone.bg },
       ]}
     >
-      {/* Drawn before the words so they sit over it, and ignored by touch so
-          it never eats a stepper press. */}
-      <Animated.View style={[styles.object, objectStyle]} pointerEvents="none">
-        {hasPhoto ? (
-          <Image
-            source={{ uri: photo }}
-            style={StyleSheet.absoluteFill}
-            contentFit="contain"
-            transition={180}
-            onError={() => setIsPhotoBroken(true)}
-            accessibilityIgnoresInvertColors
-          />
-        ) : (
-          <ServiceScene scene={scene} brand={tone.bg} surface="white" />
-        )}
-      </Animated.View>
-
-      {categoryLabel ? (
-        <View style={styles.tag}>
-          <Text style={[styles.tagText, { color: tone.ink }]} numberOfLines={1}>
-            {categoryLabel}
-          </Text>
+      {/* The control strip: what kind of wash this is, and a status light that
+          comes on under a finger — the machine answering the touch. */}
+      <View style={styles.panel}>
+        <Text style={[styles.panelLabel, { color: tone.ink }]} numberOfLines={1}>
+          {categoryLabel ?? ''}
+        </Text>
+        <View style={styles.controls}>
+          <View style={styles.dial}>
+            <View style={styles.dialTick} />
+          </View>
+          <View style={[styles.light, isLit && { backgroundColor: tone.bg, borderColor: tone.bg }]} />
         </View>
-      ) : null}
-
-      <View style={[styles.words, categoryLabel ? styles.wordsUnderTag : null]}>
-        <Text style={[styles.name, { color: tone.ink }]} numberOfLines={2}>
-          {showcaseTitle(service.name)}
-        </Text>
-        <Text style={styles.figure} numberOfLines={1}>
-          <Text style={styles.peso}>{price.symbol}</Text>
-          {price.amount}
-          {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
-        </Text>
-        {price.minimum ? (
-          <View style={styles.minimum}>
-            <Text style={[styles.minimumText, { color: tone.ink }]} numberOfLines={1}>
-              {price.minimum}
-            </Text>
-          </View>
-        ) : null}
-        {isBookable && !isBasket ? (
-          <View style={styles.bookCue} pointerEvents="none">
-            <Text style={[styles.bookCueText, { color: tone.ink }]}>Book</Text>
-            <Ionicons name="chevron-forward" size={14} color={tone.ink} />
-          </View>
-        ) : null}
       </View>
 
-      {/* The room the object stands in. A spacer rather than a fixed card
-          height, so a name that wraps to two lines pushes the foot down and
-          the art keeps its distance instead of climbing into the words. */}
-      <View style={styles.clearance} pointerEvents="none" />
+      <View style={styles.door}>
+        <ServicePorthole
+          service={service}
+          size={DOOR_SIZE}
+          level={portholeLevel(service.unit, held)}
+          waterTint={held > 0 ? bookTone.bg : tone.bg}
+          lift={lift}
+          tumbleKey={held}
+          readout={readout}
+        />
+      </View>
 
-      {isBasket && held > 0 ? (
-        <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
-          <Step
-            label="−"
-            hint={`Remove ${showcaseTitle(service.name)}`}
-            onPress={() => onRemove?.()}
-            ink={bookTone.bg}
-          />
-          <Text style={styles.held} numberOfLines={1}>
-            {service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)}
-          </Text>
-          {service.unit === 'flat' ? null : (
-            <Step
-              label="+"
-              hint={`Add more ${showcaseTitle(service.name)}`}
-              onPress={() => onAdd?.()}
-              ink={bookTone.bg}
-            />
-          )}
+      {/* The panel below the door: the name first, then the rate. */}
+      <View style={styles.foot}>
+        <Text style={styles.name} numberOfLines={2}>
+          {title}
+        </Text>
+
+        <View style={styles.rateRow}>
+          <View style={styles.words}>
+            <View style={[styles.ratePill, { backgroundColor: tone.field }]}>
+              <Text style={[styles.rate, { color: tone.ink }]} numberOfLines={1}>
+                <Text style={styles.peso}>{price.symbol}</Text>
+                {price.amount}
+                {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
+              </Text>
+            </View>
+            {/* The shop's minimum rides with the rate it modifies: the one fact
+                the figure cannot carry, and the one a customer is caught by. */}
+            {pill.kind === 'rule' ? (
+              <Text style={styles.rule} numberOfLines={1}>
+                {pill.text}
+              </Text>
+            ) : null}
+          </View>
+
+          {isBasket && held > 0 ? (
+            <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
+              <Step label="−" hint={`Remove ${title}`} onPress={() => onRemove?.()} ink={bookTone.bg} />
+              {service.unit === 'flat' ? null : (
+                <Step label="+" hint={`Add more ${title}`} onPress={() => onAdd?.()} ink={bookTone.bg} />
+              )}
+            </View>
+          ) : isBookable ? (
+            <Animated.View
+              style={[styles.key, keyStyle, isEngaged && { backgroundColor: tone.ink }]}
+            >
+              <Ionicons
+                name="arrow-forward"
+                size={17}
+                color={isEngaged ? colors.onAccent : colors.text}
+                style={styles.keyGlyph}
+              />
+            </Animated.View>
+          ) : null}
         </View>
-      ) : null}
+      </View>
     </Wrapper>
   );
 }
-
-/**
- * The object, and where it sits.
- *
- * Anchored past the bottom-right corner so the card clips it — that overrun is
- * what makes it read as a thing on a shelf rather than an icon in a box. The
- * size is fixed on purpose: it is the one element on the card worth looking at,
- * and shrinking it to make room for the words would be the wrong trade.
- */
-const OBJECT_SIZE = 150;
-const OBJECT_RIGHT = -12;
-const OBJECT_DROP = 14;
-
-/**
- * The band the object claims above the card's foot, and so the room the words
- * must be given before it.
- *
- * The words used to be laid straight over the object: at phone width the price
- * sat on a stack of towels and the minimum chip ran through a hanger. They are
- * drawn after the object and so stayed legible, but a figure crossing a drawing
- * is a collision, not a composition. A spacer of exactly this height under the
- * words pushes the card's foot far enough down that the object clears them,
- * whatever the words turn out to be — a name that wraps to two lines grows the
- * card rather than colliding with the art.
- *
- * `- space.room` because the card's own bottom padding is already part of the
- * gap. Derived from the geometry above, so moving the object keeps it true.
- */
-const ART_CLEARANCE = OBJECT_SIZE - OBJECT_DROP - space.room;
-
-/** The shortest a card may be, whatever is in it: a row of cards is stretched. */
-const CARD_MIN_HEIGHT = 182;
 
 const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 0,
-    minHeight: CARD_MIN_HEIGHT,
-    padding: space.room,
     ...CROWN,
     backgroundColor: colors.card,
     borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderColor: colors.border,
     overflow: 'hidden',
     ...elevation.rest,
     ...Platform.select({
       web: {
         cursor: 'pointer',
         transitionDuration: '180ms',
-        transitionProperty: 'transform, box-shadow',
+        transitionProperty: 'transform, box-shadow, border-color',
       } as object,
       default: {},
     }),
   },
-  /**
-   * A bookable card has an edge, so it reads as a control rather than as a
-   * picture of a price. Hover still lifts it; the border is what a thumb sees.
-   */
-  cardBookable: { borderColor: colors.borderStrong },
-  cardHovered: { ...elevation.lift, transform: [{ translateY: -4 }] },
+  cardHovered: { ...elevation.lift, transform: [{ translateY: -3 }] },
   cardPressed: { transform: [{ scale: 0.985 }] },
 
   /**
-   * Anchored to the bottom-right corner and allowed to run past it. Big enough
-   * to be the thing you look at; the card clips whatever overruns.
+   * The machine's control strip: recessed a step from the white, one hairline
+   * under it, the way a panel meets a door.
    */
-  object: {
-    position: 'absolute',
-    right: OBJECT_RIGHT,
-    bottom: -OBJECT_DROP,
-    width: OBJECT_SIZE,
-    height: OBJECT_SIZE,
+  panel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    height: 30,
+    paddingHorizontal: space.cosy,
+    backgroundColor: colors.sunken,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  panelLabel: {
+    flex: 1,
+    ...type.caption,
+    fontSize: 11,
+    lineHeight: 14,
+    fontFamily: fontFor(800),
+    letterSpacing: 0.2,
+  },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  /** A dial, drawn: a ring with one tick, set to where it always is. */
+  dial: {
+    width: 13,
+    height: 13,
+    borderRadius: 7,
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+  },
+  dialTick: { width: 1.5, height: 4, marginTop: 1, borderRadius: 1, backgroundColor: colors.subtle },
+  light: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.border,
   },
 
-  words: { gap: 2, alignItems: 'flex-start' },
-  clearance: { height: ART_CLEARANCE },
-  /** Clears the tag, so a long name wraps instead of running under it. */
-  wordsUnderTag: { paddingTop: 22 },
-  /**
-   * The category, top-right. Not an eyebrow over the name — it is a tag in the
-   * card's own corner, which is where a shelf label goes and where nothing
-   * else on this card wants to be.
-   */
-  tag: {
-    position: 'absolute',
-    top: space.cosy,
-    right: space.cosy,
-    paddingHorizontal: space.snug,
-    paddingVertical: 2,
-    borderRadius: RADII.pill,
-    backgroundColor: colors.card,
-    maxWidth: '62%',
+  door: { alignItems: 'center', paddingTop: space.room, paddingBottom: space.snug },
+
+  foot: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    gap: space.snug,
+    paddingHorizontal: space.cosy,
+    paddingBottom: space.cosy,
+    paddingTop: space.tight,
   },
-  tagText: { ...type.caption, fontSize: 10.5, fontFamily: fontFor(700), letterSpacing: 0.3 },
-  name: { ...type.label, fontFamily: fontFor(800), fontSize: 15, lineHeight: 19 },
-  /** The figure is the reason the card exists, so it is the largest thing on it. */
-  figure: {
-    ...type.value,
+  /** The name is the largest thing on the card: it answers the first question. */
+  name: { ...type.label, fontFamily: fontFor(800), fontSize: 16, lineHeight: 20, color: colors.text },
+  rateRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  words: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  ratePill: {
+    paddingHorizontal: space.snug,
+    paddingVertical: 3,
+    borderRadius: RADII.pill,
+  },
+  rate: {
+    ...type.caption,
+    fontSize: 13,
+    lineHeight: 17,
     fontFamily: fontFor(800),
-    fontSize: 25,
-    letterSpacing: -0.7,
-    color: colors.text,
     fontVariant: ['tabular-nums'],
-    marginTop: 2,
   },
   /**
    * The currency mark, set down rather than matched to the digits. Figtree has
-   * no peso glyph, so the platform substitutes another face; at full size and
-   * weight that substitution reads as a mistake. Smaller and quieter it reads
-   * as a deliberate mark, and the number keeps the emphasis it deserves.
+   * no peso glyph, so the platform substitutes another face; at full weight
+   * that substitution reads as a mistake rather than as a mark.
    */
-  peso: {
-    fontFamily: fontFor(600),
-    fontSize: 16,
-    letterSpacing: 0,
-    color: colors.subtle,
-  },
-  unit: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
-  /**
-   * The shop's rule, said as a chip rather than as small print. The card is
-   * white, so the chip takes the sunken tone to read as a chip at all, and
-   * the category's ink to say which service it belongs to.
-   */
-  minimum: {
-    marginTop: 4,
-    paddingHorizontal: space.snug,
-    paddingVertical: 2,
-    borderRadius: RADII.pill,
-    backgroundColor: colors.card,
-  },
-  minimumText: { ...type.caption, fontSize: 11, fontFamily: fontFor(600) },
+  peso: { fontFamily: fontFor(600), fontSize: 11.5 },
+  unit: { fontFamily: fontFor(600), fontSize: 11.5 },
+  /** The rule, set down and greyed: it qualifies the rate, it is not the rate. */
+  rule: { ...type.caption, fontSize: 11.5, lineHeight: 15, fontFamily: fontFor(600), color: colors.subtle },
 
   /**
-   * Under the price, in the words — a chip, not a nested button. The card
-   * itself is the press target; this only says so. Kept in the reading
-   * column so a sticky foot bar cannot cover it on a phone.
+   * The way in: a round key on the panel, quiet until a finger is on the card,
+   * then filled with the category's ink (deep enough for a white glyph, where
+   * the yellow of self-service is not) — the card's one authored moment,
+   * shared with the light on the strip.
    */
-  bookCue: {
-    flexDirection: 'row',
+  key: {
+    pointerEvents: 'none',
+    width: 30,
+    height: 30,
+    borderRadius: 15,
     alignItems: 'center',
-    alignSelf: 'flex-start',
-    gap: 2,
-    minHeight: 28,
-    marginTop: 6,
-    paddingLeft: space.snug,
-    paddingRight: 6,
-    borderRadius: RADII.pill,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'center',
+    backgroundColor: colors.sunken,
   },
-  bookCueText: { ...type.caption, fontFamily: fontFor(700), fontSize: 12 },
+  /** Forward, turned up: where the card is about to take you. */
+  keyGlyph: { transform: [{ rotate: '-45deg' }] },
 
-  /** Bottom-left, clear of the object's corner. */
+  /** The key's place in the foot, once something is on the ticket. */
   stepper: {
-    position: 'absolute',
-    left: space.room,
-    bottom: space.room,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
@@ -423,6 +386,5 @@ const styles = StyleSheet.create({
   },
   step: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   stepText: { ...type.section, fontSize: 18 },
-  held: { ...type.caption, fontFamily: fontFor(700), color: colors.text, minWidth: 44, textAlign: 'center' },
   pressed: { opacity: 0.6 },
 });

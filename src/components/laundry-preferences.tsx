@@ -10,72 +10,157 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-
+import { ProductCard, ProductGrid } from './product-grid';
+import { SoapArt } from './soap-art';
 import { BLUE_FIELD, ErrorText, Field, colors, elevation, space, type } from './ui-kit';
 import {
-  DETERGENTS,
   DETERGENT_LABELS,
   PREFERENCE_KEYS,
-  SOFTENER_CHOICES,
   TOGGLE_LABELS,
   validatePreferences,
+  type Detergent,
   type LaundryPreferences,
   type PreferenceKey,
+  type SoftenerChoice,
   type TogglePreference,
 } from '@/lib/domain/laundry-preferences';
 
-const SOFTENER_CHIP_LABELS = { with: 'Yes, please', without: 'No softener' } as const;
+type IconName = React.ComponentProps<typeof Ionicons>['name'];
+
+/**
+ * What a tile shows above its name: a drawn soap, or a plain icon.
+ *
+ * The brands are drawn as generic packs in a colour a shopper would associate
+ * with the shelf, never as their logos — the name under the drawing does the
+ * naming. The non-brand choices are ideas, not products, so they get an icon.
+ */
+type TileArt =
+  | { kind: 'powder' | 'bar' | 'bottle'; color: string }
+  | { kind: 'icon'; icon: IconName; color: string };
+
+interface TileOption<T> {
+  value: T;
+  label: string;
+  note: string;
+  art: TileArt;
+}
+
+const USUAL_ART: TileArt = { kind: 'icon', icon: 'sparkles-outline', color: BLUE_FIELD.mid };
+
+/**
+ * Most-asked first. "Regular" is left off the board — every brand is regular
+ * somewhere — but it stays in the domain so an old ticket still reads back.
+ */
+const DETERGENT_TILES: readonly TileOption<Detergent | null>[] = [
+  { value: null, label: "Shop's usual", note: 'Their pick', art: USUAL_ART },
+  { value: 'ariel', label: DETERGENT_LABELS.ariel, note: 'Powder', art: { kind: 'powder', color: '#1F9D63' } },
+  { value: 'tide', label: DETERGENT_LABELS.tide, note: 'Powder', art: { kind: 'powder', color: '#F26B1D' } },
+  { value: 'breeze', label: DETERGENT_LABELS.breeze, note: 'Powder', art: { kind: 'powder', color: '#2F7BD8' } },
+  { value: 'surf', label: DETERGENT_LABELS.surf, note: 'Powder', art: { kind: 'powder', color: '#E0457B' } },
+  { value: 'champion', label: DETERGENT_LABELS.champion, note: 'Powder', art: { kind: 'powder', color: '#E9A21B' } },
+  { value: 'pride', label: DETERGENT_LABELS.pride, note: 'Powder', art: { kind: 'powder', color: '#7B5CE5' } },
+  { value: 'perla', label: DETERGENT_LABELS.perla, note: 'Bar · gentle', art: { kind: 'bar', color: '#9FB3C8' } },
+  {
+    value: 'unscented',
+    label: DETERGENT_LABELS.unscented,
+    note: 'No perfume',
+    art: { kind: 'icon', icon: 'leaf-outline', color: '#1F9D63' },
+  },
+  {
+    value: 'hypoallergenic',
+    label: 'Sensitive',
+    note: 'Hypoallergenic',
+    art: { kind: 'icon', icon: 'shield-checkmark-outline', color: '#2F7BD8' },
+  },
+  {
+    value: 'own',
+    label: 'My own',
+    note: "I'll bring it",
+    art: { kind: 'icon', icon: 'bag-handle-outline', color: '#6B7C93' },
+  },
+];
+
+const SOFTENER_TILES: readonly TileOption<SoftenerChoice | null>[] = [
+  { value: null, label: 'No preference', note: 'Up to the shop', art: USUAL_ART },
+  { value: 'downy', label: 'Downy', note: 'Fabcon', art: { kind: 'bottle', color: '#4F6FE0' } },
+  { value: 'surf_fabcon', label: 'Surf', note: 'Fabcon', art: { kind: 'bottle', color: '#E26BA6' } },
+  { value: 'del', label: 'Del', note: 'Fabcon', art: { kind: 'bottle', color: '#9B6BD6' } },
+  {
+    value: 'with',
+    label: "Shop's fabcon",
+    note: 'Any brand',
+    art: { kind: 'icon', icon: 'water-outline', color: BLUE_FIELD.mid },
+  },
+  {
+    value: 'without',
+    label: 'None',
+    note: 'No softener',
+    art: { kind: 'icon', icon: 'close-circle-outline', color: '#6B7C93' },
+  },
+];
+
+const TOGGLE_ICONS: Record<TogglePreference, IconName> = {
+  separate_whites: 'shirt-outline',
+  delicates: 'flower-outline',
+  air_dry: 'sunny-outline',
+};
+const TOGGLE_NOTES: Record<TogglePreference, string> = {
+  separate_whites: 'Washed alone',
+  delicates: 'Gentle cycle',
+  air_dry: 'No tumble dryer',
+};
 const TOGGLES = Object.keys(TOGGLE_LABELS) as TogglePreference[];
 
-function Choice({
-  label,
-  isSelected,
-  onPress,
-}: {
-  label: string;
-  isSelected: boolean;
-  onPress: () => void;
-}) {
+const ART_SIZE = 56;
+
+/** Fills a product card's photo well: the drawn pack, or the idea's icon. */
+function Art({ art }: { art: TileArt }) {
+  if (art.kind !== 'icon') return <SoapArt shape={art.kind} color={art.color} size={ART_SIZE} />;
   return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected: isSelected }}
-      onPress={onPress}
-      hitSlop={4}
-      style={({ pressed }) => [
-        styles.choice,
-        isSelected && styles.choiceOn,
-        pressed && styles.pressed,
-      ]}
-    >
-      <Text style={[styles.choiceText, isSelected && styles.choiceTextOn]}>{label}</Text>
-    </Pressable>
+    <View style={styles.iconArt}>
+      <Ionicons name={art.icon} size={30} color={art.color} />
+    </View>
   );
 }
 
-function ToggleLine({
+/**
+ * One choice as a product card, so a shop with no shelf of its own still
+ * books like a store. Radio or checkbox by role — the look is the same,
+ * because to the customer both are "put this on my laundry".
+ */
+function Tile({
   label,
+  note,
+  art,
   isOn,
-  onToggle,
+  role,
+  onPress,
 }: {
   label: string;
+  note: string;
+  art: TileArt;
   isOn: boolean;
-  onToggle: () => void;
+  role: 'radio' | 'checkbox';
+  onPress: () => void;
 }) {
   return (
-    <Pressable
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: isOn }}
-      onPress={onToggle}
-      style={({ pressed }) => [styles.toggle, pressed && styles.pressed]}
-    >
-      <Ionicons
-        name={isOn ? 'checkbox' : 'square-outline'}
-        size={22}
-        color={isOn ? BLUE_FIELD.mid : colors.subtle}
-      />
-      <Text style={styles.toggleText}>{label}</Text>
-    </Pressable>
+    <ProductCard
+      picture={<Art art={art} />}
+      name={label}
+      note={note}
+      isOn={isOn}
+      role={role}
+      onPress={onPress}
+    />
+  );
+}
+
+function GroupHead({ title, note }: { title: string; note: string }) {
+  return (
+    <View style={styles.groupHead}>
+      <Text style={styles.groupTitle}>{title}</Text>
+      <Text style={styles.groupNote}>{note}</Text>
+    </View>
   );
 }
 
@@ -85,6 +170,10 @@ interface PreferencePickerProps {
   /** What the shop honours. Omitted in settings, where everything is offered. */
   supported?: readonly PreferenceKey[];
   error?: string;
+  /** "Gentle cycle" for a wash, "Low heat" at the ironing board. */
+  delicatesNote?: string;
+  /** The example in the empty notes field, worded for the service being booked. */
+  instructionsExample?: string;
 }
 
 export function PreferencePicker({
@@ -92,68 +181,70 @@ export function PreferencePicker({
   onChange,
   supported = PREFERENCE_KEYS,
   error,
+  delicatesNote,
+  instructionsExample = 'Cold wash for the dark jeans',
 }: PreferencePickerProps) {
   const offers = (key: PreferenceKey) => supported.includes(key);
   const set = (patch: Partial<LaundryPreferences>) => onChange({ ...value, ...patch });
-
   return (
     <View style={styles.picker}>
       {offers('detergent') && (
-        <View style={styles.group} accessibilityRole="radiogroup" accessibilityLabel="Detergent">
-          <Text style={styles.groupLabel}>Detergent</Text>
-          <View style={styles.choices}>
-            <Choice
-              label="Shop's usual"
-              isSelected={value.detergent === null}
-              onPress={() => set({ detergent: null })}
-            />
-            {DETERGENTS.map((key) => (
-              <Choice
-                key={key}
-                label={DETERGENT_LABELS[key]}
-                isSelected={value.detergent === key}
-                onPress={() => set({ detergent: key })}
+        <View style={styles.group}>
+          <GroupHead title="Sabon · Detergent" note="The shop uses your pick when they have it." />
+          <ProductGrid
+            items={DETERGENT_TILES}
+            keyOf={(option) => option.value ?? 'usual'}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Detergent"
+            renderItem={(option) => (
+              <Tile
+                {...option}
+                role="radio"
+                isOn={value.detergent === option.value}
+                onPress={() => set({ detergent: option.value })}
               />
-            ))}
-          </View>
+            )}
+          />
         </View>
       )}
 
       {offers('softener') && (
-        <View
-          style={styles.group}
-          accessibilityRole="radiogroup"
-          accessibilityLabel="Fabric softener"
-        >
-          <Text style={styles.groupLabel}>Fabric softener</Text>
-          <View style={styles.choices}>
-            <Choice
-              label="No preference"
-              isSelected={value.softener === null}
-              onPress={() => set({ softener: null })}
-            />
-            {SOFTENER_CHOICES.map((key) => (
-              <Choice
-                key={key}
-                label={SOFTENER_CHIP_LABELS[key]}
-                isSelected={value.softener === key}
-                onPress={() => set({ softener: key })}
+        <View style={styles.group}>
+          <GroupHead title="Fabcon · Fabric conditioner" note="For that just-bought smell." />
+          <ProductGrid
+            items={SOFTENER_TILES}
+            keyOf={(option) => option.value ?? 'any'}
+            accessibilityRole="radiogroup"
+            accessibilityLabel="Fabric conditioner"
+            renderItem={(option) => (
+              <Tile
+                {...option}
+                role="radio"
+                isOn={value.softener === option.value}
+                onPress={() => set({ softener: option.value })}
               />
-            ))}
-          </View>
+            )}
+          />
         </View>
       )}
 
       {TOGGLES.some(offers) && (
         <View style={styles.group}>
-          {TOGGLES.filter(offers).map((key) => (
-            <ToggleLine
-              key={key}
-              label={TOGGLE_LABELS[key]}
-              isOn={value[key]}
-              onToggle={() => set({ [key]: !value[key] })}
-            />
-          ))}
+          <GroupHead title="Personal touches" note="Tap any that apply." />
+          <ProductGrid
+            items={TOGGLES.filter(offers)}
+            keyOf={(key) => key}
+            renderItem={(key) => (
+              <Tile
+                label={TOGGLE_LABELS[key].replace(' / hang dry', '')}
+                note={key === 'delicates' && delicatesNote ? delicatesNote : TOGGLE_NOTES[key]}
+                art={{ kind: 'icon', icon: TOGGLE_ICONS[key], color: BLUE_FIELD.mid }}
+                role="checkbox"
+                isOn={value[key]}
+                onPress={() => set({ [key]: !value[key] })}
+              />
+            )}
+          />
         </View>
       )}
 
@@ -162,7 +253,7 @@ export function PreferencePicker({
           label="Special instructions (optional)"
           value={value.instructions}
           onChangeText={(instructions) => set({ instructions })}
-          placeholder="Cold wash for the dark jeans"
+          placeholder={instructionsExample}
           multiline
         />
       )}
@@ -217,30 +308,19 @@ export function LaundryPreferencesCard({ value, onSave, isBusy, error }: Laundry
 }
 
 const styles = StyleSheet.create({
-  picker: { gap: space.cosy },
+  picker: { gap: space.room },
   group: { gap: space.snug },
-  groupLabel: { ...type.label, color: colors.subtle },
-  choices: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
-  /** 36pt tall with a 4pt slop each side clears the 44pt touch minimum. */
-  choice: {
-    minHeight: 36,
+  groupHead: { gap: 2 },
+  groupTitle: { ...type.label, fontSize: 15, color: colors.text },
+  groupNote: { ...type.caption, color: colors.subtle },
+  iconArt: {
+    width: ART_SIZE,
+    height: ART_SIZE,
+    borderRadius: ART_SIZE / 2,
+    alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: space.cosy,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  choiceOn: { backgroundColor: BLUE_FIELD.mid, borderColor: BLUE_FIELD.mid },
-  choiceText: { ...type.label, fontSize: 13, color: colors.text },
-  choiceTextOn: { color: colors.onAccent },
-  toggle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    minHeight: 44,
-  },
-  toggleText: { ...type.body, color: colors.text },
 
   card: {
     backgroundColor: colors.card,

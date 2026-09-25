@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
-import { Alert, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { CollectPayment, ProofReview } from '@/components/collect-payment';
@@ -43,6 +43,7 @@ import { buildOrderQr } from '@/lib/domain/qr';
 import type { PaymentMethod } from '@/lib/domain/walk-in-order';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { usePrinter } from '@/lib/use-printer';
+import { confirmAction } from '@/lib/confirm';
 
 /**
  * One order, top to bottom in the order the counter works it: who and how
@@ -158,25 +159,14 @@ export default function MerchantOrderDetail() {
 
   const confirmMarkPaid = (tendered?: number) => {
     const prompt = markPaidPrompt(total, PAYMENT_LABELS[selectedMethod], tendered);
-    Alert.alert(prompt.title, prompt.message, [
-      { text: prompt.dismissLabel, style: 'cancel' },
-      {
-        text: prompt.confirmLabel,
-        onPress: () => handleMarkPaid(selectedMethod, total, tendered),
-      },
-    ]);
+    confirmAction(prompt, () => handleMarkPaid(selectedMethod, total, tendered), {
+      isDestructive: false,
+    });
   };
 
   const confirmCancel = () => {
     const prompt = cancelOrderPrompt(shortOrderId(order.id), total);
-    Alert.alert(prompt.title, prompt.message, [
-      { text: prompt.dismissLabel, style: 'cancel' },
-      {
-        text: prompt.confirmLabel,
-        style: 'destructive',
-        onPress: () => handleTransition('cancelled'),
-      },
-    ]);
+    confirmAction(prompt, () => handleTransition('cancelled'));
   };
 
   // The next step lives in a pinned footer: it is the one decision this

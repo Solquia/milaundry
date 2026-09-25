@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy — Milaundry</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Figtree, system-ui, sans-serif;
+      background: #04203F;
+      color: #14212E;
+    }
+    .field {
+      background: linear-gradient(180deg, #04203F 0%, #0A3A73 55%, #1370CE 100%);
+      color: #fff;
+      padding: 48px 24px 40px;
+    }
+    .field h1 { margin: 0 0 8px; font-size: 34px; letter-spacing: -0.03em; }
+    .field p { margin: 0; opacity: 0.85; }
+    .sheet {
+      background: #EDF2F8;
+      border-radius: 32px 32px 0 0;
+      margin-top: -16px;
+      padding: 32px 24px 64px;
+      min-height: 70vh;
+    }
+    article { max-width: 640px; margin: 0 auto; }
+    h2 { font-size: 18px; margin: 28px 0 8px; }
+    p, li { font-size: 16px; line-height: 1.5; color: #14212E; }
+    ul { padding-left: 1.2em; }
+    a { color: #1263AF; }
+    .meta { color: #5A6B7D; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <header class="field">
+    <h1>Privacy</h1>
+    <p>What Milaundry keeps, and why.</p>
+  </header>
+  <main class="sheet">
+    <article>
+      <p class="meta">Last updated 22 September 2026. Milaundry is a laundry shop app for the Philippines.</p>
+      <p>We collect only what a shop needs to take a load and what a customer needs to follow it. We do not sell personal information.</p>
+
+      <h2>Who this is for</h2>
+      <p>Shop owners and staff run the till. Customers book, claim a walk-in ticket, and track an order. A visitor can open a shop’s public page without an account.</p>
+
+      <h2>What we collect</h2>
+      <ul>
+        <li><strong>Mobile number and name.</strong> That is how you sign in. There is no email login and no SMS one-time code.</li>
+        <li><strong>Orders.</strong> Services, weights, prices, status, pickup and delivery notes, and payment state.</li>
+        <li><strong>Photos you choose to send.</strong> Shop logos and covers, weigh pictures, and payment receipts. These are stored so the shop can work the load.</li>
+        <li><strong>Camera.</strong> Used when you scan a shop or receipt QR code.</li>
+        <li><strong>Location.</strong> Used only when a shop pins itself on the map, with permission.</li>
+        <li><strong>Device settings you set in the app.</strong> For example whether the shop doorbell is on.</li>
+      </ul>
+
+      <h2>Where it lives</h2>
+      <p>Account and order data is stored in our hosted database (Supabase). Images are stored with our image host (ImageKit). Access is limited by shop: a shop sees its own customers and orders, not another laundry’s.</p>
+
+      <h2>Who sees it</h2>
+      <ul>
+        <li>You see your own account and orders.</li>
+        <li>The laundry you joined sees the orders and contact details needed to wash and return the load.</li>
+        <li>Platform administrators can see shops in order to support the product.</li>
+        <li>We do not sell lists of numbers. We do not run advertising networks on this data.</li>
+      </ul>
+
+      <h2>How long we keep it</h2>
+      <p>Orders stay with the shop that took them so history, receipts, and disputes can be checked. If you want an account removed, write to us using the address below.</p>
+
+      <h2>Your choices</h2>
+      <p>You can refuse camera, photos, or location: those features simply will not run. You can close an account by contacting support. A shop can turn its public web page off.</p>
+
+      <h2>Children</h2>
+      <p>Milaundry is for running a laundry, not for children. We do not knowingly collect information from children under 13.</p>
+
+      <h2>Contact</h2>
+      <p>Questions about this policy: Hyan Solquia, <a href="mailto:hyansolquia@gmail.com">hyansolquia@gmail.com</a>, 0985 542 1396. The public shop pages live at <a href="https://www.milaundry.app">milaundry.app</a>.</p>
+    </article>
+  </main>
+</body>
+</html>

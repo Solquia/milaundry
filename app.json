@@ -15,9 +15,13 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "bundleIdentifier": "com.milaundry.app",
+      "appleTeamId": "KBC9YTF93U",
       "associatedDomains": [
         "applinks:milaundry.app"
-      ]
+      ],
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -90,6 +94,13 @@
         "expo-camera",
         {
           "cameraPermission": "MiLaundry uses the camera to scan laundry shop and order QR codes."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "MiLaundry uses your photos for shop logos, covers, weigh pictures, and payment receipts.",
+          "cameraPermission": "MiLaundry uses the camera to take shop photos, weigh pictures, and payment receipts."
         }
       ],
       "expo-maps",

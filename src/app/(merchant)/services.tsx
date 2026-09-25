@@ -1,18 +1,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MerchantAddons } from '@/components/merchant-addons';
+import { Segmented } from '@/components/segmented';
+import { ServiceForm, type ServiceFormOutcome } from '@/components/service-form';
 import {
   Button,
   Card,
   EmptyState,
   ErrorState,
   ErrorText,
-  Field,
   Loading,
   Screen,
   Subtle,
+  TAG_TONES,
   colors,
   space,
   type,
@@ -20,434 +23,163 @@ import {
   RADII,
   fontFor,
 } from '@/components/ui-kit';
-import { getServices, seedStarterServices, updateService, upsertService } from '@/lib/api';
-import { removeServicePrompt } from '@/lib/domain/confirm-prompts';
+import { getServices, seedStarterServices } from '@/lib/api';
+import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import { nextOpenCategory } from '@/lib/domain/price-accordion';
-import { formatPriceLine } from '@/lib/domain/price-label';
-import { categoryPriceSummary, selectedCategoryLabel } from '@/lib/domain/price-sections';
-import type { PricingUnit } from '@/lib/domain/pricing';
+import { priceSubtitle } from '@/lib/domain/price-label';
+import { categoryPriceSummary, savedNotice, unpricedNotice } from '@/lib/domain/price-sections';
 import {
   CATEGORY_LABELS,
-  CATEGORY_ORDER,
   STARTER_SERVICES,
   groupServicesByCategory,
-  type ServiceCategory,
   type ServiceGroup,
 } from '@/lib/domain/service-catalog';
 import { categoryIcon } from '@/lib/domain/shop-home';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
-const UNIT_OPTIONS: { value: PricingUnit; label: string }[] = [
-  { value: 'per_kg', label: 'Per kg' },
-  { value: 'per_item', label: 'Per piece' },
-  { value: 'flat', label: 'Flat rate' },
+type PricesMode = 'services' | 'addons';
+
+/**
+ * Services or add-ons: the two price lists an owner keeps. Pinned above the
+ * scroll, because a detergent typed in as a ₱0 "service" showed the owner had
+ * never seen the switch — it scrolled away with the list it switches.
+ */
+const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
+  { key: 'services', label: 'Services' },
+  { key: 'addons', label: 'Add-ons' },
 ];
 
-/**
- * The one control shape this screen uses for "there is more behind this".
- *
- * Every price section, the add-service form, and the category picker open the
- * same way, so an owner learns the chevron once rather than three times.
- */
-function Disclosure({ isOpen }: { isOpen: boolean }) {
-  return (
-    <Ionicons
-      name={isOpen ? 'chevron-up' : 'chevron-down'}
-      size={20}
-      color={colors.borderStrong}
-    />
-  );
-}
+type PricesView = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; service: ServiceRecord };
 
 /**
- * Which category a new service goes into, as a picker rather than a chip field.
- *
- * Six chips wrapped to three rows, all equally loud, and the chosen one could
- * end up alone on the last row where it read as a separate control rather than
- * as the answer. Closed, this is one line that states the answer. Open, it is a
- * single column of full-width choices — a list has one reading direction, a
- * wrapped chip grid has two.
+ * One price: the whole row opens it. The unit rides with the figure, because
+ * "₱176" on its own does not say whether that is a kilo or a whole load.
  */
-function CategoryPicker({
-  value,
-  onChange,
-}: {
-  value: ServiceCategory;
-  onChange: (category: ServiceCategory) => void;
-}) {
-  const [isOpen, setIsOpen] = useState(false);
-
-  return (
-    <View style={styles.field}>
-      <Text style={styles.fieldLabel}>Category</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Category: ${selectedCategoryLabel(value)}`}
-        accessibilityHint={isOpen ? 'Closes the category list' : 'Opens the category list'}
-        accessibilityState={{ expanded: isOpen }}
-        onPress={() => setIsOpen((open) => !open)}
-        style={({ pressed }) => [styles.pickerValue, pressed && styles.pressed]}
-      >
-        <Ionicons name={categoryIcon(value) as never} size={18} color={colors.actionInk} />
-        <Text style={styles.pickerValueText}>{selectedCategoryLabel(value)}</Text>
-        <Disclosure isOpen={isOpen} />
-      </Pressable>
-
-      {isOpen && (
-        <View style={styles.pickerList}>
-          {CATEGORY_ORDER.map((category, index) => {
-            const isSelected = category === value;
-            return (
-              <Pressable
-                key={category}
-                accessibilityRole="radio"
-                accessibilityState={{ checked: isSelected }}
-                onPress={() => {
-                  onChange(category);
-                  // Choosing is the whole reason it opened, so it closes on the
-                  // choice: leaving six rows open afterwards pushes the form's
-                  // remaining questions below the fold for no gain.
-                  setIsOpen(false);
-                }}
-                style={({ pressed }) => [
-                  styles.pickerOption,
-                  index > 0 && styles.pickerOptionDivided,
-                  isSelected && styles.pickerOptionSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name={categoryIcon(category) as never}
-                  size={18}
-                  color={isSelected ? colors.actionInk : colors.subtle}
-                />
-                <Text
-                  style={[
-                    styles.pickerOptionText,
-                    isSelected && styles.pickerOptionTextSelected,
-                  ]}
-                >
-                  {CATEGORY_LABELS[category]}
-                </Text>
-                {isSelected && (
-                  <Ionicons name="checkmark" size={18} color={colors.actionInk} />
-                )}
-              </Pressable>
-            );
-          })}
-        </View>
-      )}
-    </View>
-  );
-}
-
-/**
- * One price, as a band inside its category's sheet.
- *
- * Each service used to be its own floating card, so a shop with ten prices was
- * ten boxes with ten gaps and the add-service form sat below all of it. Bands
- * separated by a hairline are how a printed price board does it — one sheet per
- * section, ruled lines inside.
- */
-function PriceBand({
+function PriceRow({
   service,
   isFirst,
-  onSaved,
+  isHighlighted,
+  onOpen,
 }: {
   service: ServiceRecord;
   isFirst: boolean;
-  onSaved: () => void;
+  isHighlighted: boolean;
+  onOpen: () => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [price, setPrice] = useState(String(service.price));
-  const [minQuantity, setMinQuantity] = useState(String(service.min_quantity));
-  const [error, setError] = useState('');
-
-  const mutation = useMutation({
-    mutationFn: (patch: Parameters<typeof updateService>[1]) =>
-      updateService(service.id, patch),
-    onSuccess: () => {
-      setIsEditing(false);
-      setError('');
-      onSaved();
-    },
-    onError: (err: Error) => setError(err.message),
-  });
-
-  const handleSave = () => {
-    const parsedPrice = Number(price);
-    const parsedMin = Number(minQuantity);
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setError('Enter a valid price.');
-      return;
-    }
-    if (!Number.isFinite(parsedMin) || parsedMin < 0) {
-      setError('Enter a valid minimum.');
-      return;
-    }
-    mutation.mutate({ price: parsedPrice, min_quantity: parsedMin });
-  };
-
-  const confirmRemove = () => {
-    const prompt = removeServicePrompt(service.name);
-    Alert.alert(prompt.title, prompt.message, [
-      { text: prompt.dismissLabel, style: 'cancel' },
-      {
-        text: prompt.confirmLabel,
-        style: 'destructive',
-        onPress: () => mutation.mutate({ is_active: false }),
-      },
-    ]);
-  };
-
+  const isUnpriced = !(service.price > 0);
+  const priceText = isUnpriced ? 'no price set' : priceSubtitle(service);
   return (
-    <View style={[styles.band, !isFirst && styles.bandDivided]}>
-      <View style={styles.bandHead}>
-        <View style={styles.bandText}>
-          <Text style={styles.bandName}>{service.name}</Text>
-          <Text style={styles.bandPrice}>{formatPriceLine(service)}</Text>
-          {service.description ? <Subtle>{service.description}</Subtle> : null}
-        </View>
-        {/* A Pressable, not a Text with onPress: the old one was invisible to
-            TalkBack as a control and offered a ~17pt tap target. */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isEditing ? `Close ${service.name}` : `Edit ${service.name}`}
-          accessibilityState={{ expanded: isEditing }}
-          onPress={() => setIsEditing((editing) => !editing)}
-          hitSlop={12}
-        >
-          <Text style={styles.bandAction}>{isEditing ? 'Close' : 'Edit'}</Text>
-        </Pressable>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${service.name}, ${priceText}`}
+      accessibilityHint="Opens it to change any detail"
+      onPress={onOpen}
+      style={({ pressed }) => [
+        styles.row,
+        !isFirst && styles.rowDivided,
+        isHighlighted && styles.rowHighlighted,
+        pressed && styles.pressed,
+      ]}
+    >
+      <View style={styles.rowText}>
+        <Text style={styles.rowName}>{service.name}</Text>
+        {isUnpriced ? null : <Text style={styles.rowPrice}>{priceText}</Text>}
+        {service.description ? <Subtle>{service.description}</Subtle> : null}
       </View>
-
-      {isEditing && (
-        <View style={styles.bandForm}>
-          <Field label="Price" value={price} onChangeText={setPrice} keyboardType="decimal-pad" />
-          {service.unit === 'per_kg' && (
-            <Field
-              label="Smallest load you charge for, in kg"
-              value={minQuantity}
-              onChangeText={setMinQuantity}
-              keyboardType="decimal-pad"
-            />
-          )}
-          <ErrorText>{error}</ErrorText>
-          <Button
-            title={mutation.isPending ? 'Saving…' : 'Save changes'}
-            onPress={handleSave}
-            disabled={mutation.isPending}
-          />
-          {/* One tap used to delete a price permanently. */}
-          <Button
-            title="Remove from price list"
-            variant="danger"
-            onPress={confirmRemove}
-            disabled={mutation.isPending}
-          />
+      {isUnpriced ? (
+        <View style={styles.flag}>
+          <Text style={styles.flagText}>Set price</Text>
         </View>
-      )}
-    </View>
+      ) : null}
+      <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+    </Pressable>
   );
 }
 
 /**
- * One category of the owner's price list, open or closed.
- *
- * The closed state is not a hidden section: it states how many prices are
- * inside and the spread they cover, which is what an owner scans this screen to
- * check. Opening is for changing one.
+ * One category, always open. The list used to be an accordion that opened one
+ * section at a time, so most categories showed a count and a range instead of
+ * their one price, and two categories could never be compared side by side.
  */
 function PriceSection({
   group,
-  isOpen,
-  onToggle,
-  onSaved,
+  highlightName,
+  onOpen,
 }: {
   group: ServiceGroup<ServiceRecord>;
-  isOpen: boolean;
-  onToggle: () => void;
-  onSaved: () => void;
+  highlightName: string | null;
+  onOpen: (service: ServiceRecord) => void;
 }) {
-  const label = CATEGORY_LABELS[group.category];
-  const summary = categoryPriceSummary(group.services);
-
   return (
-    <View style={styles.sheet}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${label}. ${summary}.`}
-        accessibilityHint={isOpen ? 'Closes this section' : 'Opens this section'}
-        accessibilityState={{ expanded: isOpen }}
-        onPress={onToggle}
-        style={({ pressed }) => [styles.sheetHead, pressed && styles.pressed]}
-      >
+    <View style={styles.section}>
+      <View style={styles.sectionHead}>
         <Ionicons
           name={categoryIcon(group.category) as never}
-          size={20}
+          size={18}
           color={colors.actionInk}
         />
-        <View style={styles.sheetHeadText}>
-          <Text style={styles.sheetName}>{label}</Text>
-          <Text style={styles.sheetSummary}>{summary}</Text>
-        </View>
-        <Disclosure isOpen={isOpen} />
-      </Pressable>
-
-      {isOpen &&
-        group.services.map((service, index) => (
-          <PriceBand
+        <Text style={styles.sectionName}>{CATEGORY_LABELS[group.category]}</Text>
+        <Text style={styles.sectionSummary}>{categoryPriceSummary(group.services)}</Text>
+      </View>
+      <View style={styles.sheet}>
+        {group.services.map((service, index) => (
+          <PriceRow
             key={service.id}
             service={service}
             isFirst={index === 0}
-            onSaved={onSaved}
+            isHighlighted={service.name === highlightName}
+            onOpen={() => onOpen(service)}
           />
         ))}
+      </View>
     </View>
   );
 }
 
-/**
- * Putting a new service on the price list — folded away until it is wanted.
- *
- * Adding is something an owner does at setup and then rarely again, yet the
- * open form was the tallest thing on the screen and sat permanently under every
- * price. Closed, it is one line that says what it is for.
- */
-function AddServiceForm({ shopId, onSaved }: { shopId: string; onSaved: () => void }) {
-  const [isOpen, setIsOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [price, setPrice] = useState('');
-  const [unit, setUnit] = useState<PricingUnit>('per_kg');
-  const [category, setCategory] = useState<ServiceCategory>('wash_fold');
-  const [minQuantity, setMinQuantity] = useState('0');
-  const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
+function Notice({ tone, children }: { tone: keyof typeof TAG_TONES; children: string }) {
+  return (
+    <View
+      style={[styles.notice, { backgroundColor: TAG_TONES[tone].bg }]}
+      accessibilityLiveRegion="polite"
+    >
+      <Text style={[styles.noticeText, { color: TAG_TONES[tone].ink }]}>{children}</Text>
+    </View>
+  );
+}
 
-  const mutation = useMutation({
-    mutationFn: () =>
-      upsertService({
-        shop_id: shopId,
-        name: name.trim(),
-        unit,
-        price: Number(price),
-        category,
-        min_quantity: unit === 'per_kg' ? Number(minQuantity) || 0 : 0,
-        description: description.trim(),
-      }),
-    onSuccess: () => {
-      setName('');
-      setPrice('');
-      setDescription('');
-      setMinQuantity('0');
-      setError('');
-      // Folded away again on success: the owner's next question is whether the
-      // service landed in the list above, not what to type next.
-      setIsOpen(false);
-      onSaved();
-    },
-    onError: (err: Error) => setError(err.message),
+function StarterCard({ shopId, onSeeded }: { shopId: string; onSeeded: () => void }) {
+  const [seedError, setSeedError] = useState('');
+  const seedMutation = useMutation({
+    mutationFn: () => seedStarterServices(shopId, STARTER_SERVICES),
+    onSuccess: onSeeded,
+    onError: (err: Error) => setSeedError(friendlyMerchantError('save-price', err.message)),
   });
 
-  const handleAdd = () => {
-    const parsedPrice = Number(price);
-    if (!name.trim()) {
-      setError('Enter a service name.');
-      return;
-    }
-    if (!Number.isFinite(parsedPrice) || parsedPrice < 0) {
-      setError('Enter a valid price.');
-      return;
-    }
-    mutation.mutate();
-  };
-
   return (
-    <View style={styles.sheet}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add something you offer"
-        accessibilityHint={isOpen ? 'Closes the new service form' : 'Opens the new service form'}
-        accessibilityState={{ expanded: isOpen }}
-        onPress={() => setIsOpen((open) => !open)}
-        style={({ pressed }) => [styles.sheetHead, pressed && styles.pressed]}
-      >
-        <Ionicons name="add-circle" size={22} color={colors.action} />
-        <View style={styles.sheetHeadText}>
-          <Text style={styles.sheetName}>Add something you offer</Text>
-          <Text style={styles.sheetSummary}>A new service on your price list</Text>
-        </View>
-        <Disclosure isOpen={isOpen} />
-      </Pressable>
-
-      {isOpen && (
-        <View style={styles.addForm}>
-          <Field label="Name" value={name} onChangeText={setName} placeholder="Wash, Dry & Fold" />
-          <CategoryPicker value={category} onChange={setCategory} />
-          <View style={styles.field}>
-            <Text style={styles.fieldLabel}>How is it priced?</Text>
-            <View style={styles.unitRow}>
-              {UNIT_OPTIONS.map((option) => (
-                <View key={option.value} style={{ flex: 1 }}>
-                  <Button
-                    title={option.label}
-                    variant={unit === option.value ? 'primary' : 'outline'}
-                    onPress={() => setUnit(option.value)}
-                  />
-                </View>
-              ))}
-            </View>
-          </View>
-          <Field
-            label={
-              unit === 'per_kg'
-                ? 'Price per kg'
-                : unit === 'per_item'
-                  ? 'Price per piece'
-                  : 'Flat price'
-            }
-            value={price}
-            onChangeText={setPrice}
-            keyboardType="decimal-pad"
-            placeholder="35.00"
-          />
-          {unit === 'per_kg' && (
-            <Field
-              label="Smallest load you charge for, in kg"
-              value={minQuantity}
-              onChangeText={setMinQuantity}
-              keyboardType="decimal-pad"
-              placeholder="5"
-            />
-          )}
-          <Field
-            label="Description (optional)"
-            value={description}
-            onChangeText={setDescription}
-            placeholder="Regular clothes, 5 kg minimum"
-          />
-          <ErrorText>{error}</ErrorText>
-          <Button
-            title={mutation.isPending ? 'Saving…' : 'Add service'}
-            onPress={handleAdd}
-            disabled={mutation.isPending}
-          />
-        </View>
-      )}
-    </View>
+    <Card>
+      <Text style={type.section}>Start your price list</Text>
+      <Subtle>
+        We can fill this in with the usual laundry shop prices — wash and fold by the kilo,
+        ironing and dry cleaning by the piece, comforters, curtains and self-service loads.
+        Change any price afterwards to match your shop.
+      </Subtle>
+      <ErrorText>{seedError}</ErrorText>
+      <Button
+        title={seedMutation.isPending ? 'Adding prices…' : 'Use the usual prices'}
+        onPress={() => seedMutation.mutate()}
+        disabled={seedMutation.isPending}
+      />
+    </Card>
   );
 }
 
 export default function MerchantServices() {
   const queryClient = useQueryClient();
-  const { shop, isLoading: isShopLoading } = useActiveShop();
-  const [seedError, setSeedError] = useState('');
-  // `undefined` means "nobody has touched the accordion yet", which is not the
-  // same as `null`: the first section opens on arrival so the screen is never a
-  // wall of closed doors, but tapping that section still closes it.
-  const [openCategory, setOpenCategory] = useState<string | null | undefined>(undefined);
+  const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
+  const [mode, setMode] = useState<PricesMode>('services');
+  const [view, setView] = useState<PricesView>({ kind: 'list' });
+  const [outcome, setOutcome] = useState<ServiceFormOutcome | null>(null);
 
   // `error` was previously never destructured, so a failed fetch rendered as
   // an empty list under the "Start your price list" card — a network problem
@@ -460,22 +192,12 @@ export default function MerchantServices() {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['services', shop?.id] });
 
-  const seedMutation = useMutation({
-    mutationFn: () => seedStarterServices(shop!.id, STARTER_SERVICES),
-    onSuccess: refresh,
-    onError: (err: Error) => setSeedError(err.message),
-  });
-
   if (isShopLoading || isLoading) return <Loading />;
   if (!shop) {
     return (
       <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
     );
   }
-
-  const groups = groupServicesByCategory(services ?? []);
-  const openOrFirst =
-    openCategory === undefined ? (groups[0]?.category ?? null) : openCategory;
 
   if (error) {
     return (
@@ -488,46 +210,88 @@ export default function MerchantServices() {
     );
   }
 
-  return (
-    <Screen>
-      {services?.length === 0 && (
-        <Card>
-          <Text style={type.section}>Start your price list</Text>
-          <Subtle>
-            We can fill this in with the usual laundry shop prices — wash and fold by the kilo,
-            ironing and dry cleaning by the piece, comforters, curtains and self-service loads.
-            Change any price afterwards to match your shop.
-          </Subtle>
-          <ErrorText>{seedError}</ErrorText>
-          <Button
-            title={seedMutation.isPending ? 'Adding prices…' : 'Use the usual prices'}
-            onPress={() => seedMutation.mutate()}
-            disabled={seedMutation.isPending}
-          />
-        </Card>
-      )}
+  // Staff keep the price list (adding and changing prices); the Add-ons shelf
+  // and its switch are the owner's.
+  const isOwner = canManageShop(shopRole);
+  const openForm = (next: PricesView) => {
+    setOutcome(null);
+    setView(next);
+  };
 
-      {/* One section open at a time. Every price in every category used to be
-          printed at once, so a shop with a full list scrolled for a screen and
-          a half before reaching the form — and each closed section still quotes
-          what it holds. */}
+  if (view.kind !== 'list') {
+    const goToAddons = () => {
+      setView({ kind: 'list' });
+      setMode('addons');
+    };
+    return (
+      // Keyed by view so the form opens at its top, and the list returns to its own.
+      <Screen key={view.kind === 'edit' ? `edit-${view.service.id}` : view.kind}>
+        <ServiceForm
+          shopId={shop.id}
+          service={view.kind === 'edit' ? view.service : undefined}
+          onCancel={() => setView({ kind: 'list' })}
+          onDone={(done) => {
+            setOutcome(done);
+            setView({ kind: 'list' });
+            refresh();
+          }}
+          onGoToAddons={isOwner ? goToAddons : undefined}
+        />
+      </Screen>
+    );
+  }
+
+  const modeSwitch = isOwner ? (
+    <Segmented options={MODE_OPTIONS} value={mode} onChange={setMode} />
+  ) : undefined;
+
+  if (isOwner && mode === 'addons') {
+    return (
+      <Screen key="addons" header={modeSwitch}>
+        <MerchantAddons shopId={shop.id} />
+      </Screen>
+    );
+  }
+
+  const list = services ?? [];
+  const groups = groupServicesByCategory(list);
+  const unpriced = unpricedNotice(list);
+  const highlightName = outcome && outcome.verb !== 'removed' ? outcome.name : null;
+
+  return (
+    <Screen
+      key="list"
+      header={modeSwitch}
+      footer={<Button title="Add a service" onPress={() => openForm({ kind: 'add' })} />}
+    >
+      {outcome ? <Notice tone="settled">{savedNotice(outcome)}</Notice> : null}
+      {unpriced ? <Notice tone="owed">{unpriced}</Notice> : null}
+      {list.length === 0 && <StarterCard shopId={shop.id} onSeeded={refresh} />}
+
       {groups.map((group) => (
         <PriceSection
           key={group.category}
           group={group}
-          isOpen={openOrFirst === group.category}
-          onToggle={() => setOpenCategory(nextOpenCategory(openOrFirst, group.category))}
-          onSaved={refresh}
+          highlightName={highlightName}
+          onOpen={(service) => openForm({ kind: 'edit', service })}
         />
       ))}
-
-      <AddServiceForm shopId={shop.id} onSaved={refresh} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  /** A category of the price list, or the add form: one sheet, ruled inside. */
+  section: { gap: space.snug },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    paddingHorizontal: space.tight,
+  },
+  sectionName: { ...type.label, fontFamily: fontFor(600), color: colors.text, flex: 1 },
+  sectionSummary: { ...type.caption, color: colors.subtle },
+
+  /** A category's prices: one sheet, ruled inside, like a printed price board. */
   sheet: {
     backgroundColor: colors.card,
     ...CROWN,
@@ -535,72 +299,29 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  sheetHead: {
+  row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: space.cosy,
-    padding: space.room,
-  },
-  sheetHeadText: { flex: 1, minWidth: 0 },
-  sheetName: { ...type.section, color: colors.text },
-  sheetSummary: { ...type.caption, color: colors.subtle, marginTop: 2 },
-  pressed: { backgroundColor: colors.sunken },
-
-  band: { paddingHorizontal: space.room, paddingBottom: space.cosy },
-  /** Rules between prices, and beneath the header that revealed them. */
-  bandDivided: { borderTopWidth: 1, borderTopColor: colors.border, paddingTop: space.cosy },
-  bandHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.snug },
-  bandText: { flex: 1, minWidth: 0, gap: 2 },
-  bandName: { ...type.body, fontFamily: fontFor(600), color: colors.text },
-  bandPrice: { ...type.caption, color: colors.subtle },
-  bandAction: { ...type.label, color: colors.actionInk },
-  bandForm: { gap: space.snug, marginTop: space.cosy },
-
-  addForm: {
+    gap: space.snug,
     paddingHorizontal: space.room,
-    paddingBottom: space.room,
-    paddingTop: space.room,
-    gap: space.cosy,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-
-  field: { gap: space.tight },
-  fieldLabel: { ...type.label, color: colors.subtle },
-  unitRow: { flexDirection: 'row', gap: space.snug },
-
-  /** The closed picker wears the shape of the inputs it sits among. */
-  pickerValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: RADII.control,
-    paddingHorizontal: space.cosy,
     paddingVertical: space.cosy,
+    minHeight: 56,
   },
-  pickerValueText: { flex: 1, minWidth: 0, ...type.body, color: colors.text },
-  pickerList: {
-    marginTop: space.tight,
-    borderWidth: 1,
-    borderColor: colors.border,
+  rowDivided: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowHighlighted: { backgroundColor: TAG_TONES.settled.bg },
+  pressed: { backgroundColor: colors.sunken },
+  rowText: { flex: 1, minWidth: 0, gap: 2 },
+  rowName: { ...type.body, fontFamily: fontFor(600), color: colors.text },
+  rowPrice: { ...type.caption, color: colors.subtle },
+
+  flag: {
+    paddingHorizontal: space.snug,
+    paddingVertical: 2,
     borderRadius: RADII.control,
-    overflow: 'hidden',
-    backgroundColor: colors.card,
+    backgroundColor: TAG_TONES.owed.bg,
   },
-  pickerOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    paddingHorizontal: space.cosy,
-    // 44pt minimum: six choices read and tapped at a counter.
-    paddingVertical: space.cosy,
-    minHeight: 44,
-  },
-  pickerOptionDivided: { borderTopWidth: 1, borderTopColor: colors.border },
-  pickerOptionSelected: { backgroundColor: colors.actionSurface },
-  pickerOptionText: { flex: 1, minWidth: 0, ...type.body, color: colors.text },
-  pickerOptionTextSelected: { fontWeight: '600', color: colors.actionInk },
+  flagText: { ...type.caption, fontFamily: fontFor(600), color: TAG_TONES.owed.ink },
+
+  notice: { padding: space.cosy, borderRadius: RADII.control },
+  noticeText: { ...type.label, fontFamily: fontFor(400) },
 });

@@ -9,21 +9,19 @@ import {
   Text,
   View,
 } from 'react-native';
-import type { StyleProp, ViewStyle } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useClaim } from '@/components/claim';
 import { CycleStrip } from '@/components/cycle-strip';
-import { useCue, useEntrance } from '@/components/entrance';
+import { useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
 import { ShopMapCard } from '@/components/shop-map-card';
-import { ServiceTileCard } from '@/components/service-tile-card';
+import { ServiceShelf } from '@/components/service-shelf';
 import { ShopfrontHero } from '@/components/shopfront-hero';
 import {
   ACCENTS,
   Card,
-  EmptyState,
   ErrorText,
   Loading,
   Screen,
@@ -51,12 +49,11 @@ import {
   welcomeNote,
   type WelcomeNote,
 } from '@/lib/domain/connection-welcome';
-import { ENTRANCE, staggerDelay } from '@/lib/domain/entrance';
+import { ENTRANCE } from '@/lib/domain/entrance';
 import { shopInitials } from '@/lib/domain/connected-shops';
 import { leadingIndex } from '@/lib/domain/home-headline';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
 import { groupServicesByCategory, labelledServices } from '@/lib/domain/service-catalog';
-import { gridRows } from '@/lib/domain/web-layout';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
 import { useHaptic } from '@/lib/use-app-settings';
 import type { ServiceRow } from '@/lib/types';
@@ -173,49 +170,6 @@ function WelcomeCard({
   );
 }
 
-/** Two cards to a row; an odd last card keeps its width with a blank beside it. */
-/**
- * One card of the price list arriving, `index` places behind the first.
- *
- * The stagger is capped in `staggerDelay`, so a shop with a long list does not
- * have its last category land a second and a half in — past that point every
- * remaining card simply arrives together.
- */
-function CascadeIn({
-  progress,
-  index,
-  children,
-  style,
-}: {
-  progress: Animated.Value;
-  index: number;
-  children: React.ReactNode;
-  /** A card in a two-column row has to carry the column's width itself. */
-  style?: StyleProp<ViewStyle>;
-}) {
-  const delay = staggerDelay(index);
-  const cue = useCue(progress, {
-    delay: ENTRANCE.list.delay + delay,
-    duration: ENTRANCE.list.duration,
-  });
-
-  return (
-    <Animated.View
-      style={[
-        {
-          opacity: cue,
-          transform: [
-            { translateY: cue.interpolate({ inputRange: [0, 1], outputRange: [26, 0] }) },
-            { scale: cue.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) },
-          ],
-        },
-        style,
-      ]}
-    >
-      {children}
-    </Animated.View>
-  );
-}
 
 export default function CustomerShopHome() {
   // `welcome` is the number of laundries the customer had *before* this one,
@@ -417,55 +371,20 @@ export default function CustomerShopHome() {
         />
       )}
 
-      {/* The price list, straight from the owner's dashboard and grouped the way
-          the owner grouped it. The category carries the glyph, so a shop with
-          three bedding services no longer prints the same bed icon three times
-          where three different names should have been. */}
-      <Text style={styles.sectionTitle}>The Price List</Text>
+      {/* The shelf: every service the owner listed, in the order the owner
+          grouped them, searchable once there are enough of them to hunt
+          through. It reads as a menu — a heading per category, a row per
+          service, the price on the right where a column of them compares.
 
-      {services?.length === 0 && (
-        <EmptyState message="This shop hasn't listed services yet." />
-      )}
-      {/* Every service is a card with a face — a tile in the colour of its
-          kind, the name as a title, a line about it, the price, and a Book
-          sticker. The accordion is gone: a customer deciding what to bring
-          reads the whole menu, and a card that says what a service *is* earns
-          the height it takes.
-
-          One grid, every service in it, exactly as the shop's own web page
-          draws it. The headings between the groups are gone: on a shop with
-          one or two services per category they produced a label, a card, a
-          gap, another label, and the cards never paired up — each sat
-          half-width beside a blank, which is what made this read as a column
-          of lonely boxes rather than a price list. Every card wears its own
-          category in its corner now, so nothing is lost by closing them up,
-          and `labelledServices` keeps the order here identical to the web. */}
-      <View style={styles.priceList}>
-        {gridRows(orderedServices, 2).map((row, rowIndex) => (
-          <View key={rowIndex} style={styles.priceRow}>
-            {row.map((entry, column) =>
-              entry ? (
-                <CascadeIn
-                  key={entry.service.id}
-                  progress={progress}
-                  index={rowIndex * 2 + column}
-                  style={styles.priceColumn}
-                >
-                  <ServiceTileCard
-                    service={entry.service}
-                    categoryLabel={entry.label}
-                    bookTone={{ bg: colors.action, ink: colors.onAccent }}
-                    isDisabled={!isRegistered}
-                    onBook={() => handleBook(entry.service)}
-                  />
-                </CascadeIn>
-              ) : (
-                <View key={`blank-${column}`} style={styles.priceBlank} />
-              )
-            )}
-          </View>
-        ))}
-      </View>
+          The shelf owns its own cascade, so it takes the page's list cue as a
+          delay rather than a driver: the cards land behind the hero, and land
+          again whenever a search re-forms the grid. */}
+      <ServiceShelf
+        entries={orderedServices}
+        isDisabled={!isRegistered}
+        onBook={handleBook}
+        delay={ENTRANCE.list.delay}
+      />
 
       {/* Where the shop is, before what people said about it: a customer
           deciding whether to come needs the corner more than the score. */}
@@ -532,18 +451,5 @@ const styles = StyleSheet.create({
 
   sectionTitle: { ...type.title, color: colors.text, marginTop: space.cosy },
 
-  /** Tight, like the web's: the cards are one block, not separated panels. */
-  priceList: { gap: space.snug },
-  priceRow: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
-  priceColumn: { flex: 1, minWidth: 0 },
-  priceBlank: { flex: 1 },
-  categoryLabel: {
-    ...type.label,
-    fontSize: 12,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: colors.subtle,
-    paddingHorizontal: space.tight,
-  },
 
 });

@@ -1,9 +1,10 @@
 /**
  * The numbered rail across the top of a booking.
  *
- * "1. Items   2. Schedule   3. Review" — the step you are on underlined in the
- * brand colour, the ones behind you underlined too and still tappable, the
- * ones ahead greyed. It replaces the flat progress bars both booking flows
+ * "1. Items   2. Schedule   3. Review" — the step you are on underlined solid
+ * in the brand colour, the ones behind you ticked and underlined faintly (and
+ * still tappable), the ones ahead greyed. Done and current used to share the
+ * same solid bar, so the rail could not say which one you were on. It replaces the flat progress bars both booking flows
  * used to carry, which filled left to right and said nothing about how many
  * questions were left or what they would ask.
  *
@@ -14,6 +15,7 @@
  * The rail is a header first and a control second: a customer who never
  * touches it still gets a count and a name, which is most of its value.
  */
+import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
@@ -63,19 +65,25 @@ export function StepRail<K extends string>({
     <View style={styles.rail} accessibilityLabel={stepAnnouncement(steps, current)}>
       {tabs.map((tab) => {
         const isReached = tab.state !== 'upcoming';
+        const isDone = tab.state === 'done';
         const ink = isReached ? tone.reached : tone.ahead;
         const rule = isReached ? tone.reached : tone.track;
         const canGo = tab.canGo && Boolean(onGo);
 
         const body = (
           <>
-            <Text
-              numberOfLines={1}
-              style={[styles.label, { color: ink }, tab.state === 'current' && styles.labelHere]}
-            >
-              {tab.label}
-            </Text>
-            <View style={[styles.rule, { backgroundColor: rule }]} />
+            <View style={styles.labelRow}>
+              {isDone && <Ionicons name="checkmark" size={13} color={ink} />}
+              <Text
+                numberOfLines={1}
+                style={[styles.label, { color: ink }, tab.state === 'current' && styles.labelHere]}
+              >
+                {tab.label}
+              </Text>
+            </View>
+            {/* Behind you is settled, so its bar steps back; only the step
+                you are on carries the full-strength rule. */}
+            <View style={[styles.rule, { backgroundColor: rule }, isDone && styles.ruleDone]} />
           </>
         );
 
@@ -110,9 +118,11 @@ const styles = StyleSheet.create({
   rail: { flexDirection: 'row', gap: space.snug },
   tab: { flex: 1, gap: space.snug },
   tabPressed: { opacity: 0.6 },
-  label: { ...type.caption },
+  labelRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  label: { ...type.caption, flexShrink: 1 },
   /** The step you are on is the only one set in the heavier cut. */
   labelHere: { fontFamily: type.label.fontFamily },
   /** 3px: a hairline reads as a divider, a bar this weight reads as progress. */
   rule: { height: 3, borderRadius: 2 },
+  ruleDone: { opacity: 0.35 },
 });

@@ -15,6 +15,8 @@
  */
 import { Platform } from 'react-native';
 
+import { FONT } from './domain/design-scale';
+
 /** The deep navy the splash opens on, and the field around the phone column. */
 const BACKDROP = '#04203F';
 /** Blue at rule-mark weight, and blue as a filled action. From `ui-kit`. */
@@ -32,7 +34,34 @@ const STYLE_ID = 'milaundry-document';
  */
 const VIEWPORT = 'width=device-width, initial-scale=1, viewport-fit=cover';
 
+/**
+ * The peso sign, borrowed.
+ *
+ * Figtree ships no ₱ (U+20B1) in any cut. A phone falls back to its system
+ * sans on its own, but a browser falls back to its *default* face, which is a
+ * serif — so every price on the web wore a Times peso beside Figtree digits.
+ * A second face under each Figtree family name, limited to that one code
+ * point, hands the sign to a local sans of about the same weight instead.
+ */
+const PESO_FACES: Record<string, readonly string[]> = {
+  [FONT.regular]: ['Segoe UI', 'SegoeUI', 'Roboto', 'Helvetica Neue', 'Arial'],
+  [FONT.medium]: ['Segoe UI Semibold', 'SegoeUI-Semibold', 'Roboto Medium', 'Roboto', 'Arial'],
+  [FONT.semibold]: ['Segoe UI Semibold', 'SegoeUI-Semibold', 'Roboto Medium', 'Arial'],
+  [FONT.bold]: ['Segoe UI Bold', 'SegoeUI-Bold', 'Roboto Bold', 'Roboto-Bold', 'Arial Bold'],
+  [FONT.extrabold]: ['Segoe UI Black', 'SegoeUI-Black', 'Segoe UI Bold', 'Roboto Black', 'Arial Black'],
+};
+
+const PESO_STYLE = Object.entries(PESO_FACES)
+  .map(
+    ([family, locals]) =>
+      `@font-face { font-family: '${family}'; src: ${locals
+        .map((name) => `local('${name}')`)
+        .join(', ')}; unicode-range: U+20B1; }`
+  )
+  .join('\n');
+
 const DOCUMENT_STYLE = `
+${PESO_STYLE}
 html, body, #root { height: 100%; }
 body {
   background-color: ${BACKDROP};

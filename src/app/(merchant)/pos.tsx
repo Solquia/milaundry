@@ -20,7 +20,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -98,6 +97,7 @@ import type { OrderRow, ServiceRow, Shop } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { useHaptic } from '@/lib/use-app-settings';
 import { usePrinter } from '@/lib/use-printer';
+import { confirmAction } from '@/lib/confirm';
 
 const EMPTY_INTAKE: WalkInInput = {
   customerName: '',
@@ -258,10 +258,15 @@ export default function Pos() {
   // from Continue, an unguarded Clear is a mis-tap waiting to happen.
   const confirmClear = () => {
     haptic('warning');
-    Alert.alert('Clear the ticket?', `${ticketCountLabel(count)} will come off.`, [
-      { text: 'Keep', style: 'cancel' },
-      { text: 'Clear', style: 'destructive', onPress: () => setQuantities({}) },
-    ]);
+    confirmAction(
+      {
+        title: 'Clear the ticket?',
+        message: `${ticketCountLabel(count)} will come off.`,
+        confirmLabel: 'Clear',
+        dismissLabel: 'Keep',
+      },
+      () => setQuantities({})
+    );
   };
 
   const handleAdjust = (service: ServiceRow, delta: number) => {

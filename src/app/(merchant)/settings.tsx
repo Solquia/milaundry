@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 
 import { BrandingCard } from '@/components/branding-card';
 import { DoorbellCard } from '@/components/doorbell-card';
@@ -15,6 +15,7 @@ import { canManageShop, describeShopAccess, shopRoleBadge } from '@/lib/domain/m
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { canAddStaff } from '@/lib/domain/staff-invite';
 import { useActiveShop } from '@/lib/use-active-shop';
+import { confirmAction } from '@/lib/confirm';
 
 /**
  * The account screen the app never had. Sign-out used to be a bare text link
@@ -33,10 +34,7 @@ export default function MerchantSettings() {
 
   const confirmSignOut = () => {
     const prompt = signOutPrompt();
-    Alert.alert(prompt.title, prompt.message, [
-      { text: prompt.dismissLabel, style: 'cancel' },
-      { text: prompt.confirmLabel, style: 'destructive', onPress: () => signOut() },
-    ]);
+    confirmAction(prompt, () => signOut());
   };
 
   if (isLoading) return <Loading />;

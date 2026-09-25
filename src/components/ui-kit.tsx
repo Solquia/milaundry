@@ -11,7 +11,7 @@ import {
   TextStyle,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
 import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
@@ -294,6 +294,12 @@ type ScreenProps = {
   children: React.ReactNode;
   scroll?: boolean;
   /**
+   * Pinned above the scroll area. For the control that decides what the rest
+   * of the screen shows — a Services / Add-ons switch — which must not scroll
+   * away with the content it switches.
+   */
+  header?: React.ReactNode;
+  /**
    * Pinned below the scroll area. For the one decision a screen exists to
    * support — a running total, a commit button — that must not scroll away.
    */
@@ -305,9 +311,23 @@ type ScreenProps = {
    * Content taller than the viewport still scrolls normally from the top.
    */
   center?: boolean;
+  /**
+   * The screen hides the tab bar, so nothing below it pays the home-indicator
+   * inset. The footer pays it instead, on its own surface, so the strip under
+   * the button is the footer's white rather than a band of page grey.
+   */
+  isBottomBare?: boolean;
 };
 
-export function Screen({ children, scroll = true, footer, center }: ScreenProps) {
+export function Screen({
+  children,
+  scroll = true,
+  header,
+  footer,
+  center,
+  isBottomBare,
+}: ScreenProps) {
+  const insets = useSafeAreaInsets();
   const content = scroll ? (
     // `handled` matters at a counter: after typing a customer name, the first
     // tap on a stepper used to be swallowed dismissing the keyboard, and the
@@ -331,8 +351,18 @@ export function Screen({ children, scroll = true, footer, center }: ScreenProps)
     // raised tab bar already applies the bottom inset, so claiming all four
     // here padded the screen twice.
     <SafeAreaView style={styles.screen} edges={['left', 'right']}>
+      {header ? <View style={styles.screenHeader}>{header}</View> : null}
       {content}
-      {footer ? <View style={styles.screenFooter}>{footer}</View> : null}
+      {footer ? (
+        <View
+          style={[
+            styles.screenFooter,
+            isBottomBare && { paddingBottom: space.cosy + insets.bottom },
+          ]}
+        >
+          {footer}
+        </View>
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -617,6 +647,13 @@ const styles = StyleSheet.create({
   // `flexGrow` rather than `flex`: the content still grows past the viewport
   // and scrolls when it is taller, instead of being squeezed to fit.
   screenCentered: { flexGrow: 1, justifyContent: 'center' },
+  screenHeader: {
+    paddingHorizontal: space.room,
+    paddingVertical: space.cosy,
+    backgroundColor: colors.card,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
   screenFooter: {
     paddingHorizontal: space.room,
     paddingVertical: space.cosy,

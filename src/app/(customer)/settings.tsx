@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React from 'react';
-import { Alert, Pressable, StyleSheet, Switch, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AddressBook, type AddressDraftOut } from '@/components/address-book';
 import { BlueField } from '@/components/blue-field';
@@ -31,6 +31,7 @@ import {
 } from '@/lib/domain/app-settings';
 import { signOutPrompt } from '@/lib/domain/confirm-prompts';
 import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
+import { confirmAction } from '@/lib/confirm';
 
 /**
  * Where the customer's own choices live.
@@ -124,10 +125,7 @@ export default function CustomerSettings() {
   const confirmSignOut = () => {
     haptic('warning');
     const prompt = signOutPrompt();
-    Alert.alert(prompt.title, prompt.message, [
-      { text: prompt.dismissLabel, style: 'cancel' },
-      { text: prompt.confirmLabel, style: 'destructive', onPress: () => signOut() },
-    ]);
+    confirmAction(prompt, () => signOut());
   };
 
   return (

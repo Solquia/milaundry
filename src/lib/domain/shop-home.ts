@@ -11,7 +11,7 @@ export const CATEGORY_ICONS: Record<ServiceCategory, string> = {
   dry_cleaning: 'sparkles-outline',
   special_items: 'bed-outline',
   self_service: 'time-outline',
-  other: 'ellipsis-horizontal-outline',
+  other: 'grid-outline',
 };
 
 export function categoryIcon(category: string): string {

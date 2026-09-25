@@ -1,24 +1,19 @@
 /**
- * The price list: one grid, every service in it.
+ * The price list on the shop own web page: the same shelf the app draws.
  *
- * The list used to carry a heading per category, which on a shop with one or
- * two services per group meant a label, a card, a gap, another label — the
- * cards never formed a grid at all, they read as a column of lonely boxes
- * with a lot of air between them. Each card wears its own category in its
- * corner now, so the headings are gone and the cards close up into a single
- * block. The order still follows the category order, so related services
- * remain neighbours.
- *
- * Tapping a card opens the booking page with that service already in the
- * basket; when the shop cannot take bookings the cards are just cards.
+ * This used to hold its own grid and its own card loop, which is how the web
+ * and the app drifted apart twice — a change to the card landed on one and not
+ * the other. The shelf component owns the search, the heading, the grid and
+ * the cascade now, so this file is only what the web knows that the app does
+ * not: the shop brand colours, how many cards fit the window, and that a
+ * browser visitor has to be told a card is tappable.
  */
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { ServiceTileCard } from '@/components/service-tile-card';
+import { ServiceShelf } from '@/components/service-shelf';
 import { colors, space, type } from '@/components/ui-kit';
 import { groupServicesByCategory, labelledServices } from '@/lib/domain/service-catalog';
-import { gridRows } from '@/lib/domain/web-layout';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import type { StorefrontService } from '@/lib/types';
 
@@ -32,7 +27,6 @@ interface PriceListProps {
 }
 
 export function PriceList({ services, theme, onBook, columns = 2 }: PriceListProps) {
-  const bookTone = { bg: theme.brand, ink: theme.onBrand };
   // Flattened, but still in category order, so the grid reads as one block
   // without scattering the services that belong together. The app's shop
   // screen orders its list through the same function.
@@ -49,40 +43,19 @@ export function PriceList({ services, theme, onBook, columns = 2 }: PriceListPro
 
   return (
     <View style={styles.list}>
-      {gridRows(ordered, columns).map((row, index) => (
-        <View key={index} style={styles.row}>
-          {row.map((entry, column) =>
-            entry ? (
-              <ServiceTileCard
-                key={entry.service.id}
-                service={entry.service}
-                categoryLabel={entry.label}
-                bookTone={bookTone}
-                onBook={onBook ? () => onBook(entry.service.id) : undefined}
-              />
-            ) : (
-              <View key={`blank-${column}`} style={styles.blank} />
-            )
-          )}
-        </View>
-      ))}
-      {onBook ? <Text style={styles.footnote}>Tap a card to book that service.</Text> : null}
+      <ServiceShelf
+        entries={ordered}
+        onBook={onBook ? (service) => onBook(service.id) : undefined}
+        columns={columns}
+        bookTone={{ bg: theme.brand, ink: theme.onBrand }}
+        footnote={onBook ? 'Tap a card to book that service.' : undefined}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  /** Tight: the cards are one block, not a list of separated panels. */
   list: { gap: space.snug },
-  row: { flexDirection: 'row', gap: space.snug, alignItems: 'stretch' },
-  blank: { flex: 1 },
-  footnote: {
-    ...type.caption,
-    fontSize: 13,
-    color: colors.actionInk,
-    paddingHorizontal: space.tight,
-    marginTop: space.tight,
-  },
   empty: {
     backgroundColor: colors.card,
     borderRadius: 26,

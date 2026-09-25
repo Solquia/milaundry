@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["XXXXXXXXXX.com.milaundry.app"],
+        "appIDs": ["KBC9YTF93U.com.milaundry.app"],
         "components": [
           { "/": "/join/*", "comment": "The counter code: connects the shop in the app" },
           { "/": "/claim/*", "comment": "The receipt code: claims the load in the app" }

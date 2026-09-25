@@ -158,3 +158,43 @@ describe('booking notes', () => {
     expect(parseBookingNotes('')).toEqual({ preferences: NO_PREFERENCES, riderNotes: '' });
   });
 });
+
+describe('Philippine detergent and fabric conditioner brands', () => {
+  const branded: LaundryPreferences = {
+    ...NO_PREFERENCES,
+    detergent: 'ariel',
+    softener: 'downy',
+  };
+
+  it('keeps a known brand read back from the database', () => {
+    expect(normalizePreferences({ detergent: 'breeze', softener: 'del' })).toEqual({
+      ...NO_PREFERENCES,
+      detergent: 'breeze',
+      softener: 'del',
+    });
+  });
+
+  it('drops a brand it does not know', () => {
+    expect(normalizePreferences({ detergent: 'acme', softener: 'mystery' })).toEqual(NO_PREFERENCES);
+  });
+
+  it('writes the brand on the ticket by name', () => {
+    expect(preferenceLines(branded)).toEqual([
+      'Detergent: Ariel',
+      'Fabric conditioner: Downy',
+    ]);
+  });
+
+  it('reads a branded ticket back into the same preferences', () => {
+    const notes = formatBookingNotes({ preferences: branded, riderNotes: '' });
+    expect(parseBookingNotes(notes).preferences).toEqual(branded);
+  });
+
+  it('still reads tickets written before brands existed', () => {
+    const notes = 'Detergent: Unscented\nWith fabric softener';
+    expect(parseBookingNotes(notes).preferences).toMatchObject({
+      detergent: 'unscented',
+      softener: 'with',
+    });
+  });
+});

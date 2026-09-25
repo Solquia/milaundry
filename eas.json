@@ -24,6 +24,10 @@
       "android": {
         "buildType": "app-bundle"
       },
+      "ios": {
+        "credentialsSource": "local",
+        "image": "macos-tahoe-26.5-xcode-26.6"
+      },
       "autoIncrement": true,
       "environment": "production"
     },
@@ -37,6 +41,17 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleTeamId": "KBC9YTF93U",
+        "ascApiKeyPath": "./AuthKey_RBWR32AXWX.p8",
+        "ascApiKeyIssuerId": "c3473b07-3f04-4634-8fd3-50d960e8afd8",
+        "ascApiKeyId": "RBWR32AXWX",
+        "ascAppId": "6814431884",
+        "sku": "milaundry",
+        "language": "en-US",
+        "appName": "MiLaundry PH"
+      }
+    }
   }
 }

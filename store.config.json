@@ -1,0 +1,50 @@
+{
+  "configVersion": 0,
+  "apple": {
+    "copyright": "2026 John Angelo David",
+    "categories": ["BUSINESS", "LIFESTYLE"],
+    "advisory": {
+      "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+      "contests": "NONE",
+      "gamblingSimulated": "NONE",
+      "horrorOrFearThemes": "NONE",
+      "matureOrSuggestiveThemes": "NONE",
+      "medicalOrTreatmentInformation": "NONE",
+      "profanityOrCrudeHumor": "NONE",
+      "sexualContentGraphicAndNudity": "NONE",
+      "sexualContentOrNudity": "NONE",
+      "violenceCartoonOrFantasy": "NONE",
+      "violenceRealistic": "NONE",
+      "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+      "gambling": false,
+      "unrestrictedWebAccess": false,
+      "kidsAgeBand": null,
+      "ageRatingOverride": "NONE",
+      "koreaAgeRatingOverride": "NONE"
+    },
+    "info": {
+      "en-US": {
+        "title": "MiLaundry PH",
+        "subtitle": "The till for your laundry",
+        "description": "Milaundry is the till for a neighbourhood laundry.\n\nA customer scans the code at the counter, or opens the shop’s own page. They book a wash, follow the load, and pick it up without a phone call.\n\nAt the counter the shop weighs, takes payment, prints a receipt, and rings when a booking comes in. Walk-ins you type yourself stay quiet. Online orders ring.\n\nEach laundry has its own page, its own prices, its own logo. This is not a marketplace of shops. It is the shop.\n\nMade for laundries in the Philippines.",
+        "keywords": ["laundry", "laundry shop", "wash and fold", "dry clean", "Philippines", "till", "POS"],
+        "releaseNotes": "First release on the App Store.",
+        "promoText": "Scan the counter code. Follow the load.",
+        "marketingUrl": "https://www.milaundry.app",
+        "supportUrl": "https://www.milaundry.app/support",
+        "privacyPolicyUrl": "https://www.milaundry.app/privacy"
+      }
+    },
+    "release": {
+      "automaticRelease": true
+    },
+    "review": {
+      "firstName": "Hyan",
+      "lastName": "Solquia",
+      "email": "hyansolquia@gmail.com",
+      "phone": "+639855421396",
+      "demoRequired": false,
+      "notes": "Sign in is a Philippine mobile number and a password. There is no email login and no SMS one-time code.\n\nApple Review can create an account from Welcome → Sign up with any unused PH mobile number, then a password of 8+ characters.\n\nThe camera is used to scan laundry QR codes at the counter. Location is used only to pin a shop on a map. Photos are used for shop logos, covers, weigh pictures, and payment receipts.\n\nThis app has no ads, no in-app purchases, and no gambling."
+    }
+  }
+}

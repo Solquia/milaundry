@@ -5,9 +5,8 @@
   "cleanUrls": true,
   "framework": null,
   "rewrites": [
-    {
-      "source": "/:path*",
-      "destination": "/"
-    }
+    { "source": "/privacy", "destination": "/privacy.html" },
+    { "source": "/support", "destination": "/support.html" },
+    { "source": "/((?!privacy(?:\\.html)?|support(?:\\.html)?|\\.well-known/).*)", "destination": "/" }
   ]
 }

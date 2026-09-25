@@ -19,15 +19,20 @@ const SWASH_HEIGHT = 7;
 /** The stroke under a heading. One curve up, one down, tapered by round caps. */
 function Swash({ color }: { color: string }) {
   return (
-    <Svg width={SWASH_WIDTH} height={SWASH_HEIGHT} viewBox="0 0 46 7" accessibilityElementsHidden>
-      <Path
-        d="M2 5.2 C 9 1.2, 16 1.4, 23 3.6 S 37 6, 44 2.2"
-        stroke={color}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        fill="none"
-      />
-    </Svg>
+    // The hiding sits on a View rather than on the Svg: react-native-svg hands
+    // whatever it does not recognise straight to the DOM, and React rejects
+    // `accessibilityElementsHidden` there. A View maps it on both platforms.
+    <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+      <Svg width={SWASH_WIDTH} height={SWASH_HEIGHT} viewBox="0 0 46 7">
+        <Path
+          d="M2 5.2 C 9 1.2, 16 1.4, 23 3.6 S 37 6, 44 2.2"
+          stroke={color}
+          strokeWidth={2.6}
+          strokeLinecap="round"
+          fill="none"
+        />
+      </Svg>
+    </View>
   );
 }
 

@@ -42,7 +42,12 @@ const selfWash: StorefrontService = {
 
 describe('showcaseTitle', () => {
   it('reads a shouted name in title case', () => {
-    expect(showcaseTitle('WASH AND FOLD')).toBe('Wash And Fold');
+    expect(showcaseTitle('WASH AND FOLD')).toBe('Wash and Fold');
+  });
+
+  it('keeps small joining words low, except at the start', () => {
+    expect(showcaseTitle('THE BARONG OF THE WEEK')).toBe('The Barong of the Week');
+    expect(showcaseTitle('WASH & FOLD FOR KIDS')).toBe('Wash & Fold for Kids');
   });
 
   it('keeps a name the shop cased itself', () => {

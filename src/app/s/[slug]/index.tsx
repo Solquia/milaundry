@@ -153,7 +153,9 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
             isSignedIn={Boolean(session)}
             onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
           />
-          <Text style={styles.sectionTitle}>Services</Text>
+          {/* The shelf carries its own heading, because on a shop with enough
+              services it also carries the search under it — a page heading
+              above that would be a second title for one region. */}
           <PriceList
             services={services}
             theme={theme}

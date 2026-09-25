@@ -59,7 +59,10 @@ export default function CustomerLayout() {
         name="shop/[id]"
         options={{ href: null, title: 'Shop', headerShown: false }}
       />
-      <Tabs.Screen name="book/[serviceId]" options={{ href: null, title: 'Book service' }} />
+      <Tabs.Screen
+        name="book/[serviceId]"
+        options={{ href: null, title: 'Book', tabBarStyle: { display: 'none' } }}
+      />
       <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order' }} />
     </Tabs>
   );

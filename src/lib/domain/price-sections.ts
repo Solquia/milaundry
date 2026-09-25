@@ -1,11 +1,8 @@
 /**
- * What a closed section of the owner's price list says about itself.
+ * What a section of the owner's price list says about itself.
  *
- * The merchant Prices screen printed every service in every category, always
- * open, with the "Add something you offer" form stranded at the bottom of that
- * scroll. Collapsing each category turns the screen into a short index of the
- * shop's own sections — but a closed door is only acceptable if it still
- * answers the question the owner opened the screen with.
+ * Each category on the merchant Prices screen is headed by a one-line audit of
+ * what it holds, beside the rows themselves.
  *
  * That question is not the customer's. The storefront's `categorySummaryLabel`
  * next door quotes "from ₱60", because a customer is shopping for the cheapest
@@ -13,9 +10,6 @@
  * spread I charge. So this counts and gives the range, and it deliberately
  * keeps the count when no price is usable — a section of ₱0 services is a
  * mistake to go and find, not a section to go quiet about.
- *
- * The open/close rule itself is shared with the storefront accordion; see
- * `nextOpenCategory` in `price-accordion.ts`.
  */
 import { formatMoneyCompact } from './money';
 import { CATEGORY_LABELS, type ServiceCategory } from './service-catalog';
@@ -49,12 +43,31 @@ export function categoryPriceSummary(services: readonly PricedEntry[]): string {
 }
 
 /**
- * The category name shown on the closed picker in the add-service form.
+ * The warning above the price list while any service is still ₱0, or null.
  *
- * Six chips wrapped to three rows there, with the chosen one liable to sit
- * alone on the last row where it read as a separate control. Closed, the
- * picker has one job: say which category the new service is going into.
+ * `categoryPriceSummary` keeps the count of such a section but drops the
+ * amount, and a missing figure is the least noticeable thing on a screen. A
+ * ₱0 service is either free to the customer or unfinished; either way the
+ * owner should be told in words.
  */
-export function selectedCategoryLabel(category: ServiceCategory): string {
-  return CATEGORY_LABELS[category];
+export function unpricedNotice(services: readonly PricedEntry[]): string | null {
+  const count = services.filter((service) => !isCharged(service.price)).length;
+  if (count === 0) return null;
+  if (count === 1) return '1 price is ₱0, so customers see it as free. Tap it to set a price.';
+  return `${count} prices are ₱0, so customers see them as free. Tap each to set a price.`;
+}
+
+/**
+ * What the price list says after the form closes. Adding used to fold the form
+ * away into a list whose sections were closed, so the only sign a service had
+ * landed was a count going up by one.
+ */
+export function savedNotice(outcome: {
+  name: string;
+  category: ServiceCategory;
+  verb: 'added' | 'saved' | 'removed';
+}): string {
+  if (outcome.verb === 'added') return `${outcome.name} added to ${CATEGORY_LABELS[outcome.category]}.`;
+  if (outcome.verb === 'removed') return `${outcome.name} removed from your price list.`;
+  return `${outcome.name} saved.`;
 }
