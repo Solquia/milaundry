@@ -15,7 +15,7 @@ export const APK_VERSION = '1.0.0';
  * own file name so a Downloads folder reads as the app, not as a hash.
  */
 export const APK_URL =
-  'https://expo.dev/artifacts/eas/c-9HcG0P8qAehnhLyToqrHjb0URTdKqplThsWsL6_0M.apk';
+  'https://expo.dev/artifacts/eas/L4yIWg3pE82sq4JbMwwu5wNGho-2uZZicxrmepR22Do.apk';
 
 export type DownloadAudience = 'android' | 'ios' | 'other' | 'installed';
 
