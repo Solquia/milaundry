@@ -28,6 +28,8 @@ export type MerchantAction =
   | 'save-branding'
   | 'save-cover'
   | 'save-location'
+  | 'save-hours'
+  | 'flip-sign'
   | 'locate-me';
 
 const FALLBACKS: Record<MerchantAction, string> = {
@@ -43,6 +45,8 @@ const FALLBACKS: Record<MerchantAction, string> = {
   'save-branding': 'Your shopfront was not saved. Try again in a moment.',
   'save-cover': 'Your shop photo was not saved. Try again in a moment.',
   'save-location': 'Your shop location was not saved. Try again in a moment.',
+  'save-hours': 'Your hours were not saved. Try again in a moment.',
+  'flip-sign': 'The sign did not change. Try again in a moment.',
   // Not a server fault, so not "try again in a moment": the fix is in the
   // phone's settings, or a tap on the map instead.
   'locate-me':

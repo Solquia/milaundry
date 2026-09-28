@@ -72,3 +72,22 @@ export function signOutPrompt(): ConfirmPrompt {
     dismissLabel: 'Stay signed in',
   };
 }
+
+export function removeMemberPrompt(personName: string, shopName: string): ConfirmPrompt {
+  return {
+    title: `Remove ${personName}?`,
+    message: `They can no longer sign in to ${shopName}'s dashboard. Their account stays, so they can be added back later.`,
+    confirmLabel: 'Remove access',
+    dismissLabel: 'Keep them',
+  };
+}
+
+export function deactivateShopPrompt(shopName: string): ConfirmPrompt {
+  return {
+    title: `Switch off ${shopName}?`,
+    message:
+      'Customers can no longer find or book this shop. Orders already in progress stay on the board, and you can switch it back on at any time.',
+    confirmLabel: 'Switch off',
+    dismissLabel: 'Keep it live',
+  };
+}

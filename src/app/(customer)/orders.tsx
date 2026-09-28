@@ -3,13 +3,22 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import {
+  Animated,
+  Easing,
+  LayoutAnimation,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlueField } from '@/components/blue-field';
-import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
-import { OrderStub } from '@/components/order-stub';
-import { QuickBookCard, RecentShopRow } from '@/components/quick-book';
+import { LaundryLine } from '@/components/laundry-line';
+import { LiftPressable } from '@/components/lift-pressable';
+import { QuickBookCard } from '@/components/quick-book';
+import { ShopRail, type RailShop } from '@/components/shop-rail';
 import {
   ACCENTS,
   BLUE_FIELD,
@@ -26,20 +35,18 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
-import { ShopLogo } from '@/components/shop-logo';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { assignBrandAccents, resolveAccent } from '@/lib/domain/shop-branding';
+import { useNow } from '@/lib/use-now';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
-import {
-  connectedShopTiles,
-  type ConnectedShopTile,
-} from '@/lib/domain/connected-shops';
+import { connectedShopTiles } from '@/lib/domain/connected-shops';
 import {
   homeAttention,
   type AttentionCard,
 } from '@/lib/domain/home-attention';
 import { homeGreeting } from '@/lib/domain/home-greeting';
+import { readAvailability, shopStatus } from '@/lib/domain/shop-availability';
 import { quickBookTarget, recentShops } from '@/lib/domain/recent-shops';
 import { homeSubline, type HeadlineOrder } from '@/lib/domain/home-headline';
 import { formatOrderTime } from '@/lib/domain/order-card';
@@ -84,6 +91,14 @@ function toHeadlineOrder(order: OrderWithDetails): HeadlineOrder {
   };
 }
 
+/**
+ * Whether the past orders are showing. Closed by default — finished and
+ * cancelled orders are history, and listed in full they buried the page under
+ * receipts nobody came here to read — but a customer who opened them keeps
+ * them open across a trip to another tab.
+ */
+let rememberedPastOpen = false;
+
 export default function CustomerOrders() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -91,6 +106,15 @@ export default function CustomerOrders() {
   const haptic = useHaptic();
   const { profile } = useAuth();
   const isReduced = useReducedMotion();
+  const [isPastOpen, setIsPastOpen] = useState(rememberedPastOpen);
+
+  const togglePast = () => {
+    const next = !isPastOpen;
+    rememberedPastOpen = next;
+    haptic('select');
+    if (!isReduced) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setIsPastOpen(next);
+  };
 
   /** One driver for the whole page: the finger. */
   const [scrollY] = useState(() => new Animated.Value(0));
@@ -161,14 +185,6 @@ export default function CustomerOrders() {
   // The laundries actually used, newest first, each carrying last time's load.
   const recent = useMemo(() => recentShops(orders ?? []), [orders]);
   const quickBook = useMemo(() => quickBookTarget(recent, shops ?? []), [recent, shops]);
-  const recentAccents = useMemo(
-    () =>
-      assignBrandAccents(
-        recent.map((shop) => ({ id: shop.shopId, brand_accent: shop.brandAccent })),
-        ACCENTS.length
-      ),
-    [recent]
-  );
 
   // "Your shops" lists the rest, so a laundry is never on the sheet twice.
   const { tiles: shopTiles, hiddenCount: hiddenShopCount } = useMemo(() => {
@@ -176,6 +192,37 @@ export default function CustomerOrders() {
     return connectedShopTiles((shops ?? []).filter((shop) => !recentIds.has(shop.id)));
   }, [shops, recent]);
   const hasAnyShop = (shops ?? []).length > 0 || recent.length > 0;
+
+  // Assigned across the whole shelf, so no two shops on it share a tone.
+  const railShops = useMemo<RailShop[]>(() => {
+    const now = new Date();
+    const used = recent.map((shop) => ({
+      id: shop.shopId,
+      name: shop.name,
+      logoUrl: shop.logoUrl || null,
+      coverUrl: shop.coverUrl || null,
+      brand_accent: shop.brandAccent,
+      meta: shop.lastSummary
+        ? `Last: ${shop.lastSummary}`
+        : `Last order ${formatOrderTime(shop.lastOrderAt, now)}`,
+      rebookHref: shop.rebookHref,
+    }));
+    const others = shopTiles.map((shop) => ({
+      id: shop.id,
+      name: shop.name,
+      logoUrl: shop.logo_url,
+      coverUrl: shop.cover_url || null,
+      brand_accent: shop.brand_accent,
+      meta: shop.address,
+      rebookHref: null,
+    }));
+    const all = [...used, ...others];
+    const accents = assignBrandAccents(all, ACCENTS.length);
+    return all.map(({ brand_accent: _unused, ...shop }, index) => ({
+      ...shop,
+      accent: ACCENTS[accents[index]],
+    }));
+  }, [recent, shopTiles]);
 
   const { active, past } = useMemo(() => {
     const all = orders ?? [];
@@ -186,6 +233,19 @@ export default function CustomerOrders() {
   }, [orders]);
 
   const subline = useMemo(() => homeSubline(active.map(toHeadlineOrder)), [active]);
+  // Ticks, so "back today by 6 PM" turns into "running late" without a pull to refresh.
+  const now = useNow();
+
+  // The sign on each shop's door, on the same ticking clock, so "Closing soon"
+  // turns into "Closed" while the screen stays open. A recent shop the
+  // customer is no longer connected to has no row here and shows no sign.
+  const litShops = useMemo<RailShop[]>(() => {
+    const byId = new Map((shops ?? []).map((shop) => [shop.id, shop]));
+    return railShops.map((shop) => {
+      const row = byId.get(shop.id);
+      return { ...shop, status: row ? shopStatus(readAvailability(row), now) : null };
+    });
+  }, [railShops, shops, now]);
 
   // Built from the same orders the screen already has, so the number on the
   // bell and the feed behind it cannot drift apart.
@@ -235,16 +295,6 @@ export default function CustomerOrders() {
         }))
       ),
     [orders]
-  );
-
-  // Assigned across the whole list, so no two shops on screen share a tone.
-  const shopAccents = useMemo(
-    () =>
-      assignBrandAccents(
-        shopTiles.map((shop) => ({ id: shop.id, brand_accent: shop.brand_accent })),
-        ACCENTS.length
-      ),
-    [shopTiles]
   );
 
   if (isLoading) {
@@ -328,9 +378,36 @@ export default function CustomerOrders() {
             { borderTopLeftRadius: sheetRadius, borderTopRightRadius: sheetRadius },
           ]}
         >
-      {/* The ping: what is owed, first thing on the sheet, before anything the
-          customer might browse to. A bill is the one thing on this screen the
-          shop is waiting on. */}
+      {/* The laundries lead the sheet: they are what this app is for, and
+          every other section here — the loads, the reorder, the history — is
+          something one of them is doing for you. One shelf, recent first,
+          each shop's logo behind a washing machine's door. */}
+      {shopsError ? <ErrorText>{(shopsError as Error).message}</ErrorText> : null}
+      {hasAnyShop ? (
+        <>
+          <SectionHead
+            title="Your laundries"
+            linkLabel={hiddenShopCount > 0 ? `See all (${hiddenShopCount} more)` : 'See all'}
+            onLink={() => go('/(customer)/shops')}
+          />
+          <ShopRail
+            shops={litShops}
+            onOpen={(shopId) => go(`/(customer)/shop/${shopId}`)}
+            onRebook={go}
+          />
+        </>
+      ) : (
+        !areShopsLoading && (
+          <View style={styles.panel}>
+            <EmptyState message="Connect to a laundry shop and it will show up here every time you open the app." />
+            <Button title="Find a laundry shop" onPress={() => go('/(customer)/shops')} />
+          </View>
+        )
+      )}
+
+      {/* The ping: what is owed, straight under the shops and before anything
+          the customer might browse to. A bill is the one thing on this screen
+          the shop is waiting on. */}
       {attention.map((card) => (
         <AttentionBanner
           key={`${card.orderId}:${card.kind}`}
@@ -339,84 +416,23 @@ export default function CustomerOrders() {
         />
       ))}
 
-      {/* Quick book: the fastest way from opening the app to a booking —
-          last time's load, landing on a filled review. Absent for a customer
-          with no shop at all; the empty state below already says what to do. */}
-      {quickBook.kind !== 'find' && (
-        <QuickBookCard target={quickBook} onPress={() => go(quickBook.href)} />
-      )}
-
-      {/* The laundries actually used, most recent first, each one tap from
-          booking the same thing again. */}
-      {recent.length > 0 && (
-        <>
-          <Text style={styles.sectionLabel}>RECENT SHOPS</Text>
-          {recent.map((shop, index) => {
-            const href = shop.rebookHref;
-            return (
-              <RecentShopRow
-                key={shop.shopId}
-                shop={shop}
-                accent={ACCENTS[recentAccents[index]]}
-                onOpen={() => go(`/(customer)/shop/${shop.shopId}`)}
-                onBook={href ? () => go(href) : undefined}
-              />
-            );
-          })}
-        </>
-      )}
-
-      {/* Connected shops: the customer's own laundries, one tap from home. */}
-      {(shopTiles.length > 0 || !hasAnyShop) && (
-        <View style={styles.sectionHead}>
-          <Text style={styles.sectionLabel}>
-            {recent.length > 0 ? 'OTHER SHOPS' : 'YOUR SHOPS'}
-          </Text>
-          {hiddenShopCount > 0 && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`See all shops, ${hiddenShopCount} more`}
-              hitSlop={12}
-              onPress={() => go('/(customer)/shops')}
-            >
-              <Text style={styles.sectionLink}>See all ({hiddenShopCount} more)</Text>
-            </Pressable>
-          )}
-        </View>
-      )}
-      {shopsError ? <ErrorText>{(shopsError as Error).message}</ErrorText> : null}
-      {!hasAnyShop && !areShopsLoading && (
-        <View style={styles.panel}>
-          <EmptyState message="Connect to a laundry shop and it will show up here every time you open the app." />
-          <Button
-            title="Find a laundry shop"
-            onPress={() => go('/(customer)/shops')}
-          />
-        </View>
-      )}
-      {shopTiles.map((shop, index) => (
-        <Reveal key={shop.id} delay={index * REVEAL_STAGGER_MS}>
-          <ShopShortcut
-            shop={shop}
-            accent={ACCENTS[shopAccents[index]]}
-            onPress={() => go(`/(customer)/shop/${shop.id}`)}
-          />
-        </Reveal>
-      ))}
-
       {error ? <ErrorText>{error.message}</ErrorText> : null}
 
-      {/* Tracking. Suppressed when empty — the hero already says so, and two
-          statements of absence on one screen is one too many. */}
+      {/* Tracking first: a load already in a machine outranks anything the
+          customer might browse to. It used to sit under two shop lists, below
+          the fold. Suppressed when empty — the greeting already says so. */}
       {active.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>IN THE WASH</Text>
-          {active.map((order) => (
-            <OrderStub
-              key={order.id}
-              order={order}
-              shopName={order.shop?.name ?? 'Laundry shop'}
-              accent={
+          {/* Named for the whole list, not the wash: a load that is booked or
+              ready is on the go too. */}
+          <SectionHead title="On the go" />
+          <LaundryLine
+            orders={active}
+            now={now}
+            shopFor={(order) => ({
+              name: order.shop?.name ?? 'Laundry shop',
+              logoUrl: order.shop?.logo_url ?? null,
+              accent:
                 ACCENTS[
                   resolveAccent(
                     {
@@ -425,18 +441,27 @@ export default function CustomerOrders() {
                     },
                     ACCENTS.length
                   )
-                ]
-              }
-              onPress={() => go(`/(customer)/order/${order.id}`)}
-            />
-          ))}
+                ],
+            })}
+            onOpen={(order) => go(`/(customer)/order/${order.id}`)}
+          />
         </>
+      )}
+
+      {/* "Buy it again": last time's load, landing on a filled review. The one
+          filled block on the sheet, because reordering is what most visits
+          are for. Absent for a customer with no shop; the empty state covers
+          that. */}
+      {quickBook.kind !== 'find' && (
+        <View style={styles.quickWrap}>
+          <QuickBookCard target={quickBook} onPress={() => go(quickBook.href)} />
+        </View>
       )}
 
       {past.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>PAST ORDERS</Text>
-          {past.map((order) => (
+          <PastOrdersToggle count={past.length} isOpen={isPastOpen} onToggle={togglePast} />
+          {isPastOpen && past.map((order) => (
             <PastOrderRow
               key={order.id}
               order={order}
@@ -510,7 +535,7 @@ function AttentionBanner({
   const isPay = card.kind === 'pay';
 
   return (
-    <Pressable
+    <LiftPressable
       accessibilityRole="button"
       accessibilityLabel={`${card.title}. ${card.body}`}
       onPress={onPress}
@@ -541,79 +566,82 @@ function AttentionBanner({
         size={18}
         color={isPay ? colors.actionInk : colors.subtle}
       />
-    </Pressable>
+    </LiftPressable>
   );
 }
 
 /**
- * A card that answers the finger.
+ * A section's title, the way a store page titles its shelves: sentence case at
+ * reading weight, with a count or a way to see everything on the right.
  *
- * Dimming to 0.75 on press said "something registered" but not "this is a
- * physical object". Pressing *in* does, and it survives the hundredth use
- * because it is feedback rather than a performance — the smallest change that
- * makes cause and result unmistakable.
+ * These were tracked grey caps — RECENT SHOPS, OTHER SHOPS — which read as
+ * form labels, not as the headings of a page about the customer's laundry.
  */
-function usePress() {
-  const isReduced = useReducedMotion();
-  const [scale] = useState(() => new Animated.Value(1));
-
-  const to = (value: number) => {
-    if (isReduced) return;
-    Animated.spring(scale, {
-      toValue: value,
-      speed: 40,
-      bounciness: 0,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  return {
-    scale,
-    onPressIn: () => to(0.97),
-    onPressOut: () => to(1),
-  };
+/**
+ * The past orders' heading, and the switch that shows them. The whole row is
+ * the target, and the count rides beside the title so a closed list still says
+ * how much is behind it.
+ */
+function PastOrdersToggle({
+  count,
+  isOpen,
+  onToggle,
+}: {
+  count: number;
+  isOpen: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Past orders, ${count}`}
+      accessibilityHint={isOpen ? 'Hides your past orders' : 'Shows your past orders'}
+      accessibilityState={{ expanded: isOpen }}
+      onPress={onToggle}
+      hitSlop={8}
+      style={({ pressed }) => [styles.sectionHead, pressed && styles.pastPressed]}
+    >
+      <View style={styles.pastTitleRow}>
+        <Text style={styles.sectionTitle}>Past orders</Text>
+        <View style={styles.pastCount}>
+          <Text style={styles.pastCountText}>{count}</Text>
+        </View>
+      </View>
+      <View style={styles.sectionLinkRow}>
+        <Text style={styles.sectionLink}>{isOpen ? 'Hide' : 'Show'}</Text>
+        <Ionicons
+          name={isOpen ? 'chevron-up' : 'chevron-down'}
+          size={14}
+          color={colors.actionInk}
+        />
+      </View>
+    </Pressable>
+  );
 }
 
-/**
- * Colour as identity: a shop keeps its tone, so the list is scannable by hue
- * before it is read. The initials carry the same job for anyone who cannot
- * separate the colours.
- */
-function ShopShortcut({
-  shop,
-  accent,
-  onPress,
+function SectionHead({
+  title,
+  linkLabel,
+  onLink,
 }: {
-  shop: ConnectedShopTile;
-  accent: (typeof ACCENTS)[number];
-  onPress: () => void;
+  title: string;
+  linkLabel?: string;
+  onLink?: () => void;
 }) {
-  const press = usePress();
-
   return (
-    <Animated.View style={{ transform: [{ scale: press.scale }] }}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${shop.name}`}
-        onPress={onPress}
-        onPressIn={press.onPressIn}
-        onPressOut={press.onPressOut}
-        style={[styles.panel, styles.shopRow]}
-      >
-        <ShopLogo name={shop.name} logoUrl={shop.logo_url} size={44} accent={accent} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.shopName} numberOfLines={1}>
-            {shop.name}
-          </Text>
-          {shop.address ? (
-            <Text style={styles.shopAddress} numberOfLines={1}>
-              {shop.address}
-            </Text>
-          ) : null}
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
-      </Pressable>
-    </Animated.View>
+    <View style={styles.sectionHead}>
+      <View style={styles.sectionTitleBlock}>
+        <Text style={styles.sectionTitle} accessibilityRole="header">
+          {title}
+        </Text>
+      </View>
+      {linkLabel && onLink ? (
+        <Pressable accessibilityRole="button" hitSlop={12} onPress={onLink} style={styles.sectionLinkRow}>
+          <Text style={styles.sectionLink}>{linkLabel}</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.actionInk} />
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -625,7 +653,7 @@ function PastOrderRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <LiftPressable
       accessibilityRole="button"
       accessibilityLabel={`${order.shop?.name ?? 'Laundry shop'}, ${
         STATUS_LABELS[order.status]
@@ -643,7 +671,7 @@ function PastOrderRow({
         </Text>
       </View>
       <StatusBadge status={order.status} />
-    </Pressable>
+    </LiftPressable>
   );
 }
 
@@ -870,15 +898,24 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     marginTop: space.snug,
   },
-  /** Tracked caps: a quiet index mark, so the content is what carries weight. */
-  sectionLabel: {
-    ...type.caption,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: colors.subtle,
-    marginTop: space.snug,
-  },
+  sectionTitleBlock: { flexShrink: 1, gap: 2 },
+  sectionTitle: { ...type.section, color: colors.text },
+  sectionLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   sectionLink: { ...type.label, color: colors.actionInk },
+  pastPressed: { opacity: 0.7 },
+  pastTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  pastCount: {
+    minWidth: 24,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    alignItems: 'center',
+    borderRadius: 999,
+    backgroundColor: colors.sunken,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pastCountText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.subtle },
+  quickWrap: { marginTop: space.snug },
 
   panel: {
     backgroundColor: colors.card,

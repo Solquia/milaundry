@@ -12,6 +12,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import type { OrderWithDetails } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
+import { lineQuantity } from '@/lib/domain/price-label';
 import { shortOrderId } from '@/lib/domain/order-card';
 import type { OrderItemRow } from '@/lib/types';
 
@@ -24,8 +25,11 @@ function quantityLine(item: OrderItemRow): string {
       return `${item.quantity} kg × ${formatMoneyCompact(item.unit_price)}`;
     case 'per_item':
       return `${item.quantity} × ${formatMoneyCompact(item.unit_price)}`;
-    case 'flat':
-      return 'Flat rate';
+    case 'flat': {
+      // A load booked by weight carries its kilos; the shop should see them.
+      const load = lineQuantity(item.unit, item.quantity);
+      return load ? `${load} · flat rate` : 'Flat rate';
+    }
   }
 }
 

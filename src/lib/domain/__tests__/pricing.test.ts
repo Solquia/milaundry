@@ -1,4 +1,4 @@
-import { estimateLineTotal, estimateOrderTotal, Service } from '../pricing';
+import { estimateLineTotal, estimateOrderTotal, isWeighed, Service } from '../pricing';
 
 const wash: Service = { id: 'svc-wash', name: 'Wash & Fold', unit: 'per_kg', price: 35 };
 const comforter: Service = { id: 'svc-comf', name: 'Comforter', unit: 'per_item', price: 180 };
@@ -69,5 +69,26 @@ describe('estimateOrderTotal', () => {
     estimateOrderTotal(catalog, items);
     expect(items).toEqual(itemsCopy);
     expect(catalog).toEqual(catalogCopy);
+  });
+});
+
+describe('isWeighed', () => {
+  it('weighs a per-kilo service', () => {
+    expect(isWeighed(wash)).toBe(true);
+  });
+
+  it('weighs a flat price sold per load', () => {
+    expect(isWeighed({ ...delivery, max_quantity: 6 })).toBe(true);
+  });
+
+  it('counts pieces and one-off flat charges instead', () => {
+    expect(isWeighed(comforter)).toBe(false);
+    expect(isWeighed(delivery)).toBe(false);
+    expect(isWeighed({ ...comforter, max_quantity: 6 })).toBe(false);
+  });
+
+  it('counts bedding in pieces even with a per-piece weight limit', () => {
+    expect(isWeighed({ ...delivery, max_quantity: 4, category: 'special_items' })).toBe(false);
+    expect(isWeighed({ ...delivery, max_quantity: 6, category: 'wash_fold' })).toBe(true);
   });
 });

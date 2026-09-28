@@ -10,16 +10,26 @@ interface TypedCodeFormProps {
   isBusy?: boolean;
   /** A problem the caller found after the code was accepted (server refused it). */
   problem?: string;
+  /** Which links count as a code; the customer's scanner by default. */
+  accepts?: (raw: string) => boolean;
+  /** Words for a scanner that reads something other than the customer's codes. */
+  copy?: Partial<ReturnType<typeof typedCodeCopy>>;
 }
 
 /** The browser's stand-in for the camera: paste the link printed under the square. */
-export function TypedCodeForm({ onCode, isBusy = false, problem = '' }: TypedCodeFormProps) {
-  const copy = typedCodeCopy();
+export function TypedCodeForm({
+  onCode,
+  isBusy = false,
+  problem = '',
+  accepts = (raw) => parseTypedCode(raw) !== null,
+  copy: override,
+}: TypedCodeFormProps) {
+  const copy = { ...typedCodeCopy(), ...override };
   const [raw, setRaw] = useState('');
   const [invalid, setInvalid] = useState('');
 
   const submit = () => {
-    if (!parseTypedCode(raw)) {
+    if (!accepts(raw.trim())) {
       setInvalid(copy.invalid);
       return;
     }

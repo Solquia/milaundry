@@ -21,6 +21,7 @@
  */
 import { formatMoney, formatMoneyCompact } from './money';
 import { formatQuantity } from './price-label';
+import { tileBadge } from './pos-ticket';
 import { estimateLineTotal, type Service } from './pricing';
 
 export type Quantities = Readonly<Record<string, number>>;
@@ -106,13 +107,26 @@ export function intakeSummary(services: readonly Service[], quantities: Quantiti
  * The quantity shown is the *billed* one. A 3 kg load against a 5 kg minimum is
  * charged as 5 kg, and a row reading `3 kg — ₱175.00` looks like a bug to the
  * person holding the receipt.
+ *
+ * With `countsFlat` — the walk-in till, which sends a flat service as one line
+ * per piece or per load — a flat line is counted: "×2", "3 loads", and billed
+ * that many times.
  */
 export function intakeLines<T extends Service>(
   services: readonly T[],
-  quantities: Quantities
+  quantities: Quantities,
+  { countsFlat = false }: { countsFlat?: boolean } = {}
 ): IntakeLine[] {
   return chosen(services, quantities).map((service) => {
     const quantity = quantities[service.id];
+    if (service.unit === 'flat' && countsFlat) {
+      return {
+        serviceId: service.id,
+        name: service.name,
+        quantity: tileBadge(service, quantity) ?? '',
+        subtotal: service.price * quantity,
+      };
+    }
     const billed = Math.max(quantity, billableMinimum(service));
     return {
       serviceId: service.id,

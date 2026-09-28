@@ -1,4 +1,5 @@
 import {
+  boardTitle,
   showcaseBlurb,
   showcasePrice,
   showcaseTitle,
@@ -60,6 +61,40 @@ describe('showcaseTitle', () => {
 
   it('trims stray whitespace', () => {
     expect(showcaseTitle('  Iron only ')).toBe('Iron only');
+  });
+});
+
+describe('boardTitle', () => {
+  it('sets a pair of words as a price board does: the ampersand ends the first line', () => {
+    expect(boardTitle('Wash and Fold')).toBe('Wash &\nFold');
+    expect(boardTitle('Sofa & Mattress')).toBe('Sofa &\nMattress');
+  });
+
+  it('shouts nothing: an all-caps name is cased first', () => {
+    expect(boardTitle('WASH AND FOLD')).toBe('Wash &\nFold');
+  });
+
+  it('breaks at the last pair, so a list keeps its head together', () => {
+    expect(boardTitle('Wash, Dry and Fold')).toBe('Wash, Dry &\nFold');
+  });
+
+  it('starts the second line with a capital, as a board heading does', () => {
+    expect(boardTitle('Full Wash and fold')).toBe('Full Wash &\nFold');
+  });
+
+  it('leaves a name with no pair to wrap on its own', () => {
+    expect(boardTitle('Dry Clean')).toBe('Dry Clean');
+    expect(boardTitle('Shoes Cleaning')).toBe('Shoes Cleaning');
+  });
+
+  it('does not touch "and" inside a word', () => {
+    expect(boardTitle('Standard Wash')).toBe('Standard Wash');
+    expect(boardTitle('Brand new sandals')).toBe('Brand new sandals');
+  });
+
+  it('never ends on a dangling ampersand', () => {
+    expect(boardTitle('Wash and')).toBe('Wash and');
+    expect(boardTitle('& Fold')).toBe('& Fold');
   });
 });
 

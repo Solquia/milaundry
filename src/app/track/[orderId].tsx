@@ -16,15 +16,15 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
 import { ACCENTS, Loading, colors, elevation, formatMoney, formatWhen, space, type } from '@/components/ui-kit';
+import { lineLabel } from '@/lib/domain/price-label';
 import { GuestForm } from '@/components/web/guest-form';
 import { PasswordCard } from '@/components/web/password-card';
-import { TrackingSteps } from '@/components/web/tracking-steps';
+import { LaundryTracker } from '@/components/laundry-tracker';
 import { WebShell } from '@/components/web/web-shell';
-import { getOrder, type OrderWithDetails } from '@/lib/api';
+import { getOrder, getOrderHistory, type OrderWithDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { actualBill } from '@/lib/domain/actual-bill';
 import { docketNumber } from '@/lib/domain/docket';
-import { trackingHeadline } from '@/lib/domain/order-tracking';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { availableRails, railsNotice } from '@/lib/domain/shop-payment';
 import { storefrontTheme } from '@/lib/domain/web-theme';
@@ -101,6 +101,13 @@ function OrderBody({ order, isNewAccount }: { order: OrderWithDetails; isNewAcco
   const bill = actualBill(order);
   const rails = order.shop ? availableRails(order.shop, shopName) : [];
   const slug = order.shop?.slug;
+  // The times on the tracker's stops. Polled with the order, so a stop the
+  // shop just reached arrives already dated.
+  const { data: history } = useQuery({
+    queryKey: ['order-history', order.id],
+    queryFn: () => getOrderHistory(order.id),
+    refetchInterval: POLL_MS,
+  });
 
   return (
     <>
@@ -109,6 +116,10 @@ function OrderBody({ order, isNewAccount }: { order: OrderWithDetails; isNewAcco
       </Head>
       <WebShell>
         <View style={styles.stage}>
+          {/* Where the laundry is comes first — the same tracker the app
+              shows, so a customer who switches between them sees one thing. */}
+          <LaundryTracker order={order} history={history ?? []} />
+
           {/* One ticket, not a stack of cards.
               Everything about this page is one docket: the shop's header, the
               path the laundry walks, what it costs, where it is going. Six
@@ -121,32 +132,27 @@ function OrderBody({ order, isNewAccount }: { order: OrderWithDetails; isNewAcco
           >
             <View style={[styles.head, { backgroundColor: theme.brand }]}>
               <TornEdge width={width} color={colors.bg} edge="top" />
-              {slug ? (
-                <Pressable accessibilityRole="link" onPress={() => router.push(`/s/${slug}` as never)}>
-                  <Text style={[styles.headBack, { color: theme.onBrand }]}>‹ {shopName}</Text>
-                </Pressable>
-              ) : (
-                <Text style={[styles.headBack, { color: theme.onBrand }]}>{shopName}</Text>
-              )}
-              <Text style={[styles.headTitle, { color: theme.onBrand }]}>
-                {trackingHeadline(order.status, order.fulfillment)}
-              </Text>
+              {/* The tracker above says what is happening; the letterhead
+                  says whose ticket this is. */}
+              <Text style={[styles.headTitle, { color: theme.onBrand }]}>{shopName}</Text>
               <Text style={[styles.headMeta, { color: theme.onBrand }]}>
                 Order {docketNumber(order.id)} · {formatWhen(order.created_at)}
               </Text>
+              {slug ? (
+                <Pressable accessibilityRole="link" onPress={() => router.push(`/s/${slug}` as never)}>
+                  <Text style={[styles.headBack, { color: theme.onBrand }]}>Visit the shop ›</Text>
+                </Pressable>
+              ) : null}
             </View>
 
             <TicketPerforation color={colors.bg} ruleColor={colors.paperRule} />
 
             <View style={styles.stub}>
-              <TrackingSteps status={order.status} fulfillment={order.fulfillment} theme={theme} />
-
               <Section title="Your order">
                 {order.order_items.map((item) => (
                   <View key={item.id} style={styles.line}>
                     <Text style={styles.lineName}>
-                      {item.service_name} × {item.quantity}
-                      {item.unit === 'per_kg' ? ' kg' : ''}
+                      {lineLabel(item.service_name, item.unit, item.quantity)}
                     </Text>
                     <Text style={styles.linePrice}>{formatMoney(item.subtotal)}</Text>
                   </View>

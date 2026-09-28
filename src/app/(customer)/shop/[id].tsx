@@ -13,14 +13,18 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useClaim } from '@/components/claim';
+import { MarketBasketBar } from '@/components/market-basket-bar';
+import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
 import { ShopMapCard } from '@/components/shop-map-card';
 import { ServiceShelf } from '@/components/service-shelf';
 import { ShopfrontHero } from '@/components/shopfront-hero';
+import { ShopStatusPill } from '@/components/shop-status-pill';
 import {
   ACCENTS,
+  Button,
   Card,
   ErrorText,
   Loading,
@@ -39,6 +43,8 @@ import {
   joinShop,
 } from '@/lib/api';
 import { resolveAccent } from '@/lib/domain/shop-branding';
+import { readAvailability, shopStatus } from '@/lib/domain/shop-availability';
+import { useNow } from '@/lib/use-now';
 import { storefrontTheme } from '@/lib/domain/web-theme';
 import { shopLogoUri } from '@/lib/domain/shop-cover';
 import { shopPin } from '@/lib/domain/shop-location';
@@ -55,7 +61,9 @@ import { leadingIndex } from '@/lib/domain/home-headline';
 import { TERMINAL_STATUSES } from '@/lib/domain/order-status';
 import { groupServicesByCategory, labelledServices } from '@/lib/domain/service-catalog';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
+import { readStorefrontStyle } from '@/lib/domain/storefront-style';
 import { useHaptic } from '@/lib/use-app-settings';
+import { useMarketCart } from '@/lib/use-market-cart';
 import type { ServiceRow } from '@/lib/types';
 
 type Accent = (typeof ACCENTS)[number];
@@ -174,7 +182,12 @@ function WelcomeCard({
 export default function CustomerShopHome() {
   // `welcome` is the number of laundries the customer had *before* this one,
   // carried across the navigation when the connect happened in the directory.
-  const { id, welcome } = useLocalSearchParams<{ id: string; welcome?: string }>();
+  const { id, welcome, cart } = useLocalSearchParams<{
+    id: string;
+    welcome?: string;
+    /** The market basket, handed back by the checkout's Edit. */
+    cart?: string;
+  }>();
   const router = useRouter();
   const haptic = useHaptic();
   const insets = useSafeAreaInsets();
@@ -188,6 +201,9 @@ export default function CustomerShopHome() {
     queryFn: () => getShop(id!),
     enabled: Boolean(id),
   });
+  // The sign on the door, on a ticking clock so it turns over while open.
+  const now = useNow();
+  const sign = shop ? shopStatus(readAvailability(shop), now) : null;
 
   const { data: services, isLoading: isServicesLoading } = useQuery({
     queryKey: ['services', id],
@@ -301,6 +317,17 @@ export default function CustomerShopHome() {
     return () => clearTimeout(tap);
   }, [justConnected, rank, claimDelay, haptic]);
 
+  // The market look's basket. Held here, above the loading return, so the
+  // hook runs on every render whichever look the shop has chosen.
+  const basket = useMarketCart(services ?? [], cart);
+  const isMarket = readStorefrontStyle(shop?.storefront_style) === 'market';
+
+  const checkout = () => {
+    if (!basket.booking) return;
+    const cart = encodeURIComponent(basket.encoded);
+    router.push(`/(customer)/book/${basket.booking.serviceId}?shopId=${id}&cart=${cart}` as never);
+  };
+
   const handleBook = (service: ServiceRow) => {
     if (!isRegistered) {
       setJoinError('Connect to this shop first to book a service.');
@@ -310,6 +337,95 @@ export default function CustomerShopHome() {
   };
 
   if (isShopLoading || isServicesLoading) return <Loading />;
+
+  const onBack = () => (router.canGoBack() ? router.back() : router.push('/(customer)/shops' as never));
+  const connect = () => {
+    setJoinError('');
+    joinMutation.mutate();
+  };
+
+  // The market: the same shop, drawn as an online store with a basket.
+  if (isMarket) {
+    const footer =
+      basket.count > 0 && isRegistered ? (
+        <MarketBasketBar
+          count={basket.count}
+          estimate={basket.estimate}
+          isFromPrice={basket.isFromPrice}
+          accent={accent}
+          onCheckout={checkout}
+          blockedNote={sign && !sign.isTakingOrders ? 'Not taking online orders right now.' : null}
+        />
+      ) : undefined;
+    return (
+      <Screen footer={footer}>
+        <StatusBar style="light" />
+        {shopError ? <ErrorText>{(shopError as Error).message}</ErrorText> : null}
+        <MarketHeader
+          name={shopName}
+          tagline={shop?.tagline ?? ''}
+          logoUrl={shop ? shopLogoUri(shop) : null}
+          accent={accent}
+          reputation={reputation}
+          sign={sign}
+          cheapest={cheapest}
+          coverUrl={shop?.cover_url || null}
+          insetTop={insets.top}
+          onBack={onBack}
+          action={
+            isRegistered ? null : (
+              <Button
+                title={joinMutation.isPending ? 'Connecting…' : 'Connect to order'}
+                disabled={joinMutation.isPending}
+                onPress={connect}
+              />
+            )
+          }
+        />
+        <ErrorText>{joinError}</ErrorText>
+        {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
+        {isRegistered && hereNow ? (
+          <CycleStrip
+            status={hereNow.status}
+            accent={accent}
+            extraCount={Math.max(activeHere.length - 1, 0)}
+            onPress={() => router.push(`/(customer)/order/${hereNow.id}` as never)}
+          />
+        ) : null}
+        <MarketCatalog
+          services={services ?? []}
+          cart={basket.cart}
+          accent={accent}
+          onAdd={basket.add}
+          onRemove={basket.remove}
+          isDisabled={!isRegistered}
+          notice={basket.notice}
+        />
+        {reviews?.length ? (
+          <>
+            <Text style={styles.sectionTitle}>Ratings</Text>
+            <ReviewShowcase
+              reviews={reviews.map((review) => ({
+                id: review.id,
+                rating: review.rating,
+                comment: review.comment,
+                reviewerName: review.reviewer?.full_name ?? null,
+              }))}
+              reputation={reputation}
+              theme={theme}
+              showNames
+            />
+          </>
+        ) : null}
+        {shop ? (
+          <>
+            <Text style={styles.sectionTitle}>Store info</Text>
+            <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} theme={theme} />
+          </>
+        ) : null}
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
@@ -326,7 +442,7 @@ export default function CustomerShopHome() {
         coverUrl={shop?.cover_url ?? null}
         isRegistered={isRegistered}
         accent={accent}
-        reputationLabel={reputation?.label ?? null}
+        reputation={reputation}
         cheapest={cheapest}
         serviceCount={services?.length ?? 0}
         insetTop={insets.top}
@@ -334,13 +450,21 @@ export default function CustomerShopHome() {
         claim={claim}
         isClaiming={justConnected}
         rank={rank}
-        onBack={() => (router.canGoBack() ? router.back() : router.push('/(customer)/shops' as never))}
+        onBack={onBack}
         isConnecting={joinMutation.isPending}
-        onConnect={() => {
-          setJoinError('');
-          joinMutation.mutate();
-        }}
+        onConnect={connect}
       />
+
+      {sign ? (
+        <View style={signStyles.row}>
+          <ShopStatusPill status={sign} style={signStyles.pill} />
+          {!sign.isTakingOrders ? (
+            <Text style={signStyles.note}>
+              Not taking online orders right now. You can still look through the prices.
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
 
       <ErrorText>{joinError}</ErrorText>
 
@@ -425,6 +549,12 @@ export default function CustomerShopHome() {
     </Screen>
   );
 }
+
+const signStyles = StyleSheet.create({
+  row: { alignItems: 'center', gap: space.tight, marginTop: space.snug },
+  pill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.border },
+  note: { ...type.caption, color: colors.subtle, textAlign: 'center' },
+});
 
 const styles = StyleSheet.create({
   welcome: {

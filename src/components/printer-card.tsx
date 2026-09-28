@@ -1,7 +1,7 @@
 /**
  * The "Connect printer" row in merchant settings.
  *
- * Folded like `shop-qr-card`: a row that says which printer this phone
+ * Folded away until wanted: a row that says which printer this phone
  * remembers, and a body that scans for a new one. Pairing is a single tap
  * on a scan result, because BLE receipt printers have no PIN step, and the
  * test print is there so the merchant knows the pairing worked before a

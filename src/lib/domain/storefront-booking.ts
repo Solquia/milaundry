@@ -15,6 +15,7 @@ export function storefrontServiceRows(
 ): ServiceRow[] {
   return services.map((service) => ({
     ...service,
+    max_quantity: service.max_quantity ?? 0,
     shop_id: shopId,
     is_active: true,
     created_at: '',

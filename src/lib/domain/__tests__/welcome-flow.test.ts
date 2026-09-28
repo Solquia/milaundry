@@ -7,6 +7,7 @@ import {
   parseSignInMode,
   savedAccountsFor,
   scanProblem,
+  unknownCodeProblem,
   scanWelcome,
   signInCopy,
 } from '../welcome-flow';
@@ -158,5 +159,17 @@ describe('scanProblem', () => {
     expect(scanProblem('not-ours')).toMatch(/MiLaundry code/);
     expect(scanProblem('inactive')).toMatch(/fresh one/);
     expect(scanProblem('network')).toMatch(/try again/i);
+  });
+});
+
+describe('unknownCodeProblem', () => {
+  it('tells a customer who scanned a bag tag which code to use instead', () => {
+    const kind = unknownCodeProblem('https://milaundry.app/tag/a1b2c3d4-e5f6-4a8e-9a3b-0f1e2d3c4b5a');
+    expect(kind).toBe('shop-tag');
+    expect(scanProblem(kind)).toMatch(/receipt/i);
+  });
+
+  it('calls anything else not ours', () => {
+    expect(unknownCodeProblem('hello')).toBe('not-ours');
   });
 });

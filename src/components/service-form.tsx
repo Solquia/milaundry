@@ -7,10 +7,9 @@
  * category or a misspelt name meant removing the service and adding it again.
  * Now both are this one form, whole-screen, with every field open to change.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation } from '@tanstack/react-query';
 import React, { useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { upsertService, updateService } from '@/lib/api';
 import { confirmAction } from '@/lib/confirm';
@@ -26,10 +25,13 @@ import {
   validateServiceDraft,
   type ServiceDraft,
 } from '@/lib/domain/service-draft';
-import { categoryIcon } from '@/lib/domain/shop-home';
+import { sceneFor } from '@/lib/domain/service-scene';
+import { showcaseTone } from '@/lib/domain/service-showcase';
 import type { ServiceRow } from '@/lib/types';
 
 import { Segmented } from './segmented';
+import { ServiceScene } from './service-scene';
+import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
 import { Button, ErrorText, Field, RADII, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
 
 const UNIT_OPTIONS: { key: PricingUnit; label: string }[] = [
@@ -38,6 +40,9 @@ const UNIT_OPTIONS: { key: PricingUnit; label: string }[] = [
   { key: 'flat', label: 'Flat price' },
 ];
 
+/** The preview never shows a stepper, but the card asks for its colours. */
+const PREVIEW_TONE = { bg: colors.action, ink: colors.onAccent };
+
 function priceLabel(unit: PricingUnit | null): string {
   if (unit === 'per_kg') return 'Price per kg (₱)';
   if (unit === 'per_item') return 'Price per piece (₱)';
@@ -45,7 +50,38 @@ function priceLabel(unit: PricingUnit | null): string {
   return 'Price (₱)';
 }
 
-/** Six categories as one always-open column: nothing to unfold, nothing chosen for the owner. */
+/** What follows the figure in the price box, so "₱ 35 per kg" reads as one sentence. */
+function unitSuffix(unit: PricingUnit | null): string {
+  if (unit === 'per_kg') return 'per kg';
+  if (unit === 'per_item') return 'per piece';
+  if (unit === 'flat') return 'per job';
+  return '';
+}
+
+/**
+ * The draft as the customer's price board will show it. Blanks fall back to
+ * something neutral rather than a guess: no unit shows no unit, no section
+ * shows Other, so the preview never states a choice the owner has not made.
+ */
+function previewService(draft: ServiceDraft, id: string): ShowcaseCardService {
+  const price = Number(draft.price.trim());
+  const minimum = Number(draft.minQuantity.trim());
+  return {
+    id,
+    name: draft.name.trim() || 'Your service',
+    category: draft.category ?? 'other',
+    unit: draft.unit ?? 'flat',
+    price: Number.isFinite(price) && price > 0 ? price : 0,
+    min_quantity: draft.unit === 'per_kg' && Number.isFinite(minimum) ? minimum : 0,
+    description: draft.description,
+  };
+}
+
+/**
+ * Six sections as a 3×2 grid of tiles. As a column of radio rows they took
+ * half the screen and pushed the price, the field an owner opens this form
+ * for, below the fold.
+ */
 function CategoryChoice({
   value,
   onChange,
@@ -54,38 +90,76 @@ function CategoryChoice({
   onChange: (category: ServiceCategory) => void;
 }) {
   return (
-    <View style={styles.choiceList} accessibilityRole="radiogroup">
-      {CATEGORY_ORDER.map((category, index) => {
+    <View style={styles.tileGrid} accessibilityRole="radiogroup">
+      {CATEGORY_ORDER.map((category) => {
         const isSelected = category === value;
         return (
           <Pressable
             key={category}
             accessibilityRole="radio"
             accessibilityState={{ checked: isSelected }}
+            accessibilityLabel={CATEGORY_LABELS[category]}
             onPress={() => onChange(category)}
             style={({ pressed }) => [
-              styles.choice,
-              index > 0 && styles.choiceDivided,
-              isSelected && styles.choiceSelected,
+              styles.tile,
+              isSelected && styles.tileSelected,
               pressed && styles.pressed,
             ]}
           >
-            <Ionicons
-              name={categoryIcon(category) as never}
-              size={18}
-              color={isSelected ? colors.actionInk : colors.subtle}
-            />
-            <Text style={[styles.choiceText, isSelected && styles.choiceTextSelected]}>
+            <View style={styles.tileArt} pointerEvents="none">
+              <ServiceScene
+                scene={sceneFor('', category)}
+                brand={showcaseTone(category).bg}
+                surface="white"
+              />
+            </View>
+            <Text
+              style={[styles.tileText, isSelected && styles.tileTextSelected]}
+              numberOfLines={2}
+            >
               {CATEGORY_LABELS[category]}
             </Text>
-            <Ionicons
-              name={isSelected ? 'radio-button-on' : 'radio-button-off'}
-              size={20}
-              color={isSelected ? colors.actionInk : colors.subtle}
-            />
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/** The figure the owner came to change, set large with its unit beside it. */
+function PriceInput({
+  unit,
+  value,
+  onChange,
+}: {
+  unit: PricingUnit | null;
+  value: string;
+  onChange: (price: string) => void;
+}) {
+  const suffix = unitSuffix(unit);
+  return (
+    <View style={styles.priceBox}>
+      <Text style={styles.pricePeso}>₱</Text>
+      <TextInput
+        accessibilityLabel={priceLabel(unit)}
+        value={value}
+        onChangeText={onChange}
+        keyboardType="decimal-pad"
+        placeholder="35"
+        placeholderTextColor={colors.subtle}
+        style={styles.priceText}
+      />
+      {suffix ? <Text style={styles.priceUnit}>{suffix}</Text> : null}
+    </View>
+  );
+}
+
+/** A white panel on the page field, so the recessed inputs inside read as inputs. */
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <View style={styles.panel}>
+      <Text style={styles.panelTitle}>{title}</Text>
+      {children}
     </View>
   );
 }
@@ -103,24 +177,6 @@ function AddonHint({ name, onGoToAddons }: { name: string; onGoToAddons?: () => 
           <Text style={styles.hintAction}>Add it under Add-ons instead</Text>
         </Pressable>
       ) : null}
-    </View>
-  );
-}
-
-function FieldGroup({
-  label,
-  error,
-  children,
-}: {
-  label: string;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <View style={styles.group}>
-      <Text style={styles.groupLabel}>{label}</Text>
-      {children}
-      <ErrorText>{error}</ErrorText>
     </View>
   );
 }
@@ -193,61 +249,91 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
         </Pressable>
       </View>
 
-      <View>
-        <Field
-          label="Name"
-          value={draft.name}
-          onChangeText={(name) => update({ name })}
-          placeholder="Wash, Dry & Fold"
-        />
-        <ErrorText>{errors.name}</ErrorText>
-      </View>
-      {showAddonHint ? <AddonHint name={draft.name} onGoToAddons={onGoToAddons} /> : null}
-
-      <FieldGroup label="Where it sits on your price list" error={errors.category}>
-        <CategoryChoice value={draft.category} onChange={(category) => update({ category })} />
-      </FieldGroup>
-
-      <FieldGroup label="How do you charge for it?" error={errors.unit}>
-        <Segmented
-          options={UNIT_OPTIONS}
-          value={draft.unit}
-          onChange={(unit) => update({ unit })}
-          accessibilityRole="radiogroup"
-        />
-        {draft.unit ? <Text style={styles.help}>{unitHelp(draft.unit)}</Text> : null}
-      </FieldGroup>
-
-      <View>
-        <Field
-          label={priceLabel(draft.unit)}
-          value={draft.price}
-          onChangeText={(price) => update({ price })}
-          keyboardType="decimal-pad"
-          placeholder="35"
-        />
-        <ErrorText>{errors.price}</ErrorText>
+      {/* The customer's tile, redrawn on every keystroke: the page's one
+          picture, and the answer to "what will they see?" */}
+      <View style={styles.preview}>
+        <View style={styles.previewTile} pointerEvents="none">
+          <ServiceTileCard
+            service={previewService(draft, service?.id ?? 'preview')}
+            bookTone={PREVIEW_TONE}
+          />
+        </View>
+        <View style={styles.previewNote}>
+          <Text style={styles.previewTitle}>How customers see it</Text>
+          <Text style={styles.help}>This tile changes as you type.</Text>
+        </View>
       </View>
 
-      {draft.unit === 'per_kg' ? (
+      <Panel title="Name and price">
         <View>
           <Field
-            label="Smallest load you charge for, in kg (optional)"
-            value={draft.minQuantity}
-            onChangeText={(minQuantity) => update({ minQuantity })}
-            keyboardType="decimal-pad"
-            placeholder="5"
+            label="Name"
+            value={draft.name}
+            onChangeText={(name) => update({ name })}
+            placeholder="Wash, Dry & Fold"
           />
-          <ErrorText>{errors.minQuantity}</ErrorText>
+          <ErrorText>{errors.name}</ErrorText>
         </View>
-      ) : null}
+        {showAddonHint ? <AddonHint name={draft.name} onGoToAddons={onGoToAddons} /> : null}
 
-      <Field
-        label="What's included (optional)"
-        value={draft.description}
-        onChangeText={(description) => update({ description })}
-        placeholder="Regular clothes, folded and bagged"
-      />
+        <View style={styles.group}>
+          <Text style={styles.groupLabel}>Charge</Text>
+          <Segmented
+            options={UNIT_OPTIONS}
+            value={draft.unit}
+            onChange={(unit) => update({ unit })}
+            accessibilityRole="radiogroup"
+          />
+          <ErrorText>{errors.unit}</ErrorText>
+          <PriceInput unit={draft.unit} value={draft.price} onChange={(price) => update({ price })} />
+          {draft.unit ? <Text style={styles.help}>{unitHelp(draft.unit)}</Text> : null}
+          <ErrorText>{errors.price}</ErrorText>
+        </View>
+
+        {draft.unit === 'per_kg' || draft.unit === 'flat' ? (
+          <View style={styles.group}>
+            <View style={styles.pair}>
+              {draft.unit === 'per_kg' ? (
+                <View style={styles.pairItem}>
+                  <Field
+                    label="Charge at least (kg)"
+                    value={draft.minQuantity}
+                    onChangeText={(minQuantity) => update({ minQuantity })}
+                    keyboardType="decimal-pad"
+                    placeholder="5"
+                  />
+                </View>
+              ) : null}
+              <View style={styles.pairItem}>
+                <Field
+                  label="Most per load (kg)"
+                  value={draft.maxQuantity}
+                  onChangeText={(maxQuantity) => update({ maxQuantity })}
+                  keyboardType="decimal-pad"
+                  placeholder="6"
+                />
+              </View>
+            </View>
+            <Text style={styles.help}>Optional. Leave blank for no limit.</Text>
+            <ErrorText>{errors.minQuantity}</ErrorText>
+            <ErrorText>{errors.maxQuantity}</ErrorText>
+          </View>
+        ) : null}
+      </Panel>
+
+      <Panel title="Section on your price list">
+        <CategoryChoice value={draft.category} onChange={(category) => update({ category })} />
+        <ErrorText>{errors.category}</ErrorText>
+      </Panel>
+
+      <Panel title="Details">
+        <Field
+          label="What's included (optional)"
+          value={draft.description}
+          onChangeText={(description) => update({ description })}
+          placeholder="Regular clothes, folded and bagged"
+        />
+      </Panel>
 
       <ErrorText>{serverError}</ErrorText>
       <Button
@@ -282,27 +368,69 @@ const styles = StyleSheet.create({
   group: { gap: space.tight },
   groupLabel: { ...type.label, color: colors.subtle },
   help: { ...type.caption, color: colors.subtle, marginTop: space.tight },
-  pressed: { backgroundColor: colors.sunken },
+  pressed: { opacity: 0.7 },
 
-  choiceList: {
+  preview: { flexDirection: 'row', alignItems: 'center', gap: space.room },
+  /** Half the width, the size the tile has in the customer's two-column grid. */
+  previewTile: { width: '50%', maxWidth: 240 },
+  previewNote: { flex: 1, minWidth: 0, gap: space.tight },
+  previewTitle: { ...type.label, color: colors.text },
+
+  panel: {
+    gap: space.cosy,
+    padding: space.room,
+    borderRadius: RADII.card,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: RADII.control,
-    overflow: 'hidden',
     backgroundColor: colors.card,
   },
-  choice: {
+  panelTitle: { ...type.label, fontFamily: fontFor(700), color: colors.text },
+
+  priceBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.cosy,
-    minHeight: 44,
+    marginTop: space.snug,
+    paddingHorizontal: space.room,
+    minHeight: 60,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.sunken,
   },
-  choiceDivided: { borderTopWidth: 1, borderTopColor: colors.border },
-  choiceSelected: { backgroundColor: colors.actionSurface },
-  choiceText: { flex: 1, minWidth: 0, ...type.body, color: colors.text },
-  choiceTextSelected: { fontFamily: fontFor(600), color: colors.actionInk },
+  pricePeso: { ...type.value, fontFamily: fontFor(600), color: colors.subtle },
+  priceText: {
+    flex: 1,
+    minWidth: 0,
+    ...type.value,
+    fontVariant: ['tabular-nums'],
+    color: colors.text,
+    paddingVertical: space.snug,
+  },
+  priceUnit: { ...type.label, color: colors.subtle },
+
+  pair: { flexDirection: 'row', gap: space.cosy },
+  pairItem: { flex: 1, minWidth: 0 },
+
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
+  tile: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    alignItems: 'center',
+    gap: space.snug,
+    minHeight: 92,
+    paddingVertical: space.cosy,
+    paddingHorizontal: space.tight,
+    borderRadius: RADII.control,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  tileSelected: { borderColor: colors.action, backgroundColor: colors.actionSurface },
+  /** The same drawings the customer's price board uses, so each section looks like its own shelf. */
+  tileArt: { width: 56, height: 56 },
+  tileText: { ...type.caption, fontFamily: fontFor(600), color: colors.text, textAlign: 'center' },
+  tileTextSelected: { color: colors.actionInk },
 
   hint: {
     gap: space.snug,

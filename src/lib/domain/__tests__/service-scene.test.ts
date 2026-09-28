@@ -1,5 +1,29 @@
 import { CATEGORY_ORDER } from '../service-catalog';
-import { SCENE_KEYS, sceneFaces, sceneFor, scenePalette } from '../service-scene';
+import { SCENE_KEYS, mixTone, sceneFaces, sceneFor, scenePalette } from '../service-scene';
+
+describe('mixTone', () => {
+  it('leaves a colour alone at zero', () => {
+    expect(mixTone('#2e86de', 0)).toBe('#2e86de');
+  });
+
+  it('reaches white and black at the ends', () => {
+    expect(mixTone('#2E86DE', 1)).toBe('#ffffff');
+    expect(mixTone('#2E86DE', -1)).toBe('#000000');
+  });
+
+  it('clamps an amount past either end', () => {
+    expect(mixTone('#2E86DE', 3)).toBe('#ffffff');
+    expect(mixTone('#2E86DE', -3)).toBe('#000000');
+  });
+
+  it('keeps the hue while lifting it', () => {
+    expect(mixTone('#FF0000', 0.5)).toBe('#ff8080');
+  });
+
+  it('falls back to slate for a colour it cannot read', () => {
+    expect(mixTone('nope', 0)).toBe('#6b7c93');
+  });
+});
 
 describe('sceneFor', () => {
   it('reads the scene from the service name before its category', () => {
@@ -30,6 +54,13 @@ describe('sceneFor', () => {
 
   it('is case-insensitive about the name', () => {
     expect(sceneFor('BIG BEDDINGS', 'other')).toBe('bed');
+  });
+
+  it('gives furniture cleaning its own armchair, ahead of bedding', () => {
+    expect(sceneFor('Sofa & Mattress', 'special_items')).toBe('sofa');
+    expect(sceneFor('Sofa, mattresses and carpet cleaning', 'other')).toBe('sofa');
+    expect(sceneFor('Couch deep clean', 'other')).toBe('sofa');
+    expect(sceneFor('Carpet wash', 'other')).toBe('sofa');
   });
 });
 

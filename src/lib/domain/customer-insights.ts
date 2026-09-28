@@ -73,6 +73,10 @@ export interface CustomerBookSummary {
   lapsed: number;
   /** First order within the last thirty days. */
   newThisMonth: number;
+  /** Everything still unpaid across the book. */
+  owed: number;
+  /** People with something unpaid. */
+  owing: number;
 }
 
 export interface CustomerBook {
@@ -254,7 +258,32 @@ function summarise(customers: readonly CustomerInsight[], now: Date): CustomerBo
     newThisMonth: ordering.filter(
       (customer) => new Date(customer.firstOrderAt!).getTime() >= newCutoff
     ).length,
+    owed: roundCentavos(customers.reduce((sum, customer) => sum + customer.owed, 0)),
+    owing: customers.filter((customer) => customer.owed > 0).length,
   };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKS_BEFORE_DATE = 5;
+
+const startOfDay = (date: Date): number =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+/**
+ * When they were last in, the way the counter would say it: "yesterday",
+ * "2 wks ago". A clock time to the minute answered a question nobody asks
+ * about a customer.
+ */
+export function lastSeenLabel(iso: string, now: Date): string {
+  const date = new Date(iso);
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / DAY);
+  if (days <= 0) return 'today';
+  if (days === 1) return 'yesterday';
+  if (days < 7) return `${days} days ago`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < WEEKS_BEFORE_DATE) return `${weeks} ${weeks === 1 ? 'wk' : 'wks'} ago`;
+  if (date.getFullYear() === now.getFullYear()) return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+  return `${MONTHS[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 /**
@@ -283,6 +312,12 @@ export const CUSTOMER_SORTS: readonly { key: CustomerSort; label: string }[] = [
 
 const time = (iso: string | null): number => (iso ? new Date(iso).getTime() : 0);
 
+/** The next sort after this one; the list header cycles through them. */
+export function nextSort(sort: CustomerSort): CustomerSort {
+  const at = CUSTOMER_SORTS.findIndex((option) => option.key === sort);
+  return CUSTOMER_SORTS[(at + 1) % CUSTOMER_SORTS.length].key;
+}
+
 /** A new array; the book itself is never reordered. */
 export function sortCustomers(
   customers: readonly CustomerInsight[],
@@ -305,9 +340,10 @@ export type CustomerSegment = 'all' | 'new' | 'regular' | 'owing' | 'lapsed';
 
 export const CUSTOMER_SEGMENTS: readonly { key: CustomerSegment; label: string }[] = [
   { key: 'all', label: 'Everyone' },
-  { key: 'new', label: 'New' },
-  { key: 'regular', label: 'Regulars' },
+  // Money first: it is the one filter the owner acts on today.
   { key: 'owing', label: 'Owe money' },
+  { key: 'regular', label: 'Regulars' },
+  { key: 'new', label: 'New' },
   { key: 'lapsed', label: 'Not seen lately' },
 ];
 
@@ -341,5 +377,19 @@ export function filterCustomers(
 ): CustomerInsight[] {
   return customers.filter(
     (customer) => inSegment(customer, segment) && matchesCustomer(customer, query)
+  );
+}
+
+/**
+ * The filters worth showing: a chip that leads to nobody is a dead end that
+ * pushes the useful ones off screen. Everyone always stays, and so does the
+ * one in use, so a filter never vanishes from under the owner's thumb.
+ */
+export function visibleSegments<T extends { key: CustomerSegment; count: number }>(
+  segments: readonly T[],
+  selected: CustomerSegment
+): T[] {
+  return segments.filter(
+    (segment) => segment.key === 'all' || segment.key === selected || segment.count > 0
   );
 }

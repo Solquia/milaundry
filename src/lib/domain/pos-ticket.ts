@@ -7,42 +7,77 @@
  * tap *is* the quantity for anything you can count, and the total never leaves
  * the bottom of the screen.
  *
- * Only weight breaks the rule, because nobody can tap 6.5 kg. A per-kg tile
- * therefore hands off to the scale instead of adding anything — the one place
- * the flow stops to ask, and it asks with a ruler rather than a stepper.
+ * Only weight breaks the rule, because nobody can tap 6.5 kg. A weighed tile —
+ * per kilo, or a flat price per load with a load limit — therefore hands off
+ * to the scale instead of adding anything: the one place the flow stops to
+ * ask, and it asks with a ruler rather than a stepper. A per-load service is
+ * then held as loads, worked out from the weight at the shop's limit.
+ *
+ * A flat price counts like pieces — two self-service washes are two charges —
+ * and goes to the shop as one line each, since a flat line is billed once.
  */
 import { formatMoney } from './money';
-import { quantityCeiling } from './order-quantity';
+import { MAX_COUNTED_QUANTITY } from './order-quantity';
 import { formatQuantity } from './price-label';
-import { estimateLineTotal, type Service } from './pricing';
+import { estimateLineTotal, isWeighed, type OrderItemInput, type Service } from './pricing';
 import type { PaymentMethod } from './walk-in-order';
 
 export type TileTap = { kind: 'weigh' } | { kind: 'set'; quantity: number };
 
 /** What happens when a service tile is tapped with `current` already on the ticket. */
 export function tapTile(service: Service, current: number): TileTap {
-  if (service.unit === 'per_kg') return { kind: 'weigh' };
+  if (isWeighed(service)) return { kind: 'weigh' };
   const base = Number.isFinite(current) && current > 0 ? current : 0;
-  const next = Math.min(quantityCeiling(service.unit), base + 1);
-  return { kind: 'set', quantity: next };
+  return { kind: 'set', quantity: Math.min(MAX_COUNTED_QUANTITY, base + 1) };
 }
 
 /**
  * The way back: a second control on a chosen tile, so a mis-tap to ×3 is undone
- * where it happened instead of by clearing the whole ticket. Counted things
- * step down by one; a flat or weighed line has no smaller version, so it comes
- * off entirely.
+ * where it happened instead of by clearing the whole ticket. Counted things,
+ * flat ones included, step down by one; a weighed line comes off entirely —
+ * the scale is where its amount changes.
  */
 export function untapTile(service: Service, current: number): number {
   if (!Number.isFinite(current) || current <= 0) return 0;
-  if (service.unit !== 'per_item') return 0;
+  if (isWeighed(service)) return 0;
   return Math.max(0, current - 1);
+}
+
+/** Whole loads for a weight at the service's load limit: 13 kg at 6 kg a load is 3. */
+export function loadsFor(service: Service, kg: number): number {
+  const limit = service.max_quantity ?? 0;
+  if (!Number.isFinite(kg) || kg <= 0 || limit <= 0) return 0;
+  return Math.max(1, Math.ceil(kg / limit - 1e-9));
+}
+
+const isPerLoad = (service: Service): boolean => service.unit === 'flat' && isWeighed(service);
+const loadWord = (loads: number): string => `${loads} ${loads === 1 ? 'load' : 'loads'}`;
+
+/**
+ * The ticket as order lines. A flat price is billed once per line — by the
+ * server as here — so a flat service held twice goes as two lines of one.
+ */
+export function ticketLines(
+  services: readonly Service[],
+  quantities: Readonly<Record<string, number>>
+): OrderItemInput[] {
+  const units = new Map(services.map((service) => [service.id, service.unit]));
+  const lines: OrderItemInput[] = [];
+  for (const [serviceId, quantity] of Object.entries(quantities)) {
+    if (!Number.isFinite(quantity) || quantity <= 0) continue;
+    if (units.get(serviceId) === 'flat') {
+      for (let piece = 0; piece < Math.round(quantity); piece += 1) lines.push({ serviceId, quantity: 1 });
+    } else {
+      lines.push({ serviceId, quantity });
+    }
+  }
+  return lines;
 }
 
 /** The mark a tile wears once it is on the ticket, or null when it is not. */
 export function tileBadge(service: Service, quantity: number | undefined): string | null {
   if (quantity === undefined || !Number.isFinite(quantity) || quantity <= 0) return null;
-  if (service.unit === 'flat') return 'Added';
+  if (isPerLoad(service)) return loadWord(quantity);
   if (service.unit === 'per_kg') return formatQuantity('per_kg', quantity);
   return `×${quantity}`;
 }
@@ -71,9 +106,13 @@ export function quickWeights(service: Service, maxKg: number): number[] {
 /** The scale sheet's one button, quoting the charge `estimateLineTotal` will make. */
 export function scaleSheetCta(service: Service, kg: number, isEditing: boolean): string {
   if (!Number.isFinite(kg) || kg <= 0) return 'Set a weight first';
-  const charge = formatMoney(estimateLineTotal(service, kg));
   const amount = formatQuantity('per_kg', kg);
-  return isEditing ? `Update to ${amount} · ${charge}` : `Add ${amount} · ${charge}`;
+  const verb = isEditing ? `Update to ${amount}` : `Add ${amount}`;
+  if (isPerLoad(service)) {
+    const loads = loadsFor(service, kg);
+    return `${verb} · ${loadWord(loads)} · ${formatMoney(service.price * loads)}`;
+  }
+  return `${verb} · ${formatMoney(estimateLineTotal(service, kg))}`;
 }
 
 /** How many lines on the ticket carry something. */

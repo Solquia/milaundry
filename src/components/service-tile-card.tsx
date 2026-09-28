@@ -1,46 +1,47 @@
 /**
- * One service on the shelf, drawn as the front of a machine.
+ * One service on the shelf, laid out like a laundry's price board.
  *
- * The card used to be a white sheet with the object standing in a well across
- * its top — clean, but the same card any shop app draws around any product.
- * A laundry sells what goes through its machines, so the card is a small
- * front-loader now: a control strip across the head with the service's kind on
- * it and a status light, the door in the middle with the object behind the
- * glass (`service-porthole.tsx`), and the name and rate on the panel below.
+ * The board every customer already knows: a white tile, the service's name
+ * large at the top left, and the thing itself — a folded pile, an iron, a
+ * garment bag — standing big in the lower right and running off the corner,
+ * the way a cut-out product photograph does. The object is the picture and
+ * the name is the headline; the rate sits quietly at the foot, where the eye
+ * lands last.
  *
- * The category's colour lives in three places and nowhere else: the water in
- * the door, the rate's pill, and the light once a finger is on the card. That
- * is enough to sort wash from dry-cleaning across a grid of six without turning
- * it into six differently coloured panels. There is no turnaround field, so
- * nothing here promises a time; the shop's own minimum rides with the rate.
+ * The category's colour is kept to the rate's pill, so a grid of six stays a
+ * grid of white tiles with six different things in it. A photograph of the
+ * shop's own work, when there is one, takes the object's place.
  *
- * The card is the button in every mode. Pass `quantity` and the stepper takes
- * the key's place in the foot, and the door's display shows what is held.
+ * The card is the button in every mode. Pass `quantity` and a stepper takes
+ * the rate's place, and the amount on the ticket shows at the top right.
  */
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
 
-import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
-import { portholeLevel } from '@/lib/domain/porthole';
-import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { tileBadge } from '@/lib/domain/pos-ticket';
+import { formatPriceLine } from '@/lib/domain/price-label';
+import { isWeighed } from '@/lib/domain/pricing';
+import { COLORWAYS, serviceLook, type ServiceLook } from '@/lib/domain/service-look';
 import { shelfPill } from '@/lib/domain/service-shelf';
 import {
+  boardTitle,
   showcasePrice,
   showcaseTitle,
   showcaseTone,
   type ShowcaseService,
 } from '@/lib/domain/service-showcase';
+import { useReducedMotion } from '@/lib/use-reduced-motion';
 
-import { ServicePorthole } from './service-porthole';
+import { ServiceScene } from './service-scene';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
   name: string;
   /**
    * A photograph of this service, when the shop has one. A picture of the
-   * shop's own work beats any drawing, so it wins the door whenever it
-   * exists; the drawing is what a service wears until then.
+   * shop's own work beats any drawing, so it takes the object's place.
    */
   image_url?: string | null;
 }
@@ -53,16 +54,25 @@ interface ServiceTileCardProps {
   onBook?: () => void;
   /** Shown but not bookable yet — the app before the customer has connected. */
   isDisabled?: boolean;
-  /** The category, printed on the machine's control strip. */
+  /** The category, read out with the card's name. */
   categoryLabel?: string;
+  /**
+   * The drawing's dyes and care tag, decided across the whole list by
+   * `serviceLooks` so two services on the same drawing never look alike.
+   * Absent, the card reads its look from its own name.
+   */
+  look?: ServiceLook;
   /** Basket mode: the card carries − and + and shows what is on the ticket. */
   quantity?: number;
   onAdd?: () => void;
   onRemove?: () => void;
 }
 
-/** The door's diameter: the object is a picture at this size, not a glyph. */
-const DOOR_SIZE = 104;
+/** How much of the card's width the object takes, and how far it runs off the corner. */
+const ART_SHARE = '80%';
+const ART_BLEED = '-10%';
+/** Tall enough that a two-line name and the object never meet. */
+const CARD_HEIGHT = 176;
 
 function Step({
   label,
@@ -88,11 +98,74 @@ function Step({
   );
 }
 
+/**
+ * A sewn-in care label: the words that tell this service from its sibling,
+ * with a strip of the dyes its drawing is made in, so the tag and the pile
+ * visibly belong together.
+ */
+function CareTag({ look }: { look: ServiceLook }) {
+  const wear = COLORWAYS[look.colorway];
+  return (
+    <View style={[styles.tag, { borderColor: wear.accent }]}>
+      <View style={styles.tagDyes}>
+        {wear.dyes.slice(0, 3).map((dye, i) => (
+          <View key={i} style={[styles.tagDye, { backgroundColor: dye }]} />
+        ))}
+      </View>
+      <Text style={styles.tagText} numberOfLines={1}>
+        {look.tag}
+      </Text>
+    </View>
+  );
+}
+
+/** The object in the corner: the shop's photograph if it has one, else the drawing. */
+function CornerArt({
+  service,
+  look,
+  lift,
+}: {
+  service: ShowcaseCardService;
+  look: ServiceLook;
+  lift: Animated.Value;
+}) {
+  const [isPhotoBroken, setIsPhotoBroken] = React.useState(false);
+  const photo = (service.image_url ?? '').trim();
+  const hasPhoto = photo.length > 0 && !isPhotoBroken;
+  const tone = showcaseTone(service.category);
+
+  // Under a finger the object leans in toward the name, a little larger.
+  const artStyle = {
+    transform: [
+      { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] }) },
+      { rotate: lift.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-3deg'] }) },
+    ],
+  };
+
+  return (
+    <Animated.View style={[styles.art, hasPhoto && styles.photoFrame, artStyle]} pointerEvents="none">
+      {hasPhoto ? (
+        <Image
+          source={{ uri: photo }}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+          transition={180}
+          onError={() => setIsPhotoBroken(true)}
+          accessibilityIgnoresInvertColors
+        />
+      ) : (
+        <ServiceScene scene={look.scene} colorway={look.colorway} brand={tone.bg} surface="white" />
+      )}
+    </Animated.View>
+  );
+}
+
 export function ServiceTileCard({
   service,
   bookTone,
   onBook,
   categoryLabel,
+  look: givenLook,
   isDisabled = false,
   quantity,
   onAdd,
@@ -106,12 +179,12 @@ export function ServiceTileCard({
   const price = showcasePrice(service);
   const pill = shelfPill(service);
   const title = showcaseTitle(service.name);
+  const look = givenLook ?? serviceLook(service.name, service.category);
 
   const isBasket = quantity !== undefined;
   const held = quantity ?? 0;
   const isBookable = (isBasket ? held === 0 : Boolean(onBook)) && !isDisabled;
   const isEngaged = isBookable && (isHovered || isPressed);
-  const isLit = isEngaged || held > 0;
 
   const [lift] = React.useState(() => new Animated.Value(0));
   React.useEffect(() => {
@@ -128,26 +201,16 @@ export function ServiceTileCard({
     }).start();
   }, [isEngaged, isReduced, lift]);
 
-  /** The key leans the way it will take you: up and to the right, a nudge. */
-  const keyStyle = {
-    transform: [
-      { translateX: lift.interpolate({ inputRange: [0, 1], outputRange: [0, 2] }) },
-      { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -2] }) },
-    ],
-  };
-
   /**
-   * The card is the button. The round key is a cue drawn on it, not a second
-   * target — which is what keeps this a single tap area and, on the web, a
-   * single <button> rather than one nested in another.
+   * The card is the button — a single tap area and, on the web, a single
+   * <button> rather than one nested in another.
    */
   const cardPress = isBasket ? (held === 0 ? onAdd : undefined) : onBook;
   const Wrapper = cardPress ? Pressable : View;
   const pressProps = cardPress
     ? {
         accessibilityRole: 'button' as const,
-        // The minimum is deliberately not read twice: `formatPriceLine` already
-        // carries the unit and the minimum the rate line shows.
+        // `formatPriceLine` already carries the unit and the minimum.
         accessibilityLabel: [
           isBasket ? `Add ${title}` : `Book ${title}`,
           categoryLabel,
@@ -164,8 +227,9 @@ export function ServiceTileCard({
       }
     : {};
 
-  const readout =
-    held > 0 ? (service.unit === 'flat' ? 'Added' : formatQuantity(service.unit, held)) : null;
+  // "×2", "6 kg" or "3 loads": the same words the counter below uses.
+  const readout = tileBadge(service, held);
+  const isScaled = isWeighed(service);
 
   return (
     <Wrapper
@@ -181,40 +245,58 @@ export function ServiceTileCard({
         held > 0 && { borderColor: bookTone.bg },
       ]}
     >
-      {/* The control strip: what kind of wash this is, and a status light that
-          comes on under a finger — the machine answering the touch. */}
-      <View style={styles.panel}>
-        <Text style={[styles.panelLabel, { color: tone.ink }]} numberOfLines={1}>
-          {categoryLabel ?? ''}
+      <CornerArt service={service} look={look} lift={lift} />
+
+      <View style={styles.head}>
+        {/* Set as a price board does — "Wash &" over "Fold" — while a screen
+            reader hears the plain name through the card's label. */}
+        <Text style={styles.name} numberOfLines={3}>
+          {boardTitle(service.name)}
         </Text>
-        <View style={styles.controls}>
-          <View style={styles.dial}>
-            <View style={styles.dialTick} />
+        {readout ? (
+          <View style={[styles.readout, { backgroundColor: bookTone.bg }]}>
+            <Text style={[styles.readoutText, { color: bookTone.ink }]} numberOfLines={1}>
+              {readout}
+            </Text>
           </View>
-          <View style={[styles.light, isLit && { backgroundColor: tone.bg, borderColor: tone.bg }]} />
+        ) : null}
+      </View>
+
+      {/* Under the name it qualifies, where it has the card's width; in the
+          foot it fought the rate and the pile for the same corner. */}
+      {look.tag ? (
+        <View style={styles.tagRow}>
+          <CareTag look={look} />
         </View>
-      </View>
+      ) : null}
 
-      <View style={styles.door}>
-        <ServicePorthole
-          service={service}
-          size={DOOR_SIZE}
-          level={portholeLevel(service.unit, held)}
-          waterTint={held > 0 ? bookTone.bg : tone.bg}
-          lift={lift}
-          tumbleKey={held}
-          readout={readout}
-        />
-      </View>
-
-      {/* The panel below the door: the name first, then the rate. */}
       <View style={styles.foot}>
-        <Text style={styles.name} numberOfLines={2}>
-          {title}
-        </Text>
-
-        <View style={styles.rateRow}>
-          <View style={styles.words}>
+        {isBasket && held > 0 ? (
+          <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
+            <Step label="−" hint={`Remove ${title}`} onPress={() => onRemove?.()} ink={bookTone.bg} />
+            {isScaled ? (
+              // Weighed: the amount changes on the scale, so the chip reopens it.
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Weigh ${title} again, now ${readout}`}
+                onPress={() => onAdd?.()}
+                hitSlop={6}
+                style={({ pressed }) => [styles.scaleChip, { backgroundColor: bookTone.bg }, pressed && styles.pressed]}
+              >
+                <Ionicons name="scale-outline" size={14} color={colors.onAccent} />
+                <Text style={styles.scaleText}>{readout}</Text>
+              </Pressable>
+            ) : (
+              <>
+                <Text style={[styles.stepCount, { color: bookTone.bg }]} accessibilityLiveRegion="polite">
+                  {held}
+                </Text>
+                <Step label="+" hint={`Add one more ${title}`} onPress={() => onAdd?.()} ink={bookTone.bg} />
+              </>
+            )}
+          </View>
+        ) : (
+          <>
             <View style={[styles.ratePill, { backgroundColor: tone.field }]}>
               <Text style={[styles.rate, { color: tone.ink }]} numberOfLines={1}>
                 <Text style={styles.peso}>{price.symbol}</Text>
@@ -222,35 +304,14 @@ export function ServiceTileCard({
                 {price.unit ? <Text style={styles.unit}>{price.unit}</Text> : null}
               </Text>
             </View>
-            {/* The shop's minimum rides with the rate it modifies: the one fact
-                the figure cannot carry, and the one a customer is caught by. */}
+            {/* The shop's minimum rides with the rate it modifies. */}
             {pill.kind === 'rule' ? (
               <Text style={styles.rule} numberOfLines={1}>
                 {pill.text}
               </Text>
             ) : null}
-          </View>
-
-          {isBasket && held > 0 ? (
-            <View style={[styles.stepper, { borderColor: bookTone.bg }]}>
-              <Step label="−" hint={`Remove ${title}`} onPress={() => onRemove?.()} ink={bookTone.bg} />
-              {service.unit === 'flat' ? null : (
-                <Step label="+" hint={`Add more ${title}`} onPress={() => onAdd?.()} ink={bookTone.bg} />
-              )}
-            </View>
-          ) : isBookable ? (
-            <Animated.View
-              style={[styles.key, keyStyle, isEngaged && { backgroundColor: tone.ink }]}
-            >
-              <Ionicons
-                name="arrow-forward"
-                size={17}
-                color={isEngaged ? colors.onAccent : colors.text}
-                style={styles.keyGlyph}
-              />
-            </Animated.View>
-          ) : null}
-        </View>
+          </>
+        )}
       </View>
     </Wrapper>
   );
@@ -258,13 +319,17 @@ export function ServiceTileCard({
 
 const styles = StyleSheet.create({
   card: {
-    flex: 1,
+    // Grow, never `flex: 1`: its zero basis would override the height, and the
+    // art is absolute, so nothing inside holds the card open.
+    flexGrow: 1,
     minWidth: 0,
+    minHeight: CARD_HEIGHT,
     ...CROWN,
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.border,
     overflow: 'hidden',
+    justifyContent: 'space-between',
     ...elevation.rest,
     ...Platform.select({
       web: {
@@ -278,63 +343,51 @@ const styles = StyleSheet.create({
   cardHovered: { ...elevation.lift, transform: [{ translateY: -3 }] },
   cardPressed: { transform: [{ scale: 0.985 }] },
 
-  /**
-   * The machine's control strip: recessed a step from the white, one hairline
-   * under it, the way a panel meets a door.
-   */
-  panel: {
+  /** The object, big and running off the lower right corner. */
+  art: {
+    position: 'absolute',
+    right: ART_BLEED,
+    bottom: ART_BLEED,
+    width: ART_SHARE,
+    aspectRatio: 1,
+  },
+  /** A photograph has edges a drawing does not: round the one corner that shows. */
+  photoFrame: { borderTopLeftRadius: RADII.card, overflow: 'hidden' },
+
+  head: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    height: 30,
+    alignItems: 'flex-start',
+    gap: space.tight,
     paddingHorizontal: space.cosy,
-    backgroundColor: colors.sunken,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
+    paddingTop: space.cosy,
   },
-  panelLabel: {
+  /** The name is the headline: it answers the first question. */
+  name: {
     flex: 1,
-    ...type.caption,
-    fontSize: 11,
-    lineHeight: 14,
+    maxWidth: '72%',
+    ...type.label,
     fontFamily: fontFor(800),
-    letterSpacing: 0.2,
+    fontSize: 19,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+    color: colors.text,
   },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  /** A dial, drawn: a ring with one tick, set to where it always is. */
-  dial: {
-    width: 13,
-    height: 13,
-    borderRadius: 7,
-    borderWidth: 1.5,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.card,
-    alignItems: 'center',
+  readout: {
+    marginLeft: 'auto',
+    paddingHorizontal: space.snug,
+    paddingVertical: 3,
+    borderRadius: RADII.pill,
   },
-  dialTick: { width: 1.5, height: 4, marginTop: 1, borderRadius: 1, backgroundColor: colors.subtle },
-  light: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.border,
-  },
+  readoutText: { ...type.caption, fontSize: 12, lineHeight: 15, fontFamily: fontFor(800), fontVariant: ['tabular-nums'] },
 
-  door: { alignItems: 'center', paddingTop: space.room, paddingBottom: space.snug },
-
+  /** The foot sits over the art's left edge, so it keeps to the left half. */
   foot: {
-    flexGrow: 1,
-    justifyContent: 'space-between',
-    gap: space.snug,
+    alignItems: 'flex-start',
+    gap: 3,
+    maxWidth: '58%',
     paddingHorizontal: space.cosy,
     paddingBottom: space.cosy,
-    paddingTop: space.tight,
   },
-  /** The name is the largest thing on the card: it answers the first question. */
-  name: { ...type.label, fontFamily: fontFor(800), fontSize: 16, lineHeight: 20, color: colors.text },
-  rateRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  words: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
   ratePill: {
     paddingHorizontal: space.snug,
     paddingVertical: 3,
@@ -357,25 +410,39 @@ const styles = StyleSheet.create({
   /** The rule, set down and greyed: it qualifies the rate, it is not the rate. */
   rule: { ...type.caption, fontSize: 11.5, lineHeight: 15, fontFamily: fontFor(600), color: colors.subtle },
 
-  /**
-   * The way in: a round key on the panel, quiet until a finger is on the card,
-   * then filled with the category's ink (deep enough for a white glyph, where
-   * the yellow of self-service is not) — the card's one authored moment,
-   * shared with the light on the strip.
-   */
-  key: {
-    pointerEvents: 'none',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+  tagRow: { flexDirection: 'row', maxWidth: '92%', paddingHorizontal: space.cosy, marginTop: space.tight, marginBottom: 'auto' },
+  /** Cream label, stitched edge: reads as sewn into the garment, not as a button. */
+  tag: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    gap: 5,
+    maxWidth: '100%',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    backgroundColor: '#FFFDF7',
   },
-  /** Forward, turned up: where the card is about to take you. */
-  keyGlyph: { transform: [{ rotate: '-45deg' }] },
+  tagDyes: { flexDirection: 'row', gap: 1.5 },
+  tagDye: {
+    width: 5,
+    height: 9,
+    borderRadius: 1,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(11, 20, 34, 0.18)',
+  },
+  tagText: {
+    ...type.caption,
+    flexShrink: 1,
+    fontSize: 10.5,
+    lineHeight: 13,
+    fontFamily: fontFor(800),
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: colors.text,
+  },
 
-  /** The key's place in the foot, once something is on the ticket. */
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -385,6 +452,16 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   step: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+  stepCount: { ...type.label, fontFamily: fontFor(700), minWidth: 18, textAlign: 'center' },
+  scaleChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 32,
+    paddingHorizontal: 10,
+    marginLeft: -1,
+  },
+  scaleText: { ...type.label, fontFamily: fontFor(700), color: colors.onAccent },
   stepText: { ...type.section, fontSize: 18 },
   pressed: { opacity: 0.6 },
 });

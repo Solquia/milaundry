@@ -22,9 +22,12 @@ export default function AdminLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: adminColors.accent,
-        tabBarInactiveTintColor: '#8792A0',
-        tabBarStyle: { backgroundColor: adminColors.ink, borderTopWidth: 0 },
+        tabBarActiveTintColor: adminColors.action,
+        tabBarInactiveTintColor: adminColors.subtle,
+        tabBarStyle: {
+          backgroundColor: adminColors.card,
+          borderTopColor: adminColors.border,
+        },
       }}
     >
       <Tabs.Screen
@@ -41,7 +44,7 @@ export default function AdminLayout() {
         options={{
           title: 'Shops',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="shirt-outline" color={color} size={size} />
+            <Ionicons name="storefront-outline" color={color} size={size} />
           ),
         }}
       />

@@ -17,6 +17,8 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MarketBasketBar } from '@/components/market-basket-bar';
+import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
 import { PriceList } from '@/components/web/price-list';
@@ -24,13 +26,15 @@ import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
 import { StorefrontHero } from '@/components/web/storefront-hero';
 import { WebShell, useWebLayout } from '@/components/web/web-shell';
-import { getMyOrders, getStorefront } from '@/lib/api';
+import { getMyOrders, getShopStorefrontStyle, getStorefront } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { storefrontGreeting } from '@/lib/domain/home-greeting';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { shopReputation, startingPrice } from '@/lib/domain/storefront';
 import { orderOnShow } from '@/lib/domain/storefront-order';
 import { storefrontTheme } from '@/lib/domain/web-theme';
+import { storefrontServiceRows } from '@/lib/domain/storefront-booking';
+import { useMarketCart } from '@/lib/use-market-cart';
 import type { Storefront } from '@/lib/types';
 
 export default function StorefrontPage() {
@@ -55,7 +59,138 @@ export default function StorefrontPage() {
   return <StorefrontBody storefront={data} />;
 }
 
+/**
+ * Which look the shop chose. Read on its own, so a page that cannot read it
+ * still opens — as the classic page — rather than failing.
+ */
 function StorefrontBody({ storefront }: { storefront: Storefront }) {
+  const style = useQuery({
+    queryKey: ['storefront-style', storefront.shop.id],
+    queryFn: () => getShopStorefrontStyle(storefront.shop.id),
+    retry: false,
+  });
+  if (style.isLoading) return <Loading />;
+  return style.data === 'market' || true ? ( // TEMP-PREVIEW
+    <MarketBody storefront={storefront} />
+  ) : (
+    <ClassicBody storefront={storefront} />
+  );
+}
+
+/** The market look: a store header, the product grid, and a basket bar. */
+function MarketBody({ storefront }: { storefront: Storefront }) {
+  const { shop, reviews } = storefront;
+  const router = useRouter();
+  // The basket, when the checkout's Edit brought the customer back here.
+  const { cart } = useLocalSearchParams<{ cart?: string }>();
+  const { session } = useAuth();
+  const layout = useWebLayout();
+  const services = storefrontServiceRows(shop.id, storefront.services);
+  const basket = useMarketCart(services, cart);
+  const myOrders = useQuery({
+    queryKey: ['my-orders'],
+    queryFn: getMyOrders,
+    enabled: Boolean(session),
+  });
+  const tracked = orderOnShow(myOrders.data ?? [], shop.id);
+  const accent = ACCENTS[resolveAccent(shop, ACCENTS.length)];
+  const theme = storefrontTheme(accent);
+  const reputation = shopReputation(reviews);
+  const phone = shop.phone.trim();
+
+  const trackBand = (
+    <OrderStatusBand
+      theme={theme}
+      order={tracked}
+      isLoading={Boolean(session) && myOrders.isLoading}
+      isSignedIn={Boolean(session)}
+      onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
+    />
+  );
+
+  const checkout = () => {
+    if (!basket.booking) return;
+    router.push({
+      pathname: `/s/${shop.slug}/book`,
+      params: { service: basket.booking.serviceId, cart: basket.encoded },
+    } as never);
+  };
+
+  const footer =
+    basket.count > 0 ? (
+      <MarketBasketBar
+        count={basket.count}
+        estimate={basket.estimate}
+        isFromPrice={basket.isFromPrice}
+        accent={accent}
+        onCheckout={checkout}
+      />
+    ) : phone ? (
+      <ActionButton
+        title="Call the shop"
+        onPress={() => Linking.openURL(`tel:${phone}`)}
+        fill={theme.brandSoft}
+        ink={theme.brandInk}
+      />
+    ) : null;
+
+  return (
+    <>
+      <Head>
+        <title>{shop.name}</title>
+        <meta name="description" content={shop.tagline || `Book laundry online with ${shop.name}.`} />
+      </Head>
+      <WebShell
+        footer={footer}
+        hero={
+          <MarketHeader
+            name={shop.name}
+            tagline={shop.tagline}
+            logoUrl={shop.logo_url || null}
+            accent={accent}
+            reputation={reputation}
+            sign={null}
+            cheapest={startingPrice(storefront.services)}
+            coverUrl={shop.cover_url || null}
+            isInset
+          />
+        }
+        aside={
+          <View
+            style={[
+              styles.aside,
+              { paddingTop: layout.gutter, paddingHorizontal: layout.hasAside ? 0 : layout.gutter },
+            ]}
+          >
+            <Text style={styles.sectionTitle}>Store info</Text>
+            <ShopDetails shop={shop} theme={theme} />
+          </View>
+        }
+      >
+        <View style={[styles.body, { padding: layout.gutter }]}>
+          {tracked ? trackBand : null}
+          <MarketCatalog
+            services={services}
+            cart={basket.cart}
+            accent={accent}
+            onAdd={basket.add}
+            onRemove={basket.remove}
+            notice={basket.notice}
+          />
+          {tracked ? null : trackBand}
+          {reputation && reviews.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>Ratings</Text>
+              <ReviewList reviews={reviews} reputation={reputation} theme={theme} />
+            </>
+          ) : null}
+        </View>
+      </WebShell>
+    </>
+  );
+}
+
+function ClassicBody({ storefront }: { storefront: Storefront }) {
   const { shop, services, reviews } = storefront;
   const router = useRouter();
   const { session, profile } = useAuth();

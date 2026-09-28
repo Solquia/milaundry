@@ -61,6 +61,12 @@ describe('rebookDraft', () => {
     });
   });
 
+  it('adds up repeated lines of one extra: three flat comforters were sent as three', () => {
+    const flat = { service_id: 's-steam', service_name: 'Steam', unit: 'flat' as const, quantity: 1 };
+    const draft = rebookDraft({ ...order, order_items: [washFold, flat, flat, flat] });
+    expect(draft?.addOns).toEqual({ 's-steam': 3 });
+  });
+
   it('falls back to the first service line when nothing is per kilo', () => {
     const draft = rebookDraft({ ...order, order_items: [comforter] });
     expect(draft).toMatchObject({ serviceId: 's-comf', weightKg: 2, addOns: {} });

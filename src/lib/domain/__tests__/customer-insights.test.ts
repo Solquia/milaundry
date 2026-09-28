@@ -5,6 +5,9 @@ import {
   customerInitials,
   customerKey,
   filterCustomers,
+  lastSeenLabel,
+  nextSort,
+  visibleSegments,
   ordersOfCustomer,
   sortCustomers,
   type CustomerOrder,
@@ -194,7 +197,20 @@ describe('the customer book', () => {
       averageLifetimeValue: 166.67,
       lapsed: 1,
       newThisMonth: 2,
+      owed: 0,
+      owing: 0,
     });
+  });
+});
+
+describe('last seen', () => {
+  it('says it the way a person would', () => {
+    expect(lastSeenLabel('2026-09-06T09:00:00', NOW)).toBe('today');
+    expect(lastSeenLabel('2026-09-05T20:00:00', NOW)).toBe('yesterday');
+    expect(lastSeenLabel('2026-09-02T09:00:00', NOW)).toBe('4 days ago');
+    expect(lastSeenLabel('2026-08-20T09:00:00', NOW)).toBe('2 wks ago');
+    expect(lastSeenLabel('2026-06-01T09:00:00', NOW)).toBe('Jun 1');
+    expect(lastSeenLabel('2025-06-01T09:00:00', NOW)).toBe('Jun 2025');
   });
 });
 
@@ -223,10 +239,32 @@ describe('sorting and filtering', () => {
   });
 
   it('filters by segment', () => {
-    expect(CUSTOMER_SEGMENTS.map((s) => s.key)).toEqual(['all', 'new', 'regular', 'owing', 'lapsed']);
+    expect(CUSTOMER_SEGMENTS.map((s) => s.key)).toEqual(['all', 'owing', 'regular', 'new', 'lapsed']);
     expect(filterCustomers(book.customers, 'owing', '').map((c) => c.name)).toEqual(['Cai']);
     expect(filterCustomers(book.customers, 'lapsed', '').map((c) => c.name)).toEqual(['Ben']);
     expect(filterCustomers(book.customers, 'new', '').map((c) => c.name)).toEqual(['Ana']);
+  });
+
+  it('totals what the book is still owed, and by how many people', () => {
+    expect(book.summary.owed).toBe(100);
+    expect(book.summary.owing).toBe(1);
+  });
+
+  it('cycles the sort through every option and back', () => {
+    expect(nextSort('value')).toBe('recent');
+    expect(nextSort('recent')).toBe('orders');
+    expect(nextSort('orders')).toBe('value');
+  });
+
+  it('hides empty filters but never Everyone or the one in use', () => {
+    const counted = [
+      { key: 'all' as const, label: 'Everyone', count: 0 },
+      { key: 'owing' as const, label: 'Owe money', count: 2 },
+      { key: 'new' as const, label: 'New', count: 0 },
+      { key: 'lapsed' as const, label: 'Not seen lately', count: 0 },
+    ];
+    expect(visibleSegments(counted, 'lapsed').map((s) => s.key)).toEqual(['all', 'owing', 'lapsed']);
+    expect(visibleSegments(counted, 'all').map((s) => s.key)).toEqual(['all', 'owing']);
   });
 
   it('searches by name or phone digits', () => {

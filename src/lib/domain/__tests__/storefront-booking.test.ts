@@ -24,6 +24,8 @@ describe('storefrontServiceRows', () => {
         price: 35,
         category: 'wash_fold',
         min_quantity: 3,
+        // A price list from before migration 0032 has no load limit.
+        max_quantity: 0,
         description: '',
         sort_order: 0,
         is_active: true,

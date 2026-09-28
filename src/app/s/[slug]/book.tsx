@@ -21,23 +21,33 @@ import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { GuestForm } from '@/components/web/guest-form';
 import { PriceList } from '@/components/web/price-list';
 import { PageBand, WebShell, useWebLayout } from '@/components/web/web-shell';
-import { getMyLaundryPreferences, getStorefront, registerWithShopBySlug } from '@/lib/api';
+import { ShopStatusPill } from '@/components/shop-status-pill';
+import {
+  getMyLaundryPreferences,
+  getShopAddonShelf,
+  getShopAvailability,
+  getStorefront,
+  registerWithShopBySlug,
+} from '@/lib/api';
 import { useAuth } from '@/lib/auth';
-import { seedBooking, type BookingStep } from '@/lib/domain/booking-seed';
+import { describeCatalogProblem } from '@/lib/domain/booking-error';
+import { seedBooking } from '@/lib/domain/booking-seed';
+import { cartBooking, decodeCart, encodeCart, pruneCart, type Cart } from '@/lib/domain/market-cart';
+import { shopStatus } from '@/lib/domain/shop-availability';
+import { useNow } from '@/lib/use-now';
 import { NO_PREFERENCES, supportedPreferenceKeys } from '@/lib/domain/laundry-preferences';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { pickedServiceId, storefrontServiceRows } from '@/lib/domain/storefront-booking';
 import { storefrontTheme, type StorefrontTheme } from '@/lib/domain/web-theme';
 import type { Storefront } from '@/lib/types';
 
-const STEP_TITLES: Record<BookingStep, string> = {
-  items: 'What are we washing?',
-  schedule: 'When and where?',
-  review: 'Check and book',
-};
-
 export default function BookPage() {
-  const { slug, service } = useLocalSearchParams<{ slug: string; service?: string | string[] }>();
+  const { slug, service, cart } = useLocalSearchParams<{
+    slug: string;
+    service?: string | string[];
+    /** The market storefront's basket, as `encodeCart` wrote it. */
+    cart?: string | string[];
+  }>();
   const { data, isLoading, error } = useQuery({
     queryKey: ['storefront', slug],
     queryFn: () => getStorefront(slug!),
@@ -56,7 +66,14 @@ export default function BookPage() {
       </WebShell>
     );
   }
-  return <BookingPage storefront={data} slug={slug!} serviceId={pickedServiceId(service)} />;
+  return (
+    <BookingPage
+      storefront={data}
+      slug={slug!}
+      serviceId={pickedServiceId(service)}
+      cart={decodeCart(cart)}
+    />
+  );
 }
 
 /** What the web frame needs and the shared flow does not carry. */
@@ -64,6 +81,8 @@ interface WebFrameContext {
   theme: StorefrontTheme;
   shopName: string;
   onBackToShop: () => void;
+  /** The band's heading: a basket from the market, else the ticket. */
+  title: string;
   /** Who is booking, when someone is signed in; null for a guest. */
   signedInAs: string | null;
   onSignOut: () => void;
@@ -75,7 +94,7 @@ const FrameContext = createContext<WebFrameContext | null>(null);
  * The shop's shell around the shared steps. Declared once at module level so
  * the flow keeps one frame across renders; what varies comes from context.
  */
-function WebFrame({ step, footer, children }: BookingFrameProps) {
+function WebFrame({ footer, children }: BookingFrameProps) {
   const frame = useContext(FrameContext);
   const layout = useWebLayout();
   if (!frame) return null;
@@ -86,14 +105,14 @@ function WebFrame({ step, footer, children }: BookingFrameProps) {
         <PageBand
           backLabel={frame.shopName}
           onBack={frame.onBackToShop}
-          title={STEP_TITLES[step]}
+          title={frame.title}
           theme={frame.theme}
         />
       }
     >
       <View style={[styles.body, { padding: layout.gutter }]}>
         {children}
-        {step === 'review' && frame.signedInAs !== null ? (
+        {frame.signedInAs !== null ? (
           <View style={styles.who}>
             <Text style={styles.whoText}>Booking as {frame.signedInAs}</Text>
             <Pressable accessibilityRole="button" onPress={frame.onSignOut}>
@@ -113,9 +132,11 @@ interface BookingPageProps {
   slug: string;
   /** The service a price card was tapped on; null for "Book online". */
   serviceId: string | null;
+  /** The market storefront's basket; empty when the visitor came from a price card. */
+  cart: Cart;
 }
 
-function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
+function BookingPage({ storefront, slug, serviceId, cart }: BookingPageProps) {
   const { shop } = storefront;
   const router = useRouter();
   const layout = useWebLayout();
@@ -139,9 +160,38 @@ function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
     retry: false,
   });
 
+  // The sign on the shop's door. A failure to read it costs only the sign:
+  // the server refuses an order a paused or closed shop cannot take anyway.
+  const availability = useQuery({
+    queryKey: ['shop-availability', shop.id],
+    queryFn: () => getShopAvailability(shop.id),
+    retry: false,
+  });
+  // The soap, fabcon and extras shelf. get_storefront carries it once 0031 is
+  // live; until then it is read on its own, so a guest still sees it.
+  const shelf = useQuery({
+    queryKey: ['shop-addon-shelf', shop.id],
+    queryFn: () => getShopAddonShelf(shop.id),
+    enabled: storefront.addons === undefined,
+    retry: false,
+  });
+  const shopAddons = storefront.addons ?? shelf.data?.addons ?? [];
+  const addonRules = storefront.addon_groups ?? shelf.data?.addon_groups ?? {};
+  const now = useNow();
+  const sign = availability.data ? shopStatus(availability.data, now) : null;
+  const closed = sign
+    ? describeCatalogProblem({
+        hasShopId: true,
+        loadError: null,
+        isServiceFound: true,
+        closedSign: sign.isTakingOrders ? null : sign,
+      })
+    : null;
+
   const frame: WebFrameContext = {
     theme,
     shopName: shop.name,
+    title: Object.keys(cart).length > 0 ? 'Basket' : 'Your laundry ticket',
     onBackToShop: () => router.push(`/s/${slug}` as never),
     signedInAs: session ? profile?.full_name || 'you' : null,
     // Signing out only swaps who is booking; the answers so far stay put.
@@ -168,6 +218,7 @@ function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
           }
         >
           <View style={[styles.body, { padding: layout.gutter }]}>
+            {sign ? <ShopStatusPill status={sign} style={styles.sign} /> : null}
             <PriceList
               services={storefront.services}
               theme={theme}
@@ -177,6 +228,23 @@ function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
           </View>
         </WebShell>
       </>
+    );
+  }
+
+  // A shop that has flipped its sign or blocked the day: say so before a
+  // form the server would refuse, and point back to the prices.
+  if (closed && sign) {
+    return (
+      <WebShell
+        hero={
+          <PageBand backLabel={shop.name} onBack={frame.onBackToShop} title={closed.title} theme={theme} />
+        }
+      >
+        <View style={[styles.body, { padding: layout.gutter }]}>
+          <ShopStatusPill status={sign} style={styles.sign} />
+          <Text style={styles.closedBody}>{closed.body}</Text>
+        </View>
+      </WebShell>
     );
   }
 
@@ -193,6 +261,12 @@ function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
     services,
     now: new Date(),
   });
+  // The basket, checked against today's price list, for the line it opens on.
+  const fromCart = cartBooking(pruneCart(cart, services), services);
+  const opening =
+    fromCart && fromCart.serviceId === service.id
+      ? { ...seed, weightKg: fromCart.weightKg, addOns: fromCart.addOns }
+      : seed;
 
   return (
     <FrameContext.Provider value={frame}>
@@ -201,15 +275,23 @@ function BookingPage({ storefront, slug, serviceId }: BookingPageProps) {
       </Head>
       <BookingFlow
         // One flow per service, seeded once at mount so nothing races it.
-        key={service.id}
+        key={`${service.id}:${encodeCart(cart)}`}
         shopId={shop.id}
         service={service}
         services={services}
         supported={supported}
-        seed={seed}
-        shopAddons={storefront.addons ?? []}
-        addonRules={storefront.addon_groups ?? {}}
+        seed={opening}
+        look={fromCart ? 'market' : 'classic'}
+        onEditBasket={
+          fromCart
+            ? (edited) =>
+                router.dismissTo({ pathname: `/s/${slug}`, params: { cart: encodeCart(edited) } } as never)
+            : undefined
+        }
+        shopAddons={shopAddons}
+        addonRules={addonRules}
         Frame={WebFrame}
+        shop={{ name: shop.name, logoUrl: shop.logo_url || null }}
         // Connects the visitor to the shop — a no-op for someone already
         // connected — and answers the shop to book with.
         prepare={() => registerWithShopBySlug(slug)}
@@ -232,6 +314,8 @@ const styles = StyleSheet.create({
   who: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug, alignItems: 'baseline' },
   whoText: { ...type.caption, color: colors.subtle },
   whoLink: { ...type.label },
+  sign: { borderWidth: 1, borderColor: colors.border },
+  closedBody: { ...type.body, color: colors.text },
   notice: { padding: space.gulf, marginTop: space.gulf * 2 },
   noticeTitle: { ...type.title, color: colors.text, textAlign: 'center' },
 });

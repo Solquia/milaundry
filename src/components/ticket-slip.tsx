@@ -13,6 +13,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ticketCountLabel } from '@/lib/domain/pos-ticket';
+import { isWeighed } from '@/lib/domain/pricing';
 import { intakeLines } from '@/lib/domain/service-intake';
 import type { ServiceRow } from '@/lib/types';
 
@@ -79,9 +80,13 @@ export function TicketSlip({
   onRemove: (service: ServiceRow) => void;
 }) {
   const [width, setWidth] = useState(0);
-  const lines = intakeLines(services, quantities);
+  // Counted flat: the till sends a flat service as one line per piece or load.
+  const lines = intakeLines(services, quantities, { countsFlat: true });
   const byId = new Map(services.map((service) => [service.id, service]));
-  const hasWeighed = lines.some((line) => byId.get(line.serviceId)?.unit === 'per_kg');
+  const hasWeighed = lines.some((line) => {
+    const service = byId.get(line.serviceId);
+    return service ? isWeighed(service) : false;
+  });
 
   return (
     <View
@@ -115,7 +120,7 @@ export function TicketSlip({
               </View>
 
               <View style={styles.lineControls}>
-                {service.unit === 'per_item' ? (
+                {!isWeighed(service) ? (
                   <View style={styles.counter}>
                     <LineKey
                       glyph="remove"
@@ -132,7 +137,7 @@ export function TicketSlip({
                       onPress={() => onAdjust(service, 1)}
                     />
                   </View>
-                ) : service.unit === 'per_kg' ? (
+                ) : (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`${service.name}, ${line.quantity}. Change the weight`}
@@ -143,8 +148,6 @@ export function TicketSlip({
                     <Text style={styles.weighText}>{line.quantity}</Text>
                     <Text style={styles.weighChange}>Change</Text>
                   </Pressable>
-                ) : (
-                  <Text style={styles.lineQuantityQuiet}>Charged once</Text>
                 )}
                 <View style={styles.spacer} />
                 <LineKey
@@ -225,7 +228,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.text,
   },
-  lineQuantityQuiet: { fontFamily: mono, fontSize: 13, color: colors.subtle },
 
   weighKey: {
     flexDirection: 'row',

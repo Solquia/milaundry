@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { PhotoCodeButton } from '@/components/photo-code-button';
 import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
 import { TypedCodeForm } from '@/components/typed-code-form';
 import { ACCENTS, Button, colors, elevation, space, type } from '@/components/ui-kit';
@@ -31,6 +32,7 @@ import {
   type ScanProblem,
   scanProblem,
   scanWelcome,
+  unknownCodeProblem,
 } from '@/lib/domain/welcome-flow';
 import { clearPendingScan, setPendingScan } from '@/lib/pending-scan-store';
 import { useHaptic } from '@/lib/use-app-settings';
@@ -81,10 +83,11 @@ export default function ScanLaundry() {
     []
   );
 
-  const fail = useCallback(
-    (kind: ScanProblem) => {
+  const showProblem = useCallback(
+    (message: string) => {
       haptic('error');
-      setProblem(scanProblem(kind));
+      setProblem(message);
+      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
       retryTimerRef.current = setTimeout(() => {
         setProblem('');
         isHandlingRef.current = false;
@@ -93,13 +96,15 @@ export default function ScanLaundry() {
     [haptic]
   );
 
+  const fail = useCallback((kind: ScanProblem) => showProblem(scanProblem(kind)), [showProblem]);
+
   const handleScanned = async ({ data }: { data: string }) => {
     if (isHandlingRef.current || found) return;
     isHandlingRef.current = true;
 
     const payload = parseQrPayload(data);
     if (!payload) {
-      fail('not-ours');
+      fail(unknownCodeProblem(data));
       return;
     }
 
@@ -134,6 +139,16 @@ export default function ScanLaundry() {
 
   const frame = Math.min(FRAME_MAX, width - FRAME_SIDE_MARGIN);
 
+  // A photo of the code works everywhere — no camera held up to a counter.
+  const photoButton = (
+    <PhotoCodeButton
+      tone="dark"
+      isBusy={isLooking || Boolean(found)}
+      onCode={(raw) => void handleScanned({ data: raw })}
+      onProblem={showProblem}
+    />
+  );
+
   const foundCard = found ? (
     <FoundCard
       scan={found}
@@ -166,6 +181,7 @@ export default function ScanLaundry() {
               isBusy={isLooking}
               problem={problem}
             />
+            {photoButton}
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/sign-in')}
@@ -200,6 +216,8 @@ export default function ScanLaundry() {
             ) : (
               <Button title="Open Settings" onPress={() => Linking.openSettings()} />
             )}
+            {photoButton}
+            {Boolean(problem) && <Text style={styles.askProblem}>{problem}</Text>}
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/sign-in')}
@@ -209,6 +227,7 @@ export default function ScanLaundry() {
             </Pressable>
           </View>
         </View>
+        {foundCard}
       </View>
     );
   }
@@ -251,6 +270,7 @@ export default function ScanLaundry() {
                   Point at the MiLaundry code at the counter
                 </Text>
               )}
+              {photoButton}
               <Pressable
                 accessibilityRole="button"
                 onPress={() => router.push('/sign-in')}
@@ -577,6 +597,7 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     maxWidth: 300,
   },
+  askProblem: { ...type.label, color: '#FFB4B4', textAlign: 'center' },
   askActions: { alignSelf: 'stretch', alignItems: 'center', gap: space.room, marginTop: space.snug },
 
   card: {

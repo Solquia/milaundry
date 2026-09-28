@@ -67,6 +67,21 @@ export interface Shop {
    * `supportedPreferenceKeys`; absent means every one, as before the column.
    */
   supported_preferences?: string[] | null;
+  /**
+   * The sign on the door (migration 0035): weekly hours, a pause, and days
+   * closed ahead. Read through `readAvailability` in `domain/shop-availability`;
+   * absent reads as open all day, as before the columns.
+   */
+  hours?: unknown;
+  paused_until?: string | null;
+  pause_note?: string;
+  closures?: unknown;
+  /**
+   * How the shop's page looks and books (migration 0036): the classic
+   * shopfront or the market. Read through `readStorefrontStyle`; absent reads
+   * as classic, as before the column.
+   */
+  storefront_style?: string;
 }
 
 /** A login account attached to a shop, as returned by admin_list_shop_members. */
@@ -88,6 +103,8 @@ export interface ServiceRow {
   category: ServiceCategory;
   /** Minimum billable quantity for per-kg services; 0 = no minimum. */
   min_quantity: number;
+  /** Most a single load may weigh, in kg; 0 = no limit. Shown, not billed. */
+  max_quantity: number;
   description: string;
   sort_order: number;
   is_active: boolean;
@@ -214,7 +231,10 @@ export interface StorefrontShop {
 export type StorefrontService = Pick<
   ServiceRow,
   'id' | 'name' | 'unit' | 'price' | 'category' | 'min_quantity' | 'description' | 'sort_order'
->;
+> & {
+  /** Optional: absent until get_storefront carries it (migration 0032). */
+  max_quantity?: number;
+};
 
 export interface StorefrontReview {
   id: string;

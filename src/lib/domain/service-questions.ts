@@ -92,9 +92,10 @@ const BY_CATEGORY: Record<ServiceCategory, CategoryQuestions> = {
 };
 
 const FINAL_PRICE_NOTES: Record<PricingUnit, string> = {
-  per_kg: 'Final price confirmed after the shop weighs your laundry.',
-  per_item: 'Final price confirmed after the shop counts your pieces.',
-  flat: 'Set price for this service, plus any add-ons.',
+  per_kg: 'Final price after weighing',
+  per_item: 'Final price after counting',
+  // A set price has nothing to settle, so the buy bar says nothing under it.
+  flat: '',
 };
 
 export function questionsFor(category: ServiceCategory, unit: PricingUnit): ServiceQuestions {

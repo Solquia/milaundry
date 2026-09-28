@@ -15,6 +15,8 @@ export interface ConnectedShop {
   brand_accent?: number | null;
   /** Optional: '' is the column default for a shop with no logo. */
   logo_url?: string | null;
+  /** Optional: '' is the column default for a shop with no photo. */
+  cover_url?: string | null;
 }
 
 export interface ConnectedShopTile {
@@ -30,6 +32,8 @@ export interface ConnectedShopTile {
   brand_accent: number | null;
   /** The logo the shop uploaded, drawn in place of the initials; null when none. */
   logo_url: string | null;
+  /** The storefront photo, behind the shop's machine on the home rail; null when none. */
+  cover_url: string | null;
 }
 
 /** How many shops the home tab previews before deferring to the Shops tab. */
@@ -69,6 +73,7 @@ export function connectedShopTiles(
       initials: shopInitials(name),
       brand_accent: shop.brand_accent ?? null,
       logo_url: shop.logo_url?.trim() ? shop.logo_url.trim() : null,
+      cover_url: shop.cover_url?.trim() ? shop.cover_url.trim() : null,
     });
   }
 

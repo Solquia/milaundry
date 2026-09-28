@@ -17,10 +17,18 @@ export interface ServiceDraft {
   unit: PricingUnit | null;
   price: string;
   minQuantity: string;
+  /** Most a load may weigh, in kg; blank means no limit. */
+  maxQuantity: string;
   description: string;
 }
 
-export type ServiceDraftField = 'name' | 'category' | 'unit' | 'price' | 'minQuantity';
+export type ServiceDraftField =
+  | 'name'
+  | 'category'
+  | 'unit'
+  | 'price'
+  | 'minQuantity'
+  | 'maxQuantity';
 
 export interface ServiceValues {
   name: string;
@@ -28,6 +36,7 @@ export interface ServiceValues {
   unit: PricingUnit;
   price: number;
   min_quantity: number;
+  max_quantity: number;
   description: string;
 }
 
@@ -41,6 +50,7 @@ export const EMPTY_SERVICE_DRAFT: ServiceDraft = {
   unit: null,
   price: '',
   minQuantity: '',
+  maxQuantity: '',
   description: '',
 };
 
@@ -69,10 +79,27 @@ function minimumError(minimum: number | null): string | undefined {
   return undefined;
 }
 
+/** A load limit only means something where the laundry is weighed or loaded. */
+function takesLoadLimit(unit: PricingUnit | null): boolean {
+  return unit === 'per_kg' || unit === 'flat';
+}
+
+function maximumError(maximum: number | null, minimum: number | null): string | undefined {
+  if (maximum === null) return undefined;
+  if (Number.isNaN(maximum) || maximum <= 0) {
+    return 'Enter the most a load can weigh in kg, like 6, or leave it blank.';
+  }
+  if (minimum !== null && !Number.isNaN(minimum) && maximum < minimum) {
+    return 'The limit is lighter than the smallest load you charge for.';
+  }
+  return undefined;
+}
+
 export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
   const name = draft.name.trim();
   const price = parseNumber(draft.price);
   const minimum = draft.unit === 'per_kg' ? parseNumber(draft.minQuantity) : null;
+  const maximum = takesLoadLimit(draft.unit) ? parseNumber(draft.maxQuantity) : null;
 
   const errors: Partial<Record<ServiceDraftField, string>> = {};
   if (!name) errors.name = 'Name the service the way customers ask for it.';
@@ -83,6 +110,8 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
   if (priceProblem) errors.price = priceProblem;
   const minimumProblem = minimumError(minimum);
   if (minimumProblem) errors.minQuantity = minimumProblem;
+  const maximumProblem = maximumError(maximum, minimum);
+  if (maximumProblem) errors.maxQuantity = maximumProblem;
 
   if (Object.keys(errors).length > 0 || !draft.category || !draft.unit || price === null) {
     return { ok: false, errors };
@@ -95,6 +124,7 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
       unit: draft.unit,
       price: Math.round(price * 100) / 100,
       min_quantity: minimum ?? 0,
+      max_quantity: maximum ?? 0,
       description: draft.description.trim(),
     },
   };
@@ -107,6 +137,7 @@ export function draftFromService(service: {
   unit: PricingUnit;
   price: number;
   min_quantity: number;
+  max_quantity?: number | null;
   description: string | null;
 }): ServiceDraft {
   const isKnown = (CATEGORY_ORDER as readonly string[]).includes(service.category);
@@ -117,6 +148,7 @@ export function draftFromService(service: {
     // A ₱0 price is an unfinished row: show it empty so the field asks for one.
     price: service.price > 0 ? String(service.price) : '',
     minQuantity: service.min_quantity > 0 ? String(service.min_quantity) : '',
+    maxQuantity: (service.max_quantity ?? 0) > 0 ? String(service.max_quantity) : '',
     description: service.description ?? '',
   };
 }

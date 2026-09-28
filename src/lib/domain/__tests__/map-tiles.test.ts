@@ -32,38 +32,24 @@ describe('projectToTile', () => {
 });
 
 describe('tileUrl', () => {
-  it('addresses a Carto Voyager raster tile, not OSM’s volunteer servers', () => {
-    expect(tileUrl({ z: 16, x: 3, y: 7 })).toBe(
-      'https://c.basemaps.cartocdn.com/rastertiles/voyager/16/3/7.png'
+  it('addresses a keyed MapTiler raster tile, not OSM’s volunteer servers', () => {
+    expect(tileUrl({ z: 16, x: 3, y: 7 }, 'abc')).toBe(
+      'https://api.maptiler.com/maps/streets-v2/256/16/3/7.png?key=abc'
     );
   });
 
   it('wraps a column that ran off the east edge of the world', () => {
-    expect(tileUrl({ z: 2, x: 4, y: 1 })).toBe(
-      'https://b.basemaps.cartocdn.com/rastertiles/voyager/2/0/1.png'
+    expect(tileUrl({ z: 2, x: 4, y: 1 }, 'abc')).toBe(
+      'https://api.maptiler.com/maps/streets-v2/256/2/0/1.png?key=abc'
     );
-    expect(tileUrl({ z: 2, x: -1, y: 1 })).toBe(
-      'https://c.basemaps.cartocdn.com/rastertiles/voyager/2/3/1.png'
+    expect(tileUrl({ z: 2, x: -1, y: 1 }, 'abc')).toBe(
+      'https://api.maptiler.com/maps/streets-v2/256/2/3/1.png?key=abc'
     );
   });
 
-  it('spreads neighbouring tiles across Carto’s four hosts', () => {
-    const hosts = new Set(
-      [
-        tileUrl({ z: 16, x: 0, y: 0 }),
-        tileUrl({ z: 16, x: 1, y: 0 }),
-        tileUrl({ z: 16, x: 2, y: 0 }),
-        tileUrl({ z: 16, x: 3, y: 0 }),
-      ].map((url) => new URL(url).hostname)
-    );
-    expect(hosts).toEqual(
-      new Set([
-        'a.basemaps.cartocdn.com',
-        'b.basemaps.cartocdn.com',
-        'c.basemaps.cartocdn.com',
-        'd.basemaps.cartocdn.com',
-      ])
-    );
+  it('escapes the key so it cannot break out of the query string', () => {
+    const url = new URL(tileUrl({ z: 1, x: 0, y: 0 }, 'a&b=c'));
+    expect(url.searchParams.get('key')).toBe('a&b=c');
   });
 });
 
@@ -101,6 +87,6 @@ describe('tileMosaic', () => {
   it('credits both the map data and the tile host', () => {
     expect(mosaic.attribution).toBe(OSM_ATTRIBUTION);
     expect(OSM_ATTRIBUTION).toMatch(/OpenStreetMap/);
-    expect(OSM_ATTRIBUTION).toMatch(/CARTO/);
+    expect(OSM_ATTRIBUTION).toMatch(/MapTiler/);
   });
 });

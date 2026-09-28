@@ -38,6 +38,28 @@ export function formatQuantity(unit: PricingUnit, quantity: number): string {
 }
 
 /**
+ * How much a booked order line holds, or null when a flat charge has nothing
+ * to say. A flat line only carries a quantity other than 1 when it is a load
+ * booked by weight — add-ons go one line per piece and the counter books flat
+ * once — so that quantity is kilos, not pieces or a multiplier.
+ */
+export function lineQuantity(unit: PricingUnit, quantity: number): string | null {
+  if (unit !== 'flat') return formatQuantity(unit, quantity);
+  return quantity > 0 && quantity !== 1 ? `${quantity} kg` : null;
+}
+
+/**
+ * An order line as the customer's bill names it: `Wash & Fold × 5 kg`,
+ * `Comforter × 2`, `Wash Only · 5 kg`, or just `Delivery` for a one-off charge.
+ */
+export function lineLabel(name: string, unit: PricingUnit, quantity: number): string {
+  if (unit === 'per_kg') return `${name} × ${quantity} kg`;
+  if (unit === 'per_item') return `${name} × ${quantity}`;
+  const load = lineQuantity(unit, quantity);
+  return load ? `${name} · ${load}` : name;
+}
+
+/**
  * The billable minimum, or 0 when none applies. Flat services are billed once
  * regardless of quantity, so a minimum on one is noise, not a charge.
  */
@@ -72,17 +94,37 @@ export function minimumLabel(service: Service): string | null {
  * nothing. Anything the shop really charges in centavos survives untouched.
  */
 export function priceSubtitle(service: Service): string {
-  const price = `${formatMoneyCompact(service.price)}${unitCaption(service.unit) ?? ''}`;
-  const minimum = minimumLabel(service);
-  return minimum ? `${price} · ${minimum}` : price;
+  const caption = capacityLabel(service) ? lineSuffix(service) : unitCaption(service.unit);
+  return withFacts(`${formatMoneyCompact(service.price)}${caption ?? ''}`, service);
+}
+
+/**
+ * The most one load may weigh — `max 6 kg per load` — or null when the shop
+ * set no limit, or charges by the piece and never weighs.
+ */
+export function capacityLabel(service: Service): string | null {
+  if (service.unit === 'per_item') return null;
+  const maximum = service.max_quantity ?? 0;
+  if (!Number.isFinite(maximum) || maximum <= 0) return null;
+  return `max ${maximum} kg per load`;
+}
+
+/**
+ * The unit after a price in a sentence. A flat price with a load limit is
+ * what a laundromat's board calls "per load", so it says so.
+ */
+function lineSuffix(service: Service): string {
+  if (service.unit === 'flat' && capacityLabel(service)) return '/load';
+  return unitSuffix(service.unit);
+}
+
+function withFacts(price: string, service: Service): string {
+  return [price, minimumLabel(service), capacityLabel(service)].filter(Boolean).join(' · ');
 }
 
 /** The price subtitle under a service name: `₱60.00/kg · 3 kg minimum`. */
 export function formatPriceLine(service: Service): string {
-  const price = `${formatMoney(service.price)}${unitSuffix(service.unit)}`;
-  const minimum = effectiveMinimum(service);
-  if (minimum === 0) return price;
-  return `${price} · ${formatQuantity(service.unit, minimum)} minimum`;
+  return withFacts(`${formatMoney(service.price)}${lineSuffix(service)}`, service);
 }
 
 /**

@@ -16,16 +16,20 @@ export function SearchField({
   onChangeText,
   placeholder,
   accessibilityLabel,
+  autoFocus = false,
 }: {
   value: string;
   onChangeText: (next: string) => void;
   placeholder: string;
   accessibilityLabel: string;
+  /** Opened on purpose, from a search button: the keyboard should already be up. */
+  autoFocus?: boolean;
 }) {
   return (
     <View style={styles.wrap}>
       <Ionicons name="search-outline" size={18} color={colors.subtle} />
       <TextInput
+        autoFocus={autoFocus}
         style={styles.input}
         value={value}
         onChangeText={onChangeText}

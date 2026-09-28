@@ -60,8 +60,8 @@ describe('questionsFor', () => {
   });
 
   it('says the final price comes from the scale only for services sold by weight', () => {
-    expect(questionsFor('wash_fold', 'per_kg').finalPriceNote).toMatch(/weighs/);
-    expect(questionsFor('ironing', 'per_item').finalPriceNote).toMatch(/counts/);
-    expect(questionsFor('self_service', 'flat').finalPriceNote).not.toMatch(/weighs|counts/);
+    expect(questionsFor('wash_fold', 'per_kg').finalPriceNote).toBe('Final price after weighing');
+    expect(questionsFor('ironing', 'per_item').finalPriceNote).toBe('Final price after counting');
+    expect(questionsFor('self_service', 'flat').finalPriceNote).toBe('');
   });
 });

@@ -5,13 +5,21 @@
  * device the customer app uses to tell two shops apart, so a regular is
  * findable at a glance the way a contact avatar is. Money owed is the only
  * thing on the row that carries colour.
+ *
+ * `isFlush` drops the row's own card so a list can stack rows inside one
+ * grouped surface, divided by hairlines instead of gaps.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { accentIndex } from '@/lib/domain/accent';
-import { STANDING_LABELS, customerInitials, type CustomerInsight } from '@/lib/domain/customer-insights';
-import { formatOrderTime } from '@/lib/domain/order-card';
+import {
+  STANDING_LABELS,
+  customerInitials,
+  lastSeenLabel,
+  type CustomerInsight,
+} from '@/lib/domain/customer-insights';
+import { formatMoneyCompact } from '@/lib/domain/money';
 
 import { ACCENTS, RADII, TAG_TONES, colors, elevation, formatMoney, space, type } from './ui-kit';
 
@@ -23,15 +31,17 @@ export function CustomerRow({
   customer,
   now,
   onPress,
+  isFlush = false,
 }: {
   customer: CustomerInsight;
   now: Date;
   onPress: () => void;
+  isFlush?: boolean;
 }) {
   const accent = ACCENTS[accentIndex(customer.key, ACCENTS.length)];
   const hasOrders = customer.orderCount > 0;
   const line = hasOrders
-    ? `${visits(customer.orderCount)} · Last ${formatOrderTime(customer.lastOrderAt!, now)}`
+    ? `${visits(customer.orderCount)} · ${lastSeenLabel(customer.lastOrderAt!, now)}`
     : STANDING_LABELS.connected;
   const isOwing = customer.owed > 0;
 
@@ -45,7 +55,7 @@ export function CustomerRow({
       }.`}
       accessibilityHint="Opens their orders"
       onPress={onPress}
-      style={({ pressed }) => [styles.row, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.row, isFlush && styles.flush, pressed && styles.pressed]}
     >
       <View style={[styles.avatar, { backgroundColor: accent.surface }]}>
         <Text style={[styles.initials, { color: accent.ink }]}>
@@ -61,10 +71,10 @@ export function CustomerRow({
         </Text>
       </View>
       <View style={styles.figures}>
-        <Text style={styles.value}>{formatMoney(customer.lifetimeValue)}</Text>
+        <Text style={styles.value}>{formatMoneyCompact(customer.lifetimeValue)}</Text>
         {isOwing ? (
           <View style={styles.owedPill}>
-            <Text style={styles.owedText}>Owes {formatMoney(customer.owed)}</Text>
+            <Text style={styles.owedText}>Owes {formatMoneyCompact(customer.owed)}</Text>
           </View>
         ) : (
           <Text style={styles.standing}>{STANDING_LABELS[customer.standing]}</Text>
@@ -86,6 +96,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     ...elevation.rest,
+  },
+  flush: {
+    borderRadius: 0,
+    borderWidth: 0,
+    backgroundColor: 'transparent',
+    shadowOpacity: 0,
+    elevation: 0,
   },
   pressed: { opacity: 0.85 },
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },

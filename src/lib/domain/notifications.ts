@@ -175,9 +175,9 @@ function priceNotice(order: NotifiableOrder): Notice | null {
   return {
     kind: 'price_ready',
     title: 'Actual price ready',
-    body: `${order.shopName} weighed your laundry: ${formatMoney(
+    body: `${order.shopName} checked your laundry: ${formatMoney(
       order.final_total ?? 0
-    )}. Choose how you'll pay.`,
+    )}. Pay online and send the receipt so they can start washing.`,
     icon: 'cash-outline',
     tone: 'action',
     needsAction: true,

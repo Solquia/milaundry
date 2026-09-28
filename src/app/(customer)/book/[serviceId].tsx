@@ -22,6 +22,8 @@ import {
 } from '@/lib/api';
 import { describeCatalogProblem, isConnectionError } from '@/lib/domain/booking-error';
 import { seedBooking } from '@/lib/domain/booking-seed';
+import { cartBooking, decodeCart, encodeCart, pruneCart } from '@/lib/domain/market-cart';
+import { readAvailability, shopStatus } from '@/lib/domain/shop-availability';
 import { NO_PREFERENCES, supportedPreferenceKeys } from '@/lib/domain/laundry-preferences';
 import { rebookDraft, reconcileRebook } from '@/lib/domain/rebook';
 
@@ -41,10 +43,12 @@ function AppFrame({ footer, children }: BookingFrameProps) {
  * has to be written into its fields by an effect racing the customer's thumb.
  */
 export default function BookService() {
-  const { serviceId, shopId, rebook } = useLocalSearchParams<{
+  const { serviceId, shopId, rebook, cart } = useLocalSearchParams<{
     serviceId: string;
     shopId: string;
     rebook?: string;
+    /** The market storefront's basket, as `encodeCart` wrote it. */
+    cart?: string;
   }>();
   const router = useRouter();
 
@@ -140,6 +144,10 @@ export default function BookService() {
   const shopError = shop.error instanceof Error ? shop.error : null;
   const isShopUnreachable = Boolean(shopError && isConnectionError(shopError.message));
 
+  // The sign on the shop's door: a paused shop or a closed day stops the
+  // booking here, before the customer fills a form the server would refuse.
+  const shopSign = shop.data ? shopStatus(readAvailability(shop.data), new Date()) : null;
+
   const problem = describeCatalogProblem({
     hasShopId: Boolean(shopId),
     loadError: catalog.error ?? (isShopUnreachable ? shopError : null),
@@ -151,6 +159,7 @@ export default function BookService() {
         : undefined,
     rebookServiceName: draft?.itemNames[draft.serviceId],
     rebookLoadError: previous.error,
+    closedSign: shopSign && !shopSign.isTakingOrders ? shopSign : null,
   });
 
   if (problem) {
@@ -188,18 +197,38 @@ export default function BookService() {
     services: catalog.data,
     now: new Date(),
   });
+  // A basket from the market storefront opens the booking with every line in
+  // it; checked against today's price list, and only for the line it opens on.
+  const fromCart =
+    cart && !draft ? cartBooking(pruneCart(decodeCart(cart), catalog.data), catalog.data) : null;
+  const opening =
+    fromCart && fromCart.serviceId === service.id
+      ? { ...seed, weightKg: fromCart.weightKg, addOns: fromCart.addOns }
+      : seed;
 
   return (
     <BookingFlow
-      key={`${serviceId}:${rebook ?? ''}`}
+      key={`${serviceId}:${rebook ?? ''}:${cart ?? ''}`}
       shopId={shopId}
       service={service}
       services={catalog.data}
       supported={supported}
-      seed={seed}
+      seed={opening}
+      look={fromCart ? "market" : "classic"}
+      onEditBasket={
+        fromCart
+          ? (edited) =>
+              router.dismissTo(
+                `/(customer)/shop/${shopId}?cart=${encodeURIComponent(encodeCart(edited))}` as never
+              )
+          : undefined
+      }
       shopAddons={shelf.data ?? []}
       addonRules={shelfRules.data ?? {}}
       Frame={AppFrame}
+      shop={
+        shop.data ? { name: shop.data.name, logoUrl: shop.data.logo_url || null } : undefined
+      }
       onPlaced={(order) => router.replace(`/(customer)/order/${order.id}`)}
       onCheckOrders={() => router.push('/(customer)/orders' as never)}
     />

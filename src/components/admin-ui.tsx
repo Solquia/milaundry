@@ -1,47 +1,133 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Svg, { Defs, LinearGradient, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-// Design system for the superadmin console: warm paper background, deep ink
-// hero blocks, pill chips and stat tiles — MiLaundry's blue doing the accent
-// work. Merchant/customer screens keep the standard ui-kit look.
+import { BLUE_FIELD, colors, elevation } from '@/components/ui-kit';
+
+// Design system for the superadmin console, drawn from the app's own tokens:
+// the blue hero gradient, the brand-tinted field, white cards that lift off it,
+// and action blue on everything you can press.
 
 export const adminColors = {
-  ink: '#1C2530', // deep blue-black hero / filled buttons
-  inkSoft: '#2A3644',
-  paper: '#EFF2F4', // cool-white screen background
-  card: '#FFFFFF',
-  text: '#18202A',
-  subtle: '#6B7684',
-  border: '#E2E7EC',
-  accent: '#208AEF', // MiLaundry blue
-  accentSoft: '#D8EAFC',
-  success: '#0FA36B',
-  successSoft: '#D9F3E7',
-  danger: '#DC2626',
+  action: colors.action, // filled buttons, selected chips
+  paper: colors.bg, // brand-tinted screen field
+  card: colors.card,
+  text: colors.text,
+  subtle: colors.subtle,
+  border: colors.border,
+  accent: colors.primary, // MiLaundry blue
+  accentSoft: colors.actionSurface,
+  accentInk: colors.actionInk,
+  success: colors.success,
+  successSoft: '#DEF3E7',
+  danger: colors.danger,
+  /** Text on the hero gradient. */
+  onHero: '#FFFFFF',
+  onHeroSoft: '#DCE8FA',
+  onHeroEyebrow: '#BFD9FF',
+  onHeroTrack: 'rgba(255,255,255,0.16)',
 };
+
+/**
+ * The home page's blue field, calmed for the console: the same cobalt ground
+ * and the same two blooms (cyan high, violet low), a step deeper and still. An operator's screen should feel steady,
+ * not animated. White text clears 4.5:1 on every stop.
+ */
+const ADMIN_FIELD = {
+  deep: '#0D3C9E',
+  mid: '#1452BE',
+  lit: '#1A60C8',
+} as const;
 
 export function AdminHero({
   eyebrow = 'PLATFORM',
   title,
   subtitle,
+  action,
+  onBack,
+  backLabel = 'Back',
   children,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
+  /** Sits beside the title — one icon button, never a row of them. */
+  action?: React.ReactNode;
+  /** Replaces the eyebrow with a real back button. */
+  onBack?: () => void;
+  backLabel?: string;
   children?: React.ReactNode;
 }) {
+  const [box, setBox] = useState({ width: 0, height: 0 });
   return (
-    <SafeAreaView edges={['top']} style={styles.heroSafe}>
-      <View style={styles.hero}>
-        <Text style={styles.heroEyebrow}>{eyebrow}</Text>
-        <Text style={styles.heroTitle}>{title}</Text>
-        {subtitle ? <Text style={styles.heroSubtitle}>{subtitle}</Text> : null}
-        {children}
-      </View>
-    </SafeAreaView>
+    <View
+      style={styles.heroShell}
+      onLayout={(event) => {
+        const { width, height } = event.nativeEvent.layout;
+        setBox({ width, height });
+      }}
+    >
+      {box.width > 0 && (
+        // Sized from layout: SVG cannot size in percentages against a flex parent.
+        <Svg
+          style={StyleSheet.absoluteFill}
+          width={box.width}
+          height={box.height}
+          pointerEvents="none"
+        >
+          <Defs>
+            {/* Lower left to upper right, so the light falls from above. */}
+            <LinearGradient id="adminGround" x1="0" y1="1" x2="1" y2="0">
+              <Stop offset="0" stopColor={ADMIN_FIELD.deep} />
+              <Stop offset="0.6" stopColor={ADMIN_FIELD.mid} />
+              <Stop offset="1" stopColor={ADMIN_FIELD.lit} />
+            </LinearGradient>
+            <RadialGradient id="adminBloom" cx="88%" cy="0%" rx="60%" ry="90%">
+              <Stop offset="0" stopColor={BLUE_FIELD.bloom} stopOpacity={0.34} />
+              <Stop offset="1" stopColor={BLUE_FIELD.bloom} stopOpacity={0} />
+            </RadialGradient>
+            <RadialGradient id="adminGlow" cx="8%" cy="100%" rx="55%" ry="80%">
+              <Stop offset="0" stopColor={BLUE_FIELD.glow} stopOpacity={0.1} />
+              <Stop offset="1" stopColor={BLUE_FIELD.glow} stopOpacity={0} />
+            </RadialGradient>
+          </Defs>
+          <Rect x={0} y={0} width={box.width} height={box.height} fill="url(#adminGround)" />
+          <Rect x={0} y={0} width={box.width} height={box.height} fill="url(#adminBloom)" />
+          <Rect x={0} y={0} width={box.width} height={box.height} fill="url(#adminGlow)" />
+        </Svg>
+      )}
+      <SafeAreaView edges={['top']}>
+        <View style={styles.hero}>
+          <View style={styles.heroTitleRow}>
+            <View style={{ flex: 1 }}>
+              {onBack ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Back to ${backLabel}`}
+                  onPress={onBack}
+                  hitSlop={10}
+                  style={({ pressed }) => [styles.heroBack, pressed && { opacity: 0.7 }]}
+                >
+                  <Ionicons name="chevron-back" size={16} color={adminColors.onHeroEyebrow} />
+                  <Text style={styles.heroEyebrow}>{backLabel.toUpperCase()}</Text>
+                </Pressable>
+              ) : (
+                <Text style={styles.heroEyebrow}>{eyebrow}</Text>
+              )}
+              <Text style={styles.heroTitle} numberOfLines={1}>
+                {title}
+              </Text>
+              {subtitle ? <Text style={styles.heroSubtitle}>{subtitle}</Text> : null}
+            </View>
+            {action}
+          </View>
+          {children}
+        </View>
+      </SafeAreaView>
+    </View>
   );
 }
 
@@ -183,7 +269,7 @@ export function PillButton({
       disabled={disabled}
       style={({ pressed }) => [
         styles.pillButton,
-        isFilled && { backgroundColor: adminColors.ink },
+        isFilled && styles.pillButtonFilled,
         isDanger && { backgroundColor: adminColors.danger },
         variant === 'outline' && styles.pillButtonOutline,
         { opacity: disabled ? 0.5 : pressed ? 0.85 : 1 },
@@ -192,7 +278,7 @@ export function PillButton({
       <Text
         style={[
           styles.pillButtonText,
-          variant === 'outline' && { color: adminColors.text },
+          variant === 'outline' && { color: adminColors.accentInk },
         ]}
       >
         {title}
@@ -231,7 +317,7 @@ export function ToggleRow({
       <View
         style={[
           styles.toggleTrack,
-          value && !disabled && { backgroundColor: adminColors.accent },
+          value && !disabled && { backgroundColor: adminColors.action },
         ]}
       >
         <View style={[styles.toggleThumb, value && styles.toggleThumbOn]} />
@@ -241,23 +327,34 @@ export function ToggleRow({
 }
 
 const styles = StyleSheet.create({
-  heroSafe: { backgroundColor: adminColors.ink },
+  heroShell: {
+    backgroundColor: ADMIN_FIELD.mid,
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    ...elevation.lift,
+  },
   hero: {
-    backgroundColor: adminColors.ink,
     paddingHorizontal: 20,
-    paddingTop: 8,
-    paddingBottom: 22,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    paddingTop: 10,
+    paddingBottom: 20,
   },
+  heroBack: { flexDirection: 'row', alignItems: 'center', gap: 2, alignSelf: 'flex-start', marginLeft: -4 },
+  heroTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   heroEyebrow: {
-    color: adminColors.accent,
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.4,
+    color: adminColors.onHeroEyebrow,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.6,
   },
-  heroTitle: { color: '#FFFFFF', fontSize: 30, fontWeight: '800', marginTop: 4 },
-  heroSubtitle: { color: '#AAB4C0', fontSize: 14, marginTop: 4 },
+  heroTitle: {
+    color: adminColors.onHero,
+    fontSize: 26,
+    fontWeight: '700',
+    letterSpacing: -0.3,
+    marginTop: 4,
+  },
+  heroSubtitle: { color: adminColors.onHeroSoft, fontSize: 14, marginTop: 2 },
   chip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,7 +366,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
-  chipSelected: { backgroundColor: adminColors.ink, borderColor: adminColors.ink },
+  chipSelected: { backgroundColor: adminColors.action, borderColor: adminColors.action },
   chipLabel: { fontWeight: '700', color: adminColors.text, fontSize: 14 },
   chipLabelSelected: { color: '#FFFFFF' },
   chipCount: {
@@ -278,7 +375,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 1,
   },
-  chipCountSelected: { backgroundColor: adminColors.inkSoft },
+  chipCountSelected: { backgroundColor: adminColors.onHeroTrack },
   chipCountText: { fontSize: 12, fontWeight: '700', color: adminColors.subtle },
   statTile: {
     flex: 1,
@@ -289,6 +386,7 @@ const styles = StyleSheet.create({
     borderColor: adminColors.border,
     padding: 14,
     gap: 6,
+    ...elevation.rest,
   },
   statLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   statDot: { width: 7, height: 7, borderRadius: 4 },
@@ -305,7 +403,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoInitials: { fontWeight: '800', color: adminColors.accent },
+  logoInitials: { fontWeight: '800', color: adminColors.accentInk },
   statusPill: {
     borderRadius: 999,
     paddingHorizontal: 10,
@@ -315,14 +413,15 @@ const styles = StyleSheet.create({
   statusPillText: { fontSize: 12, fontWeight: '700' },
   pillButton: {
     flex: 1,
-    borderRadius: 999,
-    paddingVertical: 13,
+    borderRadius: 12,
+    paddingVertical: 12,
     alignItems: 'center',
   },
+  pillButtonFilled: { backgroundColor: adminColors.action, ...elevation.rest },
   pillButtonOutline: {
-    backgroundColor: adminColors.card,
+    backgroundColor: adminColors.accentSoft,
     borderWidth: 1,
-    borderColor: adminColors.border,
+    borderColor: colors.actionMuted,
   },
   pillButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   toggleRow: {

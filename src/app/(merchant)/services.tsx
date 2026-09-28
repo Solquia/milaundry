@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MerchantAddons } from '@/components/merchant-addons';
+import { PriceBoard } from '@/components/price-board';
 import { Segmented } from '@/components/segmented';
 import { ServiceForm, type ServiceFormOutcome } from '@/components/service-form';
 import {
@@ -19,22 +20,14 @@ import {
   colors,
   space,
   type,
-  CROWN,
   RADII,
   fontFor,
 } from '@/components/ui-kit';
 import { getServices, seedStarterServices } from '@/lib/api';
 import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import { formatMoneyCompact } from '@/lib/domain/money';
-import { minimumLabel, unitCaption } from '@/lib/domain/price-label';
 import { savedNotice, unpricedNotice } from '@/lib/domain/price-sections';
-import {
-  CATEGORY_LABELS,
-  STARTER_SERVICES,
-  groupServicesByCategory,
-  type ServiceGroup,
-} from '@/lib/domain/service-catalog';
+import { STARTER_SERVICES } from '@/lib/domain/service-catalog';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
@@ -51,90 +44,6 @@ const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
 ];
 
 type PricesView = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; service: ServiceRecord };
-
-/** `₱176/kg`, or `₱150` for a flat price. */
-function priceFigure(service: ServiceRecord): string {
-  return `${formatMoneyCompact(service.price)}${unitCaption(service.unit) ?? ''}`;
-}
-
-/**
- * One price, read like a line on a price board: name on the left, figure on
- * the right, the minimum beneath in small type. The whole row opens it.
- */
-function PriceRow({
-  service,
-  isHighlighted,
-  onOpen,
-}: {
-  service: ServiceRecord;
-  isHighlighted: boolean;
-  onOpen: () => void;
-}) {
-  const isUnpriced = !(service.price > 0);
-  const figure = isUnpriced ? 'no price set' : priceFigure(service);
-  const minimum = minimumLabel(service);
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`${service.name}, ${figure}${minimum ? `, ${minimum}` : ''}`}
-      accessibilityHint="Opens it to change any detail"
-      onPress={onOpen}
-      style={({ pressed }) => [
-        styles.row,
-        isHighlighted && styles.rowHighlighted,
-        pressed && styles.pressed,
-      ]}
-    >
-      <View style={styles.rowText}>
-        <Text style={styles.rowName} numberOfLines={1}>
-          {service.name}
-        </Text>
-        {minimum ? <Text style={styles.rowMeta}>{minimum}</Text> : null}
-      </View>
-      {isUnpriced ? (
-        <View style={styles.flag}>
-          <Text style={styles.flagText}>Set price</Text>
-        </View>
-      ) : (
-        <Text style={styles.rowPrice}>{figure}</Text>
-      )}
-    </Pressable>
-  );
-}
-
-/**
- * One category inside the shared sheet: a small label, then its rows. Each
- * category used to be a heading, a range summary and a card of its own, so a
- * shop with one price per category read as a stack of big boxes that each
- * said the same number twice.
- */
-function PriceGroup({
-  group,
-  isFirst,
-  highlightName,
-  onOpen,
-}: {
-  group: ServiceGroup<ServiceRecord>;
-  isFirst: boolean;
-  highlightName: string | null;
-  onOpen: (service: ServiceRecord) => void;
-}) {
-  return (
-    <View style={!isFirst && styles.groupDivided}>
-      <Text style={styles.groupLabel} accessibilityRole="header">
-        {CATEGORY_LABELS[group.category]}
-      </Text>
-      {group.services.map((service) => (
-        <PriceRow
-          key={service.id}
-          service={service}
-          isHighlighted={service.name === highlightName}
-          onOpen={() => onOpen(service)}
-        />
-      ))}
-    </View>
-  );
-}
 
 function Notice({ tone, children }: { tone: keyof typeof TAG_TONES; children: string }) {
   return (
@@ -279,7 +188,6 @@ export default function MerchantServices() {
   }
 
   const list = services ?? [];
-  const groups = groupServicesByCategory(list);
   const unpriced = unpricedNotice(list);
   const highlightName = outcome && outcome.verb !== 'removed' ? outcome.name : null;
 
@@ -289,18 +197,13 @@ export default function MerchantServices() {
       {unpriced ? <Notice tone="owed">{unpriced}</Notice> : null}
       {list.length === 0 && <StarterCard shopId={shop.id} onSeeded={refresh} />}
 
-      {groups.length > 0 ? (
-        <View style={styles.sheet}>
-          {groups.map((group, index) => (
-            <PriceGroup
-              key={group.category}
-              group={group}
-              isFirst={index === 0}
-              highlightName={highlightName}
-              onOpen={(service) => openForm({ kind: 'edit', service })}
-            />
-          ))}
-        </View>
+      {list.length > 0 ? (
+        <PriceBoard
+          services={list}
+          highlightName={highlightName}
+          onOpen={(service) => openForm({ kind: 'edit', service })}
+          onAdd={() => openForm({ kind: 'add' })}
+        />
       ) : null}
     </Screen>
   );
@@ -322,46 +225,6 @@ const styles = StyleSheet.create({
   },
   addPressed: { opacity: 0.85 },
   addText: { ...type.label, fontFamily: fontFor(600), color: colors.onAccent },
-
-  /** The whole price list: one sheet, ruled inside, like a printed price board. */
-  sheet: {
-    backgroundColor: colors.card,
-    ...CROWN,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  groupDivided: { borderTopWidth: 1, borderTopColor: colors.border },
-  groupLabel: {
-    ...type.caption,
-    fontFamily: fontFor(600),
-    color: colors.subtle,
-    paddingHorizontal: space.room,
-    paddingTop: space.cosy,
-    paddingBottom: space.tight,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.cosy,
-    paddingHorizontal: space.room,
-    paddingVertical: space.snug,
-    minHeight: 44,
-  },
-  rowHighlighted: { backgroundColor: TAG_TONES.settled.bg },
-  pressed: { backgroundColor: colors.sunken },
-  rowText: { flex: 1, minWidth: 0 },
-  rowName: { ...type.body, color: colors.text },
-  rowMeta: { ...type.caption, color: colors.subtle },
-  rowPrice: { ...type.body, fontFamily: fontFor(600), color: colors.text },
-
-  flag: {
-    paddingHorizontal: space.snug,
-    paddingVertical: 2,
-    borderRadius: RADII.control,
-    backgroundColor: TAG_TONES.owed.bg,
-  },
-  flagText: { ...type.caption, fontFamily: fontFor(600), color: TAG_TONES.owed.ink },
 
   notice: { paddingHorizontal: space.cosy, paddingVertical: space.snug, borderRadius: RADII.control },
   noticeText: { ...type.caption },

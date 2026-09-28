@@ -69,7 +69,8 @@ function mainItem(items: readonly BookableItem[]): BookableItem | null {
 }
 
 function mainQuantity(item: BookableItem): number {
-  if (item.unit === 'per_kg') return clampWeight(item.quantity);
+  // A per-load flat line carries its kilos too; only pieces are whole numbers.
+  if (item.unit !== 'per_item') return clampWeight(item.quantity);
   return Math.max(1, Math.round(item.quantity));
 }
 
@@ -91,7 +92,8 @@ export function rebookDraft(order: RebookOrder): RebookDraft | null {
   const itemNames: Record<string, string> = {};
   for (const item of items) {
     itemNames[item.service_id] = item.service_name;
-    if (item !== main) addOns[item.service_id] = item.quantity;
+    // Summed: a flat extra booked several times arrives as one line per piece.
+    if (item !== main) addOns[item.service_id] = (addOns[item.service_id] ?? 0) + item.quantity;
   }
 
   const { preferences, riderNotes } = parseBookingNotes(order.notes ?? '');

@@ -13,8 +13,9 @@
  */
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Button, colors, elevation, formatMoney, mono, space, type } from '@/components/ui-kit';
 import { orderPhotoUrl } from '@/lib/api';
@@ -47,6 +48,8 @@ export function PaymentClaimCard({
     // before the link dies.
     staleTime: 45 * 60 * 1000,
   });
+  // The thumbnail is cropped; the reference has to be read off the full receipt.
+  const [isProofOpen, setIsProofOpen] = useState(false);
 
   const reference = claim.reference
     ? `, reference ${claim.reference}`
@@ -82,12 +85,43 @@ export function PaymentClaimCard({
       </Text>
 
       {proofUrl ? (
-        <Image
-          source={{ uri: proofUrl }}
-          style={styles.proof}
-          contentFit="cover"
-          accessibilityLabel="Receipt the customer uploaded"
-        />
+        <Pressable
+          accessibilityRole="imagebutton"
+          accessibilityLabel="Receipt the customer uploaded. View full size"
+          onPress={() => setIsProofOpen(true)}
+        >
+          <Image source={{ uri: proofUrl }} style={styles.proof} contentFit="cover" />
+          <View style={styles.enlarge}>
+            <Ionicons name="expand" size={14} color="#FFFFFF" />
+            <Text style={styles.enlargeText}>View receipt</Text>
+          </View>
+        </Pressable>
+      ) : null}
+
+      {proofUrl ? (
+        <Modal
+          visible={isProofOpen}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setIsProofOpen(false)}
+        >
+          <Pressable
+            style={styles.viewer}
+            accessibilityRole="button"
+            accessibilityLabel="Close receipt"
+            onPress={() => setIsProofOpen(false)}
+          >
+            <Image
+              source={{ uri: proofUrl }}
+              style={styles.viewerImage}
+              contentFit="contain"
+              accessibilityLabel="Receipt the customer uploaded"
+            />
+            <View style={styles.viewerClose}>
+              <Ionicons name="close" size={24} color="#FFFFFF" />
+            </View>
+          </Pressable>
+        </Modal>
       ) : null}
 
       {onConfirm ? (
@@ -144,4 +178,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: colors.sunken,
   },
+  enlarge: {
+    position: 'absolute',
+    right: space.snug,
+    bottom: space.snug,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: space.snug,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(20, 33, 46, 0.72)',
+  },
+  enlargeText: { ...type.caption, color: '#FFFFFF' },
+
+  viewer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: space.room,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+  },
+  viewerImage: { width: '100%', height: '100%' },
+  viewerClose: { position: 'absolute', top: space.gulf, right: space.room, padding: space.snug },
 });

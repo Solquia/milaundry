@@ -1,13 +1,12 @@
 import {
   BOARD_VIEWS,
-  SOURCE_OPTIONS,
   boardCounts,
-  boardHeadline,
   boardOrders,
   groupByDay,
   matchesQuery,
   orderCardLabel,
   type BoardOrder,
+  type BoardView,
 } from '../order-board';
 
 const NOW = new Date('2026-09-06T14:30:00');
@@ -25,6 +24,8 @@ function order(overrides: Partial<BoardOrder>): BoardOrder {
     estimated_total: 440,
     final_total: null,
     created_at: '2026-09-06T09:00:00',
+    updated_at: '2026-09-06T09:00:00',
+    deliver_by: null,
     ...overrides,
   };
 }
@@ -38,25 +39,45 @@ const ORDERS: BoardOrder[] = [
 ];
 
 describe('views', () => {
-  it('offers the five views the counter actually switches between', () => {
-    expect(BOARD_VIEWS.map((v) => v.key)).toEqual(['active', 'ready', 'unpaid', 'done', 'all']);
-    expect(SOURCE_OPTIONS.map((s) => s.key)).toEqual(['all', 'walk_in', 'online']);
+  it('offers the views the counter actually switches between', () => {
+    expect(BOARD_VIEWS).toEqual(['active', 'overdue', 'working', 'ready', 'stuck', 'collect', 'done', 'all']);
   });
 
-  it('counts each view so the chips can say how many are behind them', () => {
-    expect(boardCounts(ORDERS)).toEqual({ active: 3, ready: 1, unpaid: 1, done: 2, all: 5 });
+  it('counts each view so the tiles can say how many are behind them', () => {
+    expect(boardCounts(ORDERS, NOW)).toEqual({
+      active: 3,
+      overdue: 0,
+      working: 2,
+      ready: 1,
+      stuck: 0,
+      collect: 0,
+      done: 2,
+      all: 5,
+    });
+  });
+
+  it('keeps stuck orders out of the live queue and gives them a view of their own', () => {
+    const orders = [
+      ...ORDERS,
+      order({ id: 'stuck', updated_at: '2026-08-20T09:00:00' }),
+      order({ id: 'over', updated_at: '2026-09-05T09:00:00' }),
+    ];
+    const ids = (view: BoardView) => boardOrders(orders, { view, query: '' }, NOW).map((o) => o.id);
+    expect(ids('stuck')).toEqual(['stuck']);
+    expect(ids('overdue')).toEqual(['over']);
+    expect(ids('active')).toEqual(['a', 'b', 'e', 'over']);
   });
 
   it('filters by view', () => {
-    expect(boardOrders(ORDERS, { view: 'active', source: 'all', query: '' }).map((o) => o.id)).toEqual(['a', 'b', 'e']);
-    expect(boardOrders(ORDERS, { view: 'ready', source: 'all', query: '' }).map((o) => o.id)).toEqual(['b']);
-    expect(boardOrders(ORDERS, { view: 'unpaid', source: 'all', query: '' }).map((o) => o.id)).toEqual(['a']);
-    expect(boardOrders(ORDERS, { view: 'done', source: 'all', query: '' }).map((o) => o.id)).toEqual(['c', 'd']);
+    const ids = (view: BoardView) => boardOrders(ORDERS, { view, query: '' }, NOW).map((o) => o.id);
+    expect(ids('working')).toEqual(['a', 'e']);
+    expect(ids('ready')).toEqual(['b']);
+    expect(ids('done')).toEqual(['c', 'd']);
   });
 
-  it('narrows further by where the order came from', () => {
-    expect(boardOrders(ORDERS, { view: 'all', source: 'online', query: '' }).map((o) => o.id)).toEqual(['b']);
-    expect(boardOrders(ORDERS, { view: 'active', source: 'walk_in', query: '' }).map((o) => o.id)).toEqual(['a', 'e']);
+  it('asks for money only on laundry that is ready or gone', () => {
+    const orders = [order({ id: 'w' }), order({ id: 'r', status: 'ready' }), order({ id: 'x', status: 'completed' })];
+    expect(boardOrders(orders, { view: 'collect', query: '' }, NOW).map((o) => o.id)).toEqual(['r', 'x']);
   });
 });
 
@@ -81,36 +102,11 @@ describe('search', () => {
   });
 
   it('search runs across every view', () => {
-    const found = boardOrders(ORDERS, { view: 'all', source: 'all', query: '#c' });
+    const found = boardOrders(ORDERS, { view: 'all', query: '#c' }, NOW);
     expect(found.map((o) => o.id)).toEqual(['c']);
   });
 });
 
-describe('the headline', () => {
-  it('says what is in the shop and what is still owed', () => {
-    expect(boardHeadline(ORDERS)).toEqual({
-      inShop: 3,
-      ready: 1,
-      toCollect: 440,
-      title: '3 in the shop',
-      detail: '1 ready for pickup · ₱440.00 to collect',
-    });
-  });
-
-  it('reads as good news when nothing is pending', () => {
-    expect(boardHeadline([order({ status: 'completed', payment_status: 'paid' })])).toEqual({
-      inShop: 0,
-      ready: 0,
-      toCollect: 0,
-      title: 'Nothing in the shop',
-      detail: 'Everyone has paid',
-    });
-  });
-
-  it('drops the ready clause when nobody is waiting', () => {
-    expect(boardHeadline([order({ status: 'washing' })]).detail).toBe('₱440.00 to collect');
-  });
-});
 
 describe('grouping by day', () => {
   it('splits the list into today, yesterday, and named days, newest first', () => {

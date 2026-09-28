@@ -56,6 +56,20 @@ function goneSince(serviceName: string): CatalogProblem {
 }
 
 /**
+ * The shop flipped its sign or blocked the day: say so in its own words, and
+ * that it is temporary — "pick another laundry shop" would be wrong advice
+ * for a lunch break.
+ */
+function closedForNow(sign: { label: string; detail: string | null }): CatalogProblem {
+  const detail = sign.detail ? `${sign.detail.charAt(0).toUpperCase()}${sign.detail.slice(1)}. ` : '';
+  return {
+    title: sign.label === 'Closed today' ? 'This shop is closed today' : 'This shop is closed for now',
+    body: `${detail}You can book once it reopens.`,
+    canRetry: false,
+  };
+}
+
+/**
  * The problem blocking the booking screen, or null when it can render.
  *
  * A load failure outranks a missing service: when the price list never arrived,
@@ -76,11 +90,17 @@ export function describeCatalogProblem(input: {
    * through to a blank booking the customer did not ask for.
    */
   rebookLoadError?: Error | null;
+  /**
+   * Set when the shop's sign on the door refuses orders right now — paused,
+   * or a closed day — with what the sign says (`domain/shop-availability`).
+   */
+  closedSign?: { label: string; detail: string | null } | null;
 }): CatalogProblem | null {
   if (!input.hasShopId) return LOST_SHOP;
   if (input.loadError) return CANNOT_LOAD_PRICES;
   if (input.rebookLoadError) return REBOOK_UNLOADED;
   if (input.isShopAvailable === false) return SHOP_UNAVAILABLE;
+  if (input.closedSign) return closedForNow(input.closedSign);
   if (!input.isServiceFound) {
     return input.rebookServiceName ? goneSince(input.rebookServiceName) : OFF_MENU;
   }

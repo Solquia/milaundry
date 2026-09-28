@@ -7,7 +7,7 @@
  * deciding whether to walk there does not want a link; they want to see the
  * street. `domain/map-tiles` does the arithmetic, this draws it, and it draws
  * the same on either platform, so a build with no maps module gets a real map
- * instead of an apology. The pictures come from Carto, not from OSM's own
+ * instead of an apology. The pictures come from MapTiler, not from OSM's own
  * volunteer servers, which block this app.
  *
  * The tiles are washed toward the shop's own colour. A raster basemap is grey
@@ -47,6 +47,12 @@ const BRAND_WASH = 0.13;
 /** A second, paler wash that lifts the map so the first one reads as light. */
 const LIFT = 0.07;
 const TILE_PX = 256;
+/**
+ * Public by design, locked to our origins in the MapTiler dashboard. With no
+ * key there is nothing to fetch, so the field colour stands in for the streets
+ * rather than a grid of "API key required" pictures.
+ */
+const MAP_TILE_KEY = process.env.EXPO_PUBLIC_MAPTILER_KEY ?? '';
 
 export function ShopMap({ pin, theme, height, label, zoom = SHOP_MAP_ZOOM }: ShopMapProps) {
   // The box is only known once it has been laid out, and every tile address
@@ -62,7 +68,7 @@ export function ShopMap({ pin, theme, height, label, zoom = SHOP_MAP_ZOOM }: Sho
       accessibilityLabel={label}
     >
       <View style={[styles.tiles, TINT_FILTER]} {...TILE_MARK}>
-        {mosaic.tiles.map((tile, index) => (
+        {(MAP_TILE_KEY ? mosaic.tiles : []).map((tile, index) => (
           <AssemblingTile key={tile.key} tile={tile} order={index} />
         ))}
       </View>
@@ -151,7 +157,7 @@ function AssemblingTile({ tile, order }: { tile: PlacedTile; order: number }) {
       ]}
     >
       <Image
-        source={{ uri: tileUrl(tile) }}
+        source={{ uri: tileUrl(tile, MAP_TILE_KEY) }}
         style={styles.tileImage}
         contentFit="cover"
         cachePolicy="disk"

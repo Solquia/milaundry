@@ -9,6 +9,8 @@ import { OrderHero } from '@/components/order-hero';
 import { OrderHolderCard } from '@/components/order-holder-card';
 import { OrderLines } from '@/components/order-lines';
 import { OrderTimeline } from '@/components/order-timeline';
+import { SentPrice, WeighModal, settleLead } from '@/components/price-handoff';
+import { TagPrintRow } from '@/components/tag-print-row';
 import {
   Button,
   Card,
@@ -23,7 +25,7 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
-import { WeighSheet } from '@/components/weigh-sheet';
+import { PriceCheckSheet } from '@/components/price-check-sheet';
 import {
   getOrder,
   getOrderHistory,
@@ -35,6 +37,8 @@ import { changeFor } from '@/lib/domain/cash-payment';
 import { cancelOrderPrompt, markPaidPrompt } from '@/lib/domain/confirm-prompts';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { shortOrderId } from '@/lib/domain/order-card';
+import { isHeldForPayment, settleStep } from '@/lib/domain/order-settlement';
+import { canWeigh } from '@/lib/domain/weigh-order';
 import { advanceActionLabel, nextStatuses, type OrderStatus } from '@/lib/domain/order-status';
 import { proofState } from '@/lib/domain/payment-proof';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
@@ -61,6 +65,7 @@ export default function MerchantOrderDetail() {
   const [receipt, setReceipt] = useState('');
   const [isPending, setIsPending] = useState(false);
   const [method, setMethod] = useState<PaymentMethod | null>(null);
+  const [isWeighOpen, setIsWeighOpen] = useState(false);
 
   const {
     data: order,
@@ -153,9 +158,13 @@ export default function MerchantOrderDetail() {
   const total = order.final_total ?? order.estimated_total;
   const qrValue = buildOrderQr(order.id, order.claim_token);
   const forward = nextStatuses(order.status);
-  const advance = forward.filter((to) => to !== 'cancelled');
+  // An online load stays out of the machines until the price is confirmed and
+  // the customer's payment is in. The server refuses the same move.
+  const advance = isHeldForPayment(order) ? [] : forward.filter((to) => to !== 'cancelled');
   const canCancel = forward.includes('cancelled');
   const selectedMethod = method ?? order.payment_method;
+  const step = settleStep(order);
+  const lead = settleLead(step, order);
 
   const confirmMarkPaid = (tendered?: number) => {
     const prompt = markPaidPrompt(total, PAYMENT_LABELS[selectedMethod], tendered);
@@ -171,14 +180,33 @@ export default function MerchantOrderDetail() {
 
   // The next step lives in a pinned footer: it is the one decision this
   // screen exists to support, and it must not scroll away under six cards.
+  // Until an online order is paid, the footer walks the money, not the wash:
+  // confirm the price → wait for the customer → confirm their payment → wash.
+  // A walk-in keeps washing as a secondary button beside the price check.
+  const isWeighStep = step === 'confirm_price';
+  const isAwaitingPayment = step === 'await_customer' && advance.length === 0;
+  const isReceiptIn = step === 'check_receipt';
+  const moneyStep = isWeighStep ? (
+    <Button title="Confirm actual price" onPress={() => setIsWeighOpen(true)} disabled={isPending} />
+  ) : isReceiptIn ? (
+    <Button
+      title={isPending ? 'Saving…' : 'Payment received — confirm'}
+      onPress={() => confirmMarkPaid()}
+      disabled={isPending}
+    />
+  ) : isAwaitingPayment ? (
+    <Button title="Waiting for the customer to pay" onPress={() => undefined} disabled />
+  ) : null;
   const footer =
-    advance.length > 0 ? (
+    advance.length > 0 || moneyStep ? (
       <View style={styles.footer}>
         <ErrorText>{error}</ErrorText>
+        {moneyStep}
         {advance.map((to) => (
           <Button
             key={to}
             title={isPending ? 'Saving…' : advanceActionLabel(to)}
+            variant={moneyStep ? 'outline' : 'primary'}
             onPress={() => handleTransition(to)}
             disabled={isPending}
           />
@@ -200,16 +228,31 @@ export default function MerchantOrderDetail() {
       <OrderTimeline status={order.status} history={history ?? []} now={now} />
       <OrderLines order={order} now={now} />
 
-      {/* Sits above Payment deliberately: the price has to be true before it
-          can be collected, and an owner works down the screen in that order. */}
-      <Card>
-        <WeighSheet order={order} onWeighed={() => setMethod(null)} />
-      </Card>
+      {/* The first weighing opens from the footer; this card stays for a
+          correction once a price has been sent. */}
+      {isWeighStep || !canWeigh(order) ? null : (
+        <Card>
+          <PriceCheckSheet order={order} onConfirmed={() => setMethod(null)} />
+        </Card>
+      )}
+      <WeighModal
+        order={order}
+        isVisible={isWeighOpen}
+        onClose={() => setIsWeighOpen(false)}
+        onWeighed={() => {
+          setIsWeighOpen(false);
+          setMethod(null);
+          refresh();
+        }}
+      />
 
       <Card>
         <Text style={styles.cardHeading}>Payment</Text>
         {proofState(order) === 'submitted' && <ProofReview order={order} />}
-        {order.payment_status === 'paid' ? (
+        {step === 'await_customer' ? <SentPrice order={order} /> : null}
+        {lead ? (
+          <Subtle>{lead}</Subtle>
+        ) : order.payment_status === 'paid' ? (
           <>
             <Subtle>{PAYMENT_LABELS[order.payment_method]} · paid</Subtle>
             {receipt ? (
@@ -253,6 +296,21 @@ export default function MerchantOrderDetail() {
         {!printer.saved && printer.state.kind !== 'error' ? (
           <Subtle>{printerCopy(printer.state).caption}</Subtle>
         ) : null}
+      </Card>
+
+      <Card>
+        <Text style={styles.cardHeading}>Bag tags</Text>
+        <Subtle>
+          One tag per bag, with the customer&apos;s name and number. The QR on it opens this order
+          for your shop only; it cannot claim the order, so it is safe on the bag.
+        </Subtle>
+        <TagPrintRow
+          isPrinting={printer.state.kind === 'printing'}
+          disabled={!printer.saved}
+          onPrint={(count) =>
+            printer.printTags(order, { name: activeShop?.name ?? order.shop?.name ?? 'MiLaundry' }, count)
+          }
+        />
       </Card>
 
       {order.customer_id === null && (

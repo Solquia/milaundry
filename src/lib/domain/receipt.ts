@@ -20,7 +20,7 @@ import { actualBill } from './actual-bill';
 import { docketNumber, stampLabel } from './docket';
 import * as esc from './escpos';
 import { roundCentavos } from './money';
-import { formatQuantity } from './price-label';
+import { formatQuantity, lineQuantity } from './price-label';
 import { buildOrderQr } from './qr';
 
 export type PaperColumns = 32 | 48;
@@ -72,7 +72,7 @@ function pad2(n: number): string {
 }
 
 /** "06 Sep 2026 10:15" in the phone's own zone; the printer has no clock of its own. */
-function whenLabel(iso: string): string {
+export function whenLabel(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return `${pad2(d.getDate())} ${MONTHS[d.getMonth()]} ${d.getFullYear()} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
@@ -90,10 +90,17 @@ function header(shop: ReceiptShop): ReceiptLine[] {
   return lines;
 }
 
+/** `5 kg x 60.00`; a flat line reads as one charge, with its load when it has one. */
+function receiptQuantity(item: OrderWithDetails['order_items'][number]): string {
+  if (item.unit !== 'flat') return `${formatQuantity(item.unit, item.quantity)} x ${moneyPlain(item.unit_price)}`;
+  const load = lineQuantity(item.unit, item.quantity);
+  return load ? `${load}, flat rate` : 'Flat rate';
+}
+
 function items(order: OrderWithDetails, columns: number): ReceiptLine[] {
   return order.order_items.flatMap((item) => [
     text(twoColumn(item.service_name, moneyPlain(item.subtotal), columns)),
-    text(`  ${formatQuantity(item.unit, item.quantity)} x ${moneyPlain(item.unit_price)}`),
+    text(`  ${receiptQuantity(item)}`),
   ]);
 }
 

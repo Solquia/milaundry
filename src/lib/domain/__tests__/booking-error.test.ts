@@ -171,3 +171,36 @@ describe('a rebook whose order will not load', () => {
     expect(describeCatalogProblem({ ...base, rebookLoadError: null })).toBeNull();
   });
 });
+describe('a shop whose sign says closed', () => {
+  const base = { hasShopId: true, loadError: null, isServiceFound: true };
+
+  it('says it is closed for now, in the sign\'s own words, and that it is temporary', () => {
+    const problem = describeCatalogProblem({
+      ...base,
+      closedSign: { label: 'Closed for now', detail: 'back 3:00 PM' },
+    });
+    expect(problem).toEqual({
+      title: 'This shop is closed for now',
+      body: 'Back 3:00 PM. You can book once it reopens.',
+      canRetry: false,
+    });
+  });
+
+  it('names a closed day as today', () => {
+    const problem = describeCatalogProblem({
+      ...base,
+      closedSign: { label: 'Closed today', detail: null },
+    });
+    expect(problem?.title).toBe('This shop is closed today');
+    expect(problem?.body).toBe('You can book once it reopens.');
+  });
+
+  it('a shop off MiLaundry outranks its sign', () => {
+    const problem = describeCatalogProblem({
+      ...base,
+      isShopAvailable: false,
+      closedSign: { label: 'Closed for now', detail: null },
+    });
+    expect(problem?.title).toBe("This shop isn't taking bookings");
+  });
+});

@@ -47,6 +47,19 @@ describe('connectedShopTiles logo', () => {
   });
 });
 
+describe('connectedShopTiles cover', () => {
+  it('carries the storefront photo through for the home rail', () => {
+    const { tiles } = connectedShopTiles([{ ...sparkle, cover_url: 'https://cdn/front.jpg' }]);
+
+    expect(tiles[0].cover_url).toBe('https://cdn/front.jpg');
+  });
+
+  it('reports the empty string the database defaults to as null', () => {
+    expect(connectedShopTiles([{ ...sparkle, cover_url: '  ' }]).tiles[0].cover_url).toBeNull();
+    expect(connectedShopTiles([bubbles]).tiles[0].cover_url).toBeNull();
+  });
+});
+
 describe('connectedShopTiles', () => {
   it('shows a shop on the home tab as soon as the customer connects to it', () => {
     const { tiles } = connectedShopTiles([sparkle]);
@@ -59,6 +72,7 @@ describe('connectedShopTiles', () => {
         initials: 'SL',
         brand_accent: null,
         logo_url: null,
+        cover_url: null,
       },
     ]);
   });

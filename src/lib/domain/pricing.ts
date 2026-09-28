@@ -7,6 +7,23 @@ export interface Service {
   price: number;
   /** Minimum billable quantity (e.g. 5 kg minimum). 0/absent = no minimum. */
   min_quantity?: number;
+  /** Most a single load may weigh, in kg. 0/absent = no limit. Informational. */
+  max_quantity?: number;
+}
+
+/**
+ * Whether the customer books this by weight: per kilo, or a flat price sold
+ * per load (a load limit set). Everything else is counted in pieces.
+ *
+ * Bedding is the exception: a flat comforter "max 4 kg" is a limit on each
+ * piece, not a load, so it stays counted.
+ */
+export function isWeighed(
+  service: Pick<Service, 'unit' | 'max_quantity'> & { category?: string }
+): boolean {
+  if (service.unit === 'per_kg') return true;
+  if (service.category === 'special_items') return false;
+  return service.unit === 'flat' && (service.max_quantity ?? 0) > 0;
 }
 
 export interface OrderItemInput {

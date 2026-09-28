@@ -1,33 +1,39 @@
 /**
- * The head of the booking screen: the service you tapped, as a machine you
- * are loading.
+ * The head of the booking screen: the service you tapped, big.
  *
  * It used to be the shelf card, opened — a white well with the drawing in it,
  * a chip repeating the name, and the name again underneath. Correct, and a
  * third of the first screen spent restating what the customer had just
  * pressed, with the one control that mattered pushed under the footer.
  *
- * Now it is a band of the service's own colour with the washer door on it,
- * and the door is live: the water rises as kilos go on the scale below, the
- * load tumbles on each change, and the door's display reads back the weight.
- * The first thing the customer touches visibly does something up here.
+ * Now it is a band of the service's own colour with the thing itself — the
+ * folded pile, the iron, the garment bag — standing in the corner and running
+ * off it, the same object the shelf card showed. It hops each time the
+ * weight on the scale below changes, and the weight reads back in the corner,
+ * so the first thing the customer touches visibly does something up here.
  */
 import React, { useEffect, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Path, RadialGradient, Rect, Stop } from 'react-native-svg';
 
-import { portholeLevel } from '@/lib/domain/porthole';
 import { formatPriceLine, formatQuantity } from '@/lib/domain/price-label';
 import { CATEGORY_LABELS } from '@/lib/domain/service-catalog';
+import { serviceLook } from '@/lib/domain/service-look';
+import { sceneFor } from '@/lib/domain/service-scene';
 import { showcaseTitle, showcaseTone } from '@/lib/domain/service-showcase';
 import type { ServiceRow } from '@/lib/types';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
-import { ServicePorthole } from './service-porthole';
+import { ServiceScene } from './service-scene';
 import { RADII, colors, fontFor, space, type } from './ui-kit';
 
-const DOOR_SIZE = 112;
 const HERO_MIN_HEIGHT = 156;
+/** The object's side, as a share of the band's height: big enough to run off the corner. */
+const ART_SHARE = 1.22;
+/** How far it runs off the right and the foot, as a share of its own side. */
+const ART_BLEED = 0.1;
+/** The object never takes more than this share of the band's width from the words. */
+const ART_MAX_WIDTH = 0.46;
 /** The navy the brand's deep end sinks toward. */
 const DEEP = '#0B1B2B';
 
@@ -76,6 +82,18 @@ export function BookingHero({ service, quantity }: { service: ServiceRow; quanti
     }).start();
   }, [isReduced, land]);
 
+  // Each change on the scale sets the load hopping once, as the door's tumble did.
+  const [hop] = useState(() => new Animated.Value(0));
+  const lastQuantity = React.useRef(quantity);
+  useEffect(() => {
+    if (lastQuantity.current === quantity) return;
+    lastQuantity.current = quantity;
+    if (isReduced) return;
+    hop.setValue(1);
+    Animated.spring(hop, { toValue: 0, damping: 6, stiffness: 200, mass: 0.7, useNativeDriver: true }).start();
+  }, [quantity, isReduced, hop]);
+
+  const artSize = Math.min(size.height * ART_SHARE, size.width * ART_MAX_WIDTH);
   const tone = showcaseTone(service.category);
   const title = showcaseTitle(service.name);
   const category = CATEGORY_LABELS[service.category];
@@ -130,7 +148,7 @@ export function BookingHero({ service, quantity }: { service: ServiceRow; quanti
         />
       </Svg>
 
-      <View style={styles.copy}>
+      <View style={[styles.copy, { marginRight: artSize * (1 - ART_BLEED) - space.cosy }]}>
         {!sameWords(category, title) && (
           <View style={styles.eyebrow}>
             <Text style={styles.eyebrowText}>{category}</Text>
@@ -151,29 +169,41 @@ export function BookingHero({ service, quantity }: { service: ServiceRow; quanti
         )}
       </View>
 
+      {/* The thing itself, big in the corner and running off it, as on the
+          shelf card the customer just tapped. */}
       <Animated.View
+        pointerEvents="none"
         style={[
-          styles.door,
+          styles.art,
           {
+            width: artSize,
+            height: artSize,
+            right: -artSize * ART_BLEED,
+            bottom: -artSize * ART_BLEED,
             opacity: land,
             transform: [
-              { translateY: land.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) },
-              { rotate: land.interpolate({ inputRange: [0, 1], outputRange: ['-24deg', '0deg'] }) },
+              { translateY: land.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) },
+              { translateY: hop.interpolate({ inputRange: [0, 1], outputRange: [0, -10] }) },
+              { rotate: hop.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '-4deg'] }) },
             ],
           },
         ]}
       >
-        <View style={styles.halo} />
-        <ServicePorthole
-          service={service}
-          size={DOOR_SIZE}
-          level={portholeLevel(service.unit, quantity)}
-          waterTint={tone.bg}
-          tumbleKey={quantity}
-          isSloshing={quantity > 0}
-          readout={readout}
+        <ServiceScene
+          scene={sceneFor(service.name, service.category)}
+          colorway={serviceLook(service.name, service.category).colorway}
+          brand={tone.bg}
+          surface="white"
         />
       </Animated.View>
+
+      {readout ? (
+        <View style={styles.readout}>
+          <Text style={styles.readoutText} numberOfLines={1}>
+            {readout}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -219,13 +249,25 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.45)',
   },
   termText: { ...type.caption, fontFamily: fontFor(600), color: colors.onAccent },
-  door: { width: DOOR_SIZE + 8, alignItems: 'center', justifyContent: 'center' },
-  /** The door sits in a pool of light, so it reads as lit rather than pasted on. */
-  halo: {
+  art: { position: 'absolute' },
+  /** What is on the scale, in the corner above the object: dark glass, white figures. */
+  readout: {
     position: 'absolute',
-    width: DOOR_SIZE + 22,
-    height: DOOR_SIZE + 22,
-    borderRadius: (DOOR_SIZE + 22) / 2,
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    top: space.cosy,
+    right: space.cosy,
+    paddingHorizontal: space.snug,
+    paddingVertical: 3,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.text,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.85)',
+  },
+  readoutText: {
+    ...type.caption,
+    fontSize: 12,
+    lineHeight: 15,
+    fontFamily: fontFor(800),
+    color: colors.onAccent,
+    fontVariant: ['tabular-nums'],
   },
 });

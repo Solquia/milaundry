@@ -6,10 +6,8 @@
  * book from.
  */
 import type { AddOnQuantities } from '@/lib/domain/booking-estimate';
-import type { Slot } from '@/lib/domain/booking-slot';
 import {
   MIN_BOOKING_WEIGHT_KG,
-  suggestSchedule,
   validateBookingLoad,
   validateDeliveryAddress,
 } from '@/lib/domain/booking-validation';
@@ -18,18 +16,19 @@ import {
   type LaundryPreferences,
   type PreferenceKey,
 } from '@/lib/domain/laundry-preferences';
+import { isWeighed } from '@/lib/domain/pricing';
 import type { RebookDraft } from '@/lib/domain/rebook';
+import {
+  DEFAULT_SHOP_HOURS,
+  addDays,
+  shopSlotOf,
+  shopToday,
+  suggestSchedule,
+  type ShopHours,
+  type Slot,
+} from '@/lib/domain/rider-calendar';
 import type { Fulfillment } from '@/lib/domain/walk-in-order';
 import type { ServiceRow } from '@/lib/types';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-/** A concrete Date from "N days from today at H o'clock". */
-export function slotDate(dayOffset: number, hour: number): Date {
-  const date = new Date(Date.now() + dayOffset * DAY_MS);
-  date.setHours(hour, 0, 0, 0);
-  return date;
-}
 
 export type SlotValue = Slot;
 export type BookingStep = 'items' | 'schedule' | 'review';
@@ -43,12 +42,6 @@ export const BOOKING_STEPS = [
   { key: 'schedule', label: 'Schedule' },
   { key: 'review', label: 'Review' },
 ] as const satisfies readonly { key: BookingStep; label: string }[];
-
-/** A day's hour kept when it is still on offer, else the next one that is. */
-export function snapToOpen(slot: SlotValue, hours: readonly number[]): SlotValue {
-  if (hours.length === 0 || hours.includes(slot.hour)) return slot;
-  return { ...slot, hour: hours.find((hour) => hour > slot.hour) ?? hours[0] };
-}
 
 /** What the booking opens with: last time's order, or the customer's usual. */
 export interface BookingSeed {
@@ -67,11 +60,18 @@ export interface BookingSeed {
   rebook: { droppedNames: string[] } | null;
 }
 
-/** Only reached when no rider slot is open in the whole window. */
-const FALLBACK_SCHEDULE = {
-  pickup: { dayOffset: 1, hour: 10 },
-  deliver: { dayOffset: 2, hour: 10 },
-};
+/**
+ * Only reached when no rider window is open in the whole booking window — a
+ * shop closed every day. The schedule step then says so on every day it shows.
+ */
+function fallbackSchedule(now: Date, hours: ShopHours): { pickup: Slot; deliver: Slot } {
+  const today = shopToday(now, hours);
+  const hour = hours.windowStarts[0] ?? 10;
+  return {
+    pickup: { day: addDays(today, 1), hour },
+    deliver: { day: addDays(today, 2), hour },
+  };
+}
 
 export function seedBooking(input: {
   draft: RebookDraft | null;
@@ -82,12 +82,17 @@ export function seedBooking(input: {
   service: ServiceRow;
   services: readonly ServiceRow[];
   now: Date;
+  /** How the shop runs its riders; the default until shops can set their own. */
+  hours?: ShopHours;
 }): BookingSeed {
   const { draft, service, services, now } = input;
+  const hours = input.hours ?? DEFAULT_SHOP_HOURS;
+  // Last time's hour on the shop's clock, not the phone's: a customer who
+  // travelled since would otherwise be offered a window that never existed.
   const previousHour = input.previousPickupAt
-    ? new Date(input.previousPickupAt).getHours()
+    ? shopSlotOf(new Date(input.previousPickupAt), hours).hour
     : undefined;
-  const schedule = suggestSchedule(now, previousHour) ?? FALLBACK_SCHEDULE;
+  const schedule = suggestSchedule(now, hours, previousHour) ?? fallbackSchedule(now, hours);
   const base = {
     preferences: limitToSupported(draft?.preferences ?? input.usual, input.supported),
     pickup: schedule.pickup,
@@ -101,7 +106,7 @@ export function seedBooking(input: {
       // The smallest load the shop takes, not zero: a scale that opens on a
       // weight nobody can book starts the customer on an error.
       weightKg:
-        service.unit === 'per_kg'
+        isWeighed(service)
           ? Math.max(MIN_BOOKING_WEIGHT_KG, service.min_quantity || 0)
           : 1,
       addOns: {},

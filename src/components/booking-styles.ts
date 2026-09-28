@@ -35,48 +35,6 @@ export const bookingStyles = StyleSheet.create({
   chipText: { ...type.label, color: colors.text },
   chipTextSelected: { color: colors.onAccent },
 
-  /** The schedule as one object with two rows, rather than two loose stacks. */
-  legGroup: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.sunken,
-    overflow: 'hidden',
-  },
-  legSeam: { height: 1, backgroundColor: colors.border },
-  /** 14pt label on 14+14 clears the 44pt touch minimum without a hitSlop. */
-  legRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.room - 2,
-  },
-  /** Open reads as the row the chips below belong to, not as a selection. */
-  legRowOpen: { backgroundColor: colors.actionSurface },
-  legLabel: { ...type.label, color: colors.subtle },
-  /** The answer. Right-aligned into whatever the label leaves, and the reason
-      the chips can stay closed. */
-  legValue: { ...type.label, flex: 1, textAlign: 'right', color: colors.text },
-  /** No side padding: the chips are rails, and a rail that stops short of the
-      edge looks like it has ended rather than scrolled. Their own 12 holds
-      them off the border. */
-  legPanel: {
-    gap: space.snug,
-    paddingTop: space.cosy,
-    paddingBottom: space.cosy,
-    backgroundColor: colors.actionSurface,
-  },
-  /** The wait, stated once for the pair: the label carries it, the sentence
-      spends the rest of the line explaining what it means. */
-  turnaroundRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: space.snug,
-    marginTop: -space.tight,
-  },
-  turnaroundLabel: { ...type.label, color: colors.actionInk },
-  turnaroundNote: { ...type.caption, color: colors.subtle, flexShrink: 1 },
 
   /** A condition on the price, not an announcement: it sits at caption weight
       and takes its blue from the ink that carries text, not the identity. */
@@ -110,9 +68,10 @@ export const bookingStyles = StyleSheet.create({
   buyBar: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   priceBlock: { flex: 1, minWidth: 0 },
   backAction: { width: 92 },
-  mainAction: { minWidth: 148 },
+  // Wide, like a food app's basket button: the one thing the bar is for.
+  mainAction: { flex: 1.2 },
   priceLabel: { ...type.caption, color: colors.subtle },
-  priceValue: { ...type.value, color: colors.text },
+  priceValue: { ...type.value, color: colors.actionInk },
   priceValueMuted: { color: colors.subtle },
   priceNote: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   /** The cart: what came off the shop's shelf, and what it adds. */
@@ -128,6 +87,7 @@ export const bookingStyles = StyleSheet.create({
   cartText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk, flex: 1 },
   cartAmount: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk },
   commitRow: { flexDirection: 'row', gap: space.snug },
+  commitHalf: { flex: 1 },
   headerBack: { marginLeft: space.snug, padding: space.tight },
 
   /** A review card's heading, with its way back to the step that asked. */

@@ -10,12 +10,13 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { OrderStub } from "@/components/order-stub";
+import { LaundryLine } from "@/components/laundry-line";
 import { ACCENTS, Loading, colors, space, type } from "@/components/ui-kit";
 import { GuestForm } from "@/components/web/guest-form";
 import { PageBand, WebShell, useWebLayout } from "@/components/web/web-shell";
 import { getMyOrders, getStorefront } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { useNow } from "@/lib/use-now";
 import { resolveAccent } from "@/lib/domain/shop-branding";
 import { storefrontTheme } from "@/lib/domain/web-theme";
 
@@ -35,6 +36,8 @@ export default function ShopOrdersPage() {
     queryFn: getMyOrders,
     enabled: Boolean(session),
   });
+
+  const now = useNow();
 
   if (isAuthLoading || storefront.isLoading) return <Loading />;
   const shop = storefront.data?.shop;
@@ -85,21 +88,19 @@ export default function ShopOrdersPage() {
           ) : mine.length === 0 ? (
             <Text style={styles.hint}>Nothing booked here yet.</Text>
           ) : (
-            /* The same stub the app's home draws, chop and all: one ticket,
-               whichever half of the product the customer is holding. */
-            <View style={styles.grid}>
-              {mine.map((order) => (
-                <View key={order.id} style={styles.slot}>
-                  <OrderStub
-                    order={order}
-                    shopName={shop?.name ?? "Laundry shop"}
-                    accent={accent}
-                    isLink
-                    onPress={() => router.push(`/track/${order.id}` as never)}
-                  />
-                </View>
-              ))}
-            </View>
+            /* The same list the app's home draws: what is ready first, then
+               what comes back soonest, finished loads last. */
+            <LaundryLine
+              orders={mine}
+              now={now}
+              isLink
+              shopFor={() => ({
+                name: shop?.name ?? "Laundry shop",
+                logoUrl: shop?.logo_url ?? null,
+                accent,
+              })}
+              onOpen={(order) => router.push(`/track/${order.id}` as never)}
+            />
           )}
         </View>
       </WebShell>
@@ -109,9 +110,6 @@ export default function ShopOrdersPage() {
 
 const styles = StyleSheet.create({
   body: { gap: space.cosy },
-  grid: { gap: space.cosy },
-  /** One ticket to a row: a stub torn in half is not a stub. */
-  slot: { width: "100%" },
   card: {
     flexGrow: 1,
     flexBasis: 280,

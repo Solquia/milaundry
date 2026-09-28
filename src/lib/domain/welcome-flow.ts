@@ -1,4 +1,4 @@
-import type { QrPayload } from './qr';
+import { type QrPayload, parseTagCode } from './qr';
 import type { SavedAccount } from './saved-accounts';
 import { type Role, homeRouteForRole } from './splash-gate';
 
@@ -158,15 +158,25 @@ export function fallbackRouteAfterFailedScan(scan: PendingScan): string {
 /** How long the camera waits after a bad read before it will read again. */
 export const SCAN_RETRY_MS = 1500;
 
-export type ScanProblem = 'not-ours' | 'inactive' | 'network';
+export type ScanProblem = 'not-ours' | 'shop-tag' | 'inactive' | 'network';
 
 export function scanProblem(kind: ScanProblem): string {
   switch (kind) {
     case 'not-ours':
       return "That isn't a MiLaundry code. Look for the one at the counter.";
+    case 'shop-tag':
+      return "That's the shop's tag for your bag. Scan the code on your receipt instead.";
     case 'inactive':
       return "This code isn't active any more. Ask the shop for a fresh one.";
     case 'network':
       return "We couldn't reach the shop just now. Check your signal and try again.";
   }
+}
+
+/**
+ * Why a code the customer scanner could not use was refused. A bag tag is
+ * ours but is not theirs to scan, and saying so beats "not a MiLaundry code".
+ */
+export function unknownCodeProblem(raw: string): ScanProblem {
+  return parseTagCode(raw) ? 'shop-tag' : 'not-ours';
 }

@@ -5,8 +5,10 @@ import { BrandingCard } from '@/components/branding-card';
 import { DoorbellCard } from '@/components/doorbell-card';
 import { PaymentRailsCard } from '@/components/payment-rails-card';
 import { PrinterCard } from '@/components/printer-card';
+import { ShopHoursCard } from '@/components/shop-hours-card';
 import { ShopLocationCard } from '@/components/shop-location-card';
 import { StaffCard } from '@/components/staff-card';
+import { StorefrontStyleCard } from '@/components/storefront-style-card';
 import { WebPageCard } from '@/components/web-page-card';
 import { ACCENTS, Button, Card, Loading, Screen, Subtle, colors, space, type } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
@@ -67,6 +69,8 @@ export default function MerchantSettings() {
       {/* Branding before payment: this is the card an owner comes looking for,
           and the one they will change more than once. */}
       {shop && isOwner ? <BrandingCard shop={shop} /> : null}
+      {shop && isOwner ? <StorefrontStyleCard shop={shop} /> : null}
+      {shop && isOwner ? <ShopHoursCard shop={shop} /> : null}
       {shop && isOwner ? <WebPageCard shop={shop} /> : null}
       {shop && isOwner ? <ShopLocationCard shop={shop} /> : null}
       {shop && isOwner ? <PaymentRailsCard shop={shop} /> : null}

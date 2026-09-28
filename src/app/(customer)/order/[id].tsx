@@ -5,6 +5,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { LaundryTracker } from '@/components/laundry-tracker';
 import { PaySheet } from '@/components/pay-sheet';
 import { ShopLogo } from '@/components/shop-logo';
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
@@ -15,10 +16,7 @@ import {
   ErrorText,
   Field,
   Loading,
-  STATUS_LABELS,
   Screen,
-  StatusBadge,
-  Subtle,
   colors,
   formatMoney,
   formatWhen,
@@ -40,6 +38,7 @@ import { resolveAccent } from '@/lib/domain/shop-branding';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import { canBookAgain, rebookHref } from '@/lib/domain/rebook';
 import { weighEvidence } from '@/lib/domain/weigh-evidence';
+import { lineLabel } from '@/lib/domain/price-label';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -47,10 +46,10 @@ import { supabase } from '@/lib/supabase';
  *
  * Big enough that a laundry's own artwork is legible as artwork — most of
  * these are badges with the shop's name lettered inside them, and below about
- * 80 the lettering is a smudge. Held under a third of the narrowest phone so
- * the letterhead never becomes the whole first screenful.
+ * 80 the lettering is a smudge. Held at that floor: the tracker above now owns
+ * the first screenful, and the receipt is the second thing read, not the first.
  */
-const LOGO_SIZE = 104;
+const LOGO_SIZE = 80;
 
 export default function CustomerOrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -155,11 +154,11 @@ export default function CustomerOrderDetail() {
 
   return (
     <Screen>
-      {/* The five-stage tracker used to sit here. Until the shop actually moves
-          an order through those stages, every load showed the same five grey
-          dots and the same sentence — a card whose entire job is to answer
-          "where is it" saying nothing the badge above had not already said.
-          The badge carries the state alone until the stages mean something. */}
+      {/* The answer to the question this screen is opened for — where is my
+          laundry — comes first and owns the top of the screen. It also carries
+          the history: every stop on its rail can be tapped for when it
+          happened, so there is no separate log card further down. */}
+      <LaundryTracker order={order} history={history ?? []} />
 
       {/* The estimate-vs-actual banners that used to sit here said the same
           thing as the bill card below, one screenful earlier. The bill names
@@ -218,7 +217,6 @@ export default function CustomerOrderDetail() {
           <Text style={[styles.letterheadName, { color: accent.ink }]} numberOfLines={2}>
             {shopName}
           </Text>
-          <StatusBadge status={order.status} />
         </View>
 
         <View style={styles.ticketBody}>
@@ -234,8 +232,7 @@ export default function CustomerOrderDetail() {
           {order.order_items.map((item) => (
             <View key={item.id} style={styles.itemLine}>
               <Text style={styles.itemName}>
-                {item.service_name} × {item.quantity}
-                {item.unit === 'per_kg' ? ' kg' : ''}
+                {lineLabel(item.service_name, item.unit, item.quantity)}
               </Text>
               {/* Leader dots, the way a printed bill carries the eye across a
                   gap it would otherwise lose its place in. Empty and
@@ -379,19 +376,6 @@ export default function CustomerOrderDetail() {
         </Card>
       )}
 
-      {/* "Status history" was the database's name for this, not the
-          customer's. They are not auditing a state machine; they are checking
-          what has happened to their clothes. */}
-      {history && history.length > 0 && (
-        <Card>
-          <Text style={styles.cardTitle}>What&apos;s happened so far</Text>
-          {history.map((entry) => (
-            <Subtle key={entry.id}>
-              {STATUS_LABELS[entry.to_status]} · {formatWhen(entry.created_at)}
-            </Subtle>
-          ))}
-        </Card>
-      )}
       <ErrorText>{error}</ErrorText>
 
       {/*

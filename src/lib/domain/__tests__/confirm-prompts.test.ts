@@ -1,5 +1,7 @@
 import {
   cancelOrderPrompt,
+  deactivateShopPrompt,
+  removeMemberPrompt,
   markPaidPrompt,
   removeServicePrompt,
   signOutPrompt,
@@ -64,5 +66,25 @@ describe('signOutPrompt', () => {
     expect(prompt.message).toContain('sign in again');
     expect(prompt.confirmLabel).toBe('Sign out');
     expect(prompt.dismissLabel).toBe('Stay signed in');
+  });
+});
+
+describe('removeMemberPrompt', () => {
+  it('names the person and the shop they lose access to', () => {
+    const prompt = removeMemberPrompt('Maria Santos', 'Sparkle Wash');
+    expect(prompt.title).toBe('Remove Maria Santos?');
+    expect(prompt.message).toContain('Sparkle Wash');
+    expect(prompt.confirmLabel).toBe('Remove access');
+    expect(prompt.dismissLabel).toBe('Keep them');
+  });
+});
+
+describe('deactivateShopPrompt', () => {
+  it('says customers stop being able to book', () => {
+    const prompt = deactivateShopPrompt('Sparkle Wash');
+    expect(prompt.title).toBe('Switch off Sparkle Wash?');
+    expect(prompt.message).toContain('book');
+    expect(prompt.confirmLabel).toBe('Switch off');
+    expect(prompt.dismissLabel).toBe('Keep it live');
   });
 });

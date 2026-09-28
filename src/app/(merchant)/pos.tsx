@@ -76,11 +76,18 @@ import { docketNumber } from '@/lib/domain/docket';
 import { shopRoleBadge } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { orderContact } from '@/lib/domain/order-contact';
-import { adjustQuantity, quantityCeiling } from '@/lib/domain/order-quantity';
+import { MAX_COUNTED_QUANTITY, adjustQuantity, quantityCeiling } from '@/lib/domain/order-quantity';
 import { placedScene } from '@/lib/domain/order-scene';
 import { paymentSummaryLine } from '@/lib/domain/payment-summary';
-import { tapTile, ticketCount, ticketCountLabel, untapTile } from '@/lib/domain/pos-ticket';
-import { estimateOrderTotal } from '@/lib/domain/pricing';
+import {
+  loadsFor,
+  tapTile,
+  ticketCount,
+  ticketCountLabel,
+  ticketLines,
+  untapTile,
+} from '@/lib/domain/pos-ticket';
+import { estimateOrderTotal, isWeighed } from '@/lib/domain/pricing';
 import { buildOrderQr } from '@/lib/domain/qr';
 import { groupServicesByCategory } from '@/lib/domain/service-catalog';
 import {
@@ -203,6 +210,11 @@ export default function Pos() {
 
   const [step, setStep] = useState<TillStep>('items');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
+  /**
+   * What a per-load line weighed. The ticket holds it as loads; the kilos are
+   * kept so reopening the scale starts from the weight, not from a guess.
+   */
+  const [loadWeights, setLoadWeights] = useState<Record<string, number>>({});
   const [category, setCategory] = useState<string>(ALL_CATEGORIES);
   const [weighing, setWeighing] = useState<ServiceRow | null>(null);
   const [intake, setIntake] = useState<WalkInInput>(EMPTY_INTAKE);
@@ -234,12 +246,10 @@ export default function Pos() {
   const pickedAddons = selectedAddons(shopAddons, addonPicks);
   const addonExtra = addonsTotal(shopAddons, addonPicks);
 
+  // Flat services go as one line each: the shop bills a flat line once.
   const selectedItems = useMemo(
-    () =>
-      Object.entries(quantities)
-        .filter(([, qty]) => qty > 0)
-        .map(([serviceId, quantity]) => ({ serviceId, quantity })),
-    [quantities]
+    () => ticketLines(services ?? [], quantities),
+    [services, quantities]
   );
   const count = ticketCount(quantities);
 
@@ -258,7 +268,7 @@ export default function Pos() {
 
   const printer = usePrinter();
 
-  const printLastOrder = async (orderId: string) => {
+  const printLastOrder = async (orderId: string, slip: 'receipt' | 'tag' = 'receipt') => {
     // The saved slip only holds the order row; the receipt wants its lines too.
     let full;
     try {
@@ -267,11 +277,14 @@ export default function Pos() {
       printer.reportError(friendlyMerchantError('open-order', err instanceof Error ? err.message : ''));
       return;
     }
-    await printer.printReceipt(full, {
+    const receiptShop = {
       name: shop?.name ?? 'MiLaundry',
       address: shop?.address,
       phone: shop?.phone,
-    });
+    };
+    // One tag for the bag at the till; more bags are tagged from the order screen.
+    if (slip === 'tag') await printer.printTags(full, receiptShop, 1);
+    else await printer.printReceipt(full, receiptShop);
   };
 
   const mutation = useMutation({
@@ -332,10 +345,9 @@ export default function Pos() {
 
   const handleAdjust = (service: ServiceRow, delta: number) => {
     haptic('select');
-    setQuantity(
-      service,
-      adjustQuantity(quantities[service.id] ?? 0, delta, quantityCeiling(service.unit))
-    );
+    // A flat service counts like pieces here; only a weighed line has a ceiling of its own.
+    const ceiling = isWeighed(service) ? quantityCeiling(service.unit) : MAX_COUNTED_QUANTITY;
+    setQuantity(service, adjustQuantity(quantities[service.id] ?? 0, delta, ceiling));
   };
 
   const handleRemove = (service: ServiceRow) => {
@@ -347,7 +359,13 @@ export default function Pos() {
   const handleWeighed = (kg: number) => {
     if (!weighing) return;
     haptic('select');
-    setQuantity(weighing, kg);
+    if (weighing.unit === 'flat') {
+      // Per load: the scale reads kilos, the ticket holds whole loads.
+      setLoadWeights((prev) => ({ ...prev, [weighing.id]: kg }));
+      setQuantity(weighing, loadsFor(weighing, kg));
+    } else {
+      setQuantity(weighing, kg);
+    }
     setWeighing(null);
   };
 
@@ -476,6 +494,16 @@ export default function Pos() {
                     flex={1}
                   />
                 ) : null}
+                {printer.saved ? (
+                  <BrandButton
+                    title="Tag"
+                    onPress={() => printLastOrder(lastOrder.id, 'tag')}
+                    disabled={printer.state.kind === 'printing'}
+                    fill={theme.brandSoft}
+                    ink={theme.brandInk}
+                    flex={1}
+                  />
+                ) : null}
               </View>
               {printer.state.kind === 'error' ? <ErrorText>{printer.state.message}</ErrorText> : null}
               <Pressable
@@ -511,10 +539,14 @@ export default function Pos() {
     );
   }
 
+  const held = weighing ? (quantities[weighing.id] ?? 0) : 0;
+  const weighingKg =
+    weighing && held > 0 ? (weighing.unit === 'flat' ? (loadWeights[weighing.id] ?? 0) : held) : 0;
+
   const scaleSheet = (
     <ScaleSheet
       service={weighing}
-      currentKg={weighing ? (quantities[weighing.id] ?? 0) : 0}
+      currentKg={weighingKg}
       onConfirm={handleWeighed}
       onRemove={() => weighing && handleRemove(weighing)}
       onClose={() => setWeighing(null)}

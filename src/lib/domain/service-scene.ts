@@ -22,6 +22,7 @@ export const SCENE_KEYS = [
   'basket',
   'shoes',
   'curtain',
+  'sofa',
 ] as const;
 
 export type SceneKey = (typeof SCENE_KEYS)[number];
@@ -40,6 +41,8 @@ interface SceneRule {
 const RULES: readonly SceneRule[] = [
   { keywords: ['dry clean', 'dryclean', 'barong', 'suit', 'gown', 'formal', 'coat'], scene: 'suit' },
   { keywords: ['iron', 'press', 'plantsa'], scene: 'iron' },
+  // Furniture before bedding: "Sofa & Mattress" is upholstery, not sheets.
+  { keywords: ['sofa', 'couch', 'mattress', 'carpet', 'upholster', 'rug'], scene: 'sofa' },
   {
     keywords: ['comforter', 'blanket', 'duvet', 'bed sheet', 'bedsheet', 'bedding', 'pillow', 'kumot'],
     scene: 'bed',
@@ -113,6 +116,17 @@ function shift(rgb: readonly [number, number, number], amount: number): string {
     rgb[1] + (target - rgb[1]) * weight,
     rgb[2] + (target - rgb[2]) * weight,
   ]);
+}
+
+/**
+ * A colour lifted toward white (amount > 0) or sunk toward black (< 0).
+ *
+ * The drawings shade every material from its own colour with this, so a coral
+ * sweater and a denim fold turn away from the lamp in their own hue rather
+ * than under one grey wash.
+ */
+export function mixTone(colour: string, amount: number): string {
+  return shift(channels(colour), Math.max(-1, Math.min(1, amount)));
 }
 
 /**
@@ -190,6 +204,8 @@ const PALETTES: Record<SceneKey, ScenePalette> = {
   // A trainer: pale mesh over a navy body, with an orange flash.
   shoes: { light: '#F2F5F8', base: '#8FA3BA', shade: '#4C6280', deep: '#22303F', accent: '#F5821F' },
   // Curtains: a soft warm fabric, the folds carrying the light.
+  // An armchair in camel upholstery, with a coral cushion.
+  sofa: { light: '#F2DDBE', base: '#D8B083', shade: '#A8804F', deep: '#6B4E2C', accent: '#E2574C' },
   curtain: { light: '#FBF2E4', base: '#E4CDAA', shade: '#B79A72', deep: '#6F5C41', accent: '#4EA391' },
 };
 

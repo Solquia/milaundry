@@ -54,7 +54,7 @@ function cardFor(order: AttentionOrder): AttentionCard | null {
         orderId: order.id,
         kind: 'pay',
         title: `${formatMoney(order.final_total ?? 0)} to pay`,
-        body: `${order.shopName} weighed your laundry — see the photo and settle the bill.`,
+        body: `${order.shopName} checked your laundry — see the photo and pay online so they can start washing.`,
         icon: 'cash-outline',
       };
     case 'awaiting_counter':

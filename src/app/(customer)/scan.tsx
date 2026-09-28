@@ -3,12 +3,13 @@ import { useRouter } from 'expo-router';
 import React, { useRef, useState } from 'react';
 import { Platform, StyleSheet } from 'react-native';
 
+import { PhotoCodeButton } from '@/components/photo-code-button';
 import { TypedCodeForm } from '@/components/typed-code-form';
 import { Button, ErrorText, Screen, Subtle, Title } from '@/components/ui-kit';
 import { parseQrPayload } from '@/lib/domain/qr';
 import { scanEntryMode } from '@/lib/domain/scan-entry';
 import { routeAfterScan, scanFailure, scanHint } from '@/lib/domain/scan-outcome';
-import { SCAN_RETRY_MS, scanProblem } from '@/lib/domain/welcome-flow';
+import { SCAN_RETRY_MS, scanProblem, unknownCodeProblem } from '@/lib/domain/welcome-flow';
 import { useSignedInScan } from '@/lib/use-signed-in-scan';
 
 /**
@@ -39,7 +40,7 @@ export default function ScanQr() {
 
     const scan = parseQrPayload(data);
     if (!scan) {
-      fail(scanProblem('not-ours'));
+      fail(scanProblem(unknownCodeProblem(data)));
       return;
     }
 
@@ -51,11 +52,18 @@ export default function ScanQr() {
     }
   };
 
-  // The browser cannot decode a code, so the link under it is typed instead.
+  // A photo of the code works everywhere, so nobody has to hold a camera up.
+  const photoButton = (
+    <PhotoCodeButton onCode={(raw) => void handleScanned({ data: raw })} onProblem={setError} />
+  );
+
+  // The browser has no live scanner, so the link under the code is typed —
+  // or the code is read from a photo of it.
   if (scanEntryMode(Platform.OS) === 'typed') {
     return (
       <Screen>
         <TypedCodeForm onCode={(raw) => void handleScanned({ data: raw })} problem={error} />
+        {photoButton}
       </Screen>
     );
   }
@@ -71,6 +79,8 @@ export default function ScanQr() {
           on your receipt.
         </Subtle>
         <Button title="Allow camera" onPress={requestPermission} />
+        {photoButton}
+        <ErrorText>{error}</ErrorText>
       </Screen>
     );
   }
@@ -84,6 +94,7 @@ export default function ScanQr() {
       />
       <Subtle>{scanHint()}</Subtle>
       <ErrorText>{error}</ErrorText>
+      {photoButton}
     </Screen>
   );
 }

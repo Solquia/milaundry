@@ -53,6 +53,15 @@ export function claimUrl(orderId: string, token: string, host: string = webHost(
 }
 
 /**
+ * The bag tag code: the order's id and nothing else. It is for the shop's own
+ * scanner, which opens the order through the shop's session; with no token on
+ * it, a stranger who picks up the bag cannot claim the load.
+ */
+export function tagUrl(orderId: string, host: string = webHost()): string {
+  return `https://${host}/tag/${orderId}`;
+}
+
+/**
  * The path segments the app claims on the web host. Android and iOS open the
  * app for these and leave every other path (`/s`, `/track`) to the browser.
  * `app.json` and `public/.well-known` must list exactly these; a test holds

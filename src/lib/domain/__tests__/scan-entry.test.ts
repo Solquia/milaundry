@@ -1,4 +1,10 @@
-import { parseTypedCode, scanEntryMode, typedCodeCopy } from '../scan-entry';
+import {
+  codeFromPhoto,
+  parseTypedCode,
+  photoCodeCopy,
+  scanEntryMode,
+  typedCodeCopy,
+} from '../scan-entry';
 import { claimUrl, joinUrl } from '../web-links';
 
 const SHOP_ID = '2f6f2f9e-6f0a-4a8e-9a3b-1c2d3e4f5a6b';
@@ -30,6 +36,31 @@ describe('parseTypedCode', () => {
   });
 });
 
+describe('codeFromPhoto', () => {
+  it('prefers one of our codes when the photo holds several', () => {
+    const ours = joinUrl(SHOP_ID, TOKEN);
+    expect(codeFromPhoto([{ data: 'https://example.com/menu' }, { data: ours }])).toBe(ours);
+  });
+
+  it('hands back a foreign code so the caller can say it is not ours', () => {
+    expect(codeFromPhoto([{ data: 'https://example.com/menu' }])).toBe('https://example.com/menu');
+  });
+
+  it('finds nothing in a photo with no code', () => {
+    expect(codeFromPhoto([])).toBeNull();
+    expect(codeFromPhoto([{ data: '' }])).toBeNull();
+  });
+});
+
+describe('photoCodeCopy', () => {
+  it('offers the upload and explains a photo with no code', () => {
+    const copy = photoCodeCopy();
+    expect(copy.action).toMatch(/photo|image/i);
+    expect(copy.none).toMatch(/code/i);
+    expect(copy.unreadable.length).toBeGreaterThan(0);
+  });
+});
+
 describe('typedCodeCopy', () => {
   it('tells the person where the link is printed', () => {
     const copy = typedCodeCopy();
@@ -37,5 +68,12 @@ describe('typedCodeCopy', () => {
     expect(copy.hint).toMatch(/receipt|counter/i);
     expect(copy.placeholder).toMatch(/^https:\/\//);
     expect(copy.submit.length).toBeGreaterThan(0);
+  });
+});
+
+describe('codeFromPhoto with a bag tag', () => {
+  it('prefers a bag tag over a foreign code in the same photo', () => {
+    const tag = `https://milaundry.app/tag/${ORDER_ID}`;
+    expect(codeFromPhoto([{ data: 'https://example.com/menu' }, { data: tag }])).toBe(tag);
   });
 });

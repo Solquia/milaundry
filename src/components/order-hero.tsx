@@ -16,6 +16,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import type { OrderWithDetails } from '@/lib/api';
 import { shortOrderId } from '@/lib/domain/order-card';
 import { orderContact } from '@/lib/domain/order-contact';
+import { settleAmountNote } from '@/lib/domain/order-settlement';
 import { orderTags } from '@/lib/domain/order-tags';
 
 import { ContactPills } from './contact-pills';
@@ -39,12 +40,9 @@ function DetailLine({
 export function OrderHero({ order, now }: { order: OrderWithDetails; now: Date }) {
   const contact = orderContact(order);
   const total = order.final_total ?? order.estimated_total;
-  const isEstimate = (order.final_total ?? null) === null;
-  const isCancelled = order.status === 'cancelled';
-  const isOwed = order.payment_status !== 'paid' && !isCancelled;
-  const amountNote = isCancelled
-    ? 'Cancelled'
-    : `${isEstimate ? 'Estimate' : 'Final'} · ${isOwed ? 'to collect' : 'paid'}`;
+  // Amber only for a real figure someone owes: an unweighed booking's total
+  // is the customer's guess, and nobody can pay it until the scale has spoken.
+  const { text: amountNote, isOwed } = settleAmountNote(order);
 
   return (
     <View style={styles.hero}>

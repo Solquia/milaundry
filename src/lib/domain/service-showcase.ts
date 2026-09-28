@@ -46,6 +46,21 @@ export function showcaseTitle(name: string): string {
     );
 }
 
+/**
+ * The name as a price board sets it: "Wash &" on one line and "Fold" under
+ * it. A board heading is two short lines with the ampersand closing the first,
+ * which is what makes a pair of services read as one thing at a glance. The
+ * break comes at the last pair, so "Wash, Dry & Fold" keeps its head together;
+ * a name with no pair is left for the text to wrap on its own.
+ */
+export function boardTitle(name: string): string {
+  const title = showcaseTitle(name).replace(/\s+and\s+/gi, ' & ');
+  const at = title.lastIndexOf(' & ');
+  if (at <= 0 || at + 3 >= title.length) return showcaseTitle(name);
+  const tail = title.slice(at + 3);
+  return `${title.slice(0, at)} &\n${tail.charAt(0).toUpperCase()}${tail.slice(1)}`;
+}
+
 /** Joining words a title leaves low: "Wash and Fold", not "Wash And Fold". */
 const MINOR_WORDS = new Set(['a', 'an', 'and', 'as', 'at', 'by', 'for', 'in', 'of', 'on', 'or', 'per', 'the', 'to', 'with']);
 

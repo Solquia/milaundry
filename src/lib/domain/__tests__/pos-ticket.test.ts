@@ -1,11 +1,13 @@
 import {
   chargeLabel,
+  loadsFor,
   paymentMethodIcon,
   quickWeights,
   scaleSheetCta,
   tapTile,
   ticketCount,
   ticketCountLabel,
+  ticketLines,
   tileBadge,
   untapTile,
 } from '../pos-ticket';
@@ -21,6 +23,8 @@ const washFold: Service = {
 const curtains: Service = { id: 'cu', name: 'Curtains', unit: 'per_kg', price: 60 };
 const ironing: Service = { id: 'ir', name: 'Ironing only', unit: 'per_item', price: 20 };
 const selfWash: Service = { id: 'sw', name: 'Self-service wash', unit: 'flat', price: 75 };
+/** "Wash-Dry-Fold, ₱150 per load, max 6 kg": flat, with a load limit. */
+const perLoad: Service = { id: 'pl', name: 'Wash-Dry-Fold Regular', unit: 'flat', price: 150, max_quantity: 6 };
 
 describe('tapTile', () => {
   it('sends a per-kg service to the scale instead of guessing a weight', () => {
@@ -37,9 +41,25 @@ describe('tapTile', () => {
     expect(tapTile(ironing, 99)).toEqual({ kind: 'set', quantity: 99 });
   });
 
-  it('adds a flat service once and leaves it there on a second tap', () => {
+  it('counts a flat service like pieces: two self-service washes are two charges', () => {
     expect(tapTile(selfWash, 0)).toEqual({ kind: 'set', quantity: 1 });
-    expect(tapTile(selfWash, 1)).toEqual({ kind: 'set', quantity: 1 });
+    expect(tapTile(selfWash, 1)).toEqual({ kind: 'set', quantity: 2 });
+  });
+
+  it('sends a per-load service to the scale, so the loads come from the weight', () => {
+    expect(tapTile(perLoad, 0)).toEqual({ kind: 'weigh' });
+  });
+});
+
+describe('untapTile', () => {
+  it('takes one off a counted line, flat or per piece', () => {
+    expect(untapTile(ironing, 3)).toBe(2);
+    expect(untapTile(selfWash, 2)).toBe(1);
+  });
+
+  it('takes a weighed line off whole', () => {
+    expect(untapTile(washFold, 6)).toBe(0);
+    expect(untapTile(perLoad, 3)).toBe(0);
   });
 });
 
@@ -55,8 +75,32 @@ describe('tileBadge', () => {
     expect(tileBadge(washFold, 6.5)).toBe('6.5 kg');
   });
 
-  it('marks a flat service as added rather than counted', () => {
-    expect(tileBadge(selfWash, 1)).toBe('Added');
+  it('counts a flat service, and says loads for a per-load one', () => {
+    expect(tileBadge(selfWash, 2)).toBe('×2');
+    expect(tileBadge(perLoad, 1)).toBe('1 load');
+    expect(tileBadge(perLoad, 3)).toBe('3 loads');
+  });
+});
+
+describe('loadsFor', () => {
+  it('rounds a weight up to whole loads at the shop limit', () => {
+    expect(loadsFor(perLoad, 6)).toBe(1);
+    expect(loadsFor(perLoad, 6.1)).toBe(2);
+    expect(loadsFor(perLoad, 13)).toBe(3);
+    expect(loadsFor(perLoad, 0)).toBe(0);
+  });
+});
+
+describe('ticketLines', () => {
+  it('sends a counted flat service as one line each, so each is billed', () => {
+    expect(ticketLines([washFold, selfWash, perLoad], { wf: 6, sw: 2, pl: 3, ir: 0 })).toEqual([
+      { serviceId: 'wf', quantity: 6 },
+      { serviceId: 'sw', quantity: 1 },
+      { serviceId: 'sw', quantity: 1 },
+      { serviceId: 'pl', quantity: 1 },
+      { serviceId: 'pl', quantity: 1 },
+      { serviceId: 'pl', quantity: 1 },
+    ]);
   });
 });
 
@@ -89,6 +133,11 @@ describe('scaleSheetCta', () => {
 
   it('says update when the line is already on the ticket', () => {
     expect(scaleSheetCta(washFold, 7, true)).toBe('Update to 7 kg · ₱245.00');
+  });
+
+  it('turns a weight into loads for a per-load service, and quotes them', () => {
+    expect(scaleSheetCta(perLoad, 13, false)).toBe('Add 13 kg · 3 loads · ₱450.00');
+    expect(scaleSheetCta(perLoad, 5, true)).toBe('Update to 5 kg · 1 load · ₱150.00');
   });
 
   it('refuses a zero weight in words, not with a dead button', () => {
@@ -145,7 +194,7 @@ describe('untapTile', () => {
     expect(untapTile(ironing, 3)).toBe(2);
   });
 
-  it('takes a flat or weighed line off entirely', () => {
+  it('takes the last flat one, or a weighed line, off entirely', () => {
     expect(untapTile(selfWash, 1)).toBe(0);
     expect(untapTile(washFold, 6.5)).toBe(0);
   });

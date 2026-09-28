@@ -116,6 +116,14 @@ describe('intakeLines', () => {
     ]);
   });
 
+  it('counts flat services at the walk-in till, where each goes as its own line', () => {
+    const perLoad: Service = { id: 'pl', name: 'Wash per load', unit: 'flat', price: 150, max_quantity: 6 };
+    expect(intakeLines([selfWash, perLoad], { sw: 2, pl: 3 }, { countsFlat: true })).toEqual([
+      { serviceId: 'sw', name: 'Self-service wash', quantity: '×2', subtotal: 150 },
+      { serviceId: 'pl', name: 'Wash per load', quantity: '3 loads', subtotal: 450 },
+    ]);
+  });
+
   it('is empty before anything is chosen', () => {
     expect(intakeLines([washFold], {})).toEqual([]);
     expect(intakeLines([washFold], { wf: 0 })).toEqual([]);

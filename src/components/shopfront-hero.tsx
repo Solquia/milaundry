@@ -1,20 +1,20 @@
 /**
- * The shopfront's hero: the shop itself, with its name pinned to the foot.
+ * The shopfront's header, laid out the way a store page on a marketplace is:
+ * a cover banner across the top, and a white store card that overlaps its
+ * foot carrying the logo, the name, where it is, and a row of numbers.
  *
- * This used to be the app's blue field with the shop's initials centred on it,
- * the same for every laundry. What a customer walking past actually
- * recognises is the storefront, so when the shop has uploaded a photo of it
- * the photo takes the whole field and the name sits on a tag at the bottom,
- * the way a caption sits on a photograph. A shop with no photo keeps the
- * field, laid out the same way, so there is one composition rather than two.
+ * It used to put everything *on* the photo — a navy pill for the name, white
+ * text over whatever the photo happened to show, and an arc cut into the
+ * bottom. On a busy photo the words fought the picture and the picture lost
+ * its point. Now the photo is only a photo, and the words sit on the card
+ * where they stay legible whatever the shop uploaded.
  *
- * The mark is the shop's real logo now; it was initials on every customer
- * surface even when the merchant had uploaded one.
+ * The mark is the shop's real logo; initials only when none was uploaded.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
 import React, { useState } from 'react';
-import { Animated, Easing, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 
 import { ClaimRings, claimFill, claimSwell } from '@/components/claim';
@@ -25,21 +25,22 @@ import type { ConnectionRank } from '@/lib/domain/connection-welcome';
 import { ENTRANCE } from '@/lib/domain/entrance';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import { heroBackdrop } from '@/lib/domain/shop-cover';
+import type { Reputation } from '@/lib/domain/storefront';
 
 type Accent = (typeof ACCENTS)[number];
 
-/**
- * How deep the bottom arc sweeps, matching `heroSweep` at phone width in
- * `domain/web-layout.ts` — the shop's page in the app and the shop's page on
- * the web end on the same curve rather than on two different ideas of one.
- */
-const HERO_SWEEP = 52;
-/** The shop's mark in the hero, and the ring of water that leaves it. */
-const MARK_SIZE = 64;
-/** Room for the photo to be the point, before the safe-area inset is added. */
-const HERO_MIN_HEIGHT = 300;
+/** The banner's height below the safe-area inset: a photo, not a poster. */
+const COVER_HEIGHT = 190;
+/** The banner's bottom corners, a step rounder than the card's 20. */
+const COVER_RADIUS = 28;
+/** How far the store card rides up over the banner. */
+const CARD_OVERLAP = 36;
+/** The shop's mark, half of it standing above the card's top edge. */
+const MARK_SIZE = 72;
 /** The app's deep navy, used for the scrim so the photo darkens into brand. */
 const SCRIM = '#04203F';
+/** Rating gold; the only star on the card, so it can afford to be warm. */
+const STAR = '#F5B400';
 
 interface ShopfrontHeroProps {
   name: string;
@@ -52,7 +53,7 @@ interface ShopfrontHeroProps {
   coverUrl: string | null;
   isRegistered: boolean;
   accent: Accent;
-  reputationLabel: string | null;
+  reputation: Reputation | null;
   cheapest: number | null;
   serviceCount: number;
   onConnect: () => void;
@@ -66,6 +67,45 @@ interface ShopfrontHeroProps {
   rank: ConnectionRank;
 }
 
+interface Stat {
+  key: string;
+  value: string;
+  label: string;
+  hasStar?: boolean;
+}
+
+/**
+ * The numbers a shopper compares stores by. A shop with no reviews still gets
+ * the rating column, reading "New", so the strip never collapses to one cell.
+ */
+function storeStats(
+  reputation: Reputation | null,
+  cheapest: number | null,
+  serviceCount: number
+): Stat[] {
+  const rating: Stat = reputation
+    ? {
+        key: 'rating',
+        value: reputation.average.toFixed(1),
+        label: `${reputation.count} ${reputation.count === 1 ? 'review' : 'reviews'}`,
+        hasStar: true,
+      }
+    : { key: 'rating', value: 'New', label: 'No reviews yet' };
+  const price: Stat | null =
+    cheapest === null
+      ? null
+      : { key: 'price', value: formatMoneyCompact(cheapest), label: 'Starting price' };
+  const services: Stat | null =
+    serviceCount === 0
+      ? null
+      : {
+          key: 'services',
+          value: String(serviceCount),
+          label: serviceCount === 1 ? 'Service' : 'Services',
+        };
+  return [rating, price, services].filter((stat): stat is Stat => stat !== null);
+}
+
 export function ShopfrontHero({
   name,
   tagline,
@@ -74,7 +114,7 @@ export function ShopfrontHero({
   coverUrl,
   isRegistered,
   accent,
-  reputationLabel,
+  reputation,
   cheapest,
   serviceCount,
   onConnect,
@@ -110,14 +150,7 @@ export function ShopfrontHero({
   const backdrop = heroBackdrop({ cover_url: coverUrl });
   const isPhoto = backdrop.kind === 'photo';
   const initials = shopInitials(name);
-
-  const facts = [
-    reputationLabel,
-    cheapest === null ? null : `From ${formatMoneyCompact(cheapest)}`,
-    serviceCount === 0
-      ? null
-      : `${serviceCount} ${serviceCount === 1 ? 'service' : 'services'}`,
-  ].filter((fact): fact is string => fact !== null);
+  const stats = storeStats(reputation, cheapest, serviceCount);
 
   const fieldEntrance = {
     opacity: fieldCue,
@@ -125,183 +158,186 @@ export function ShopfrontHero({
   };
 
   return (
-    <View
-      style={[
-        styles.hero,
-        { paddingTop: insetTop + space.gulf, minHeight: HERO_MIN_HEIGHT + insetTop },
-      ]}
-      onLayout={(event) => {
-        const { width, height } = event.nativeEvent.layout;
-        setField((current) =>
-          current.width === width && current.height === height
-            ? current
-            : { width, height }
-        );
-      }}
-    >
-      {field.width > 0 && (
-        <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fieldEntrance]}>
-          {isPhoto ? (
-            <Image
-              source={{ uri: backdrop.uri }}
-              style={StyleSheet.absoluteFill}
-              contentFit="cover"
-              transition={200}
-              accessibilityLabel={`Photo of ${name}`}
-            />
-          ) : null}
-          <Svg
-            style={StyleSheet.absoluteFill}
-            width={field.width}
-            height={field.height}
-            pointerEvents="none"
-          >
-            <Defs>
-              {isPhoto ? (
-                // Two scrims in one gradient: a light one at the top so the
-                // chevron and the clock stay legible, a deep one at the foot
-                // where the name and the facts sit. The middle stays clear
-                // so the photo is the point.
-                <SvgLinearGradient id="shopScrim" x1="0" y1="0" x2="0" y2="1">
-                  <Stop offset="0" stopColor={SCRIM} stopOpacity="0.4" />
-                  <Stop offset="0.22" stopColor={SCRIM} stopOpacity="0" />
-                  <Stop offset="0.5" stopColor={SCRIM} stopOpacity="0" />
-                  <Stop offset="1" stopColor={SCRIM} stopOpacity="0.85" />
-                </SvgLinearGradient>
-              ) : (
-                // Lower left to upper right, so the light falls from above the
-                // way it does on a real surface and the depth pools underneath.
-                <SvgLinearGradient id="shopScrim" x1="0" y1="1" x2="1" y2="0">
-                  <Stop offset="0" stopColor={HERO_GRADIENT[0]} />
-                  <Stop offset="0.55" stopColor={HERO_GRADIENT[1]} />
-                  <Stop offset="1" stopColor={HERO_GRADIENT[2]} />
-                </SvgLinearGradient>
-              )}
-            </Defs>
-            <Rect x={0} y={0} width={field.width} height={field.height} fill="url(#shopScrim)" />
-          </Svg>
-        </Animated.View>
-      )}
-
-      {/* The wash line is the splash's motif on the field; across a photograph
-          it would read as a scratch. */}
-      {!isPhoto && <WashLine progress={progress} width={field.width} height={field.height} />}
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back to shops"
-        onPress={onBack}
-        hitSlop={12}
-        style={({ pressed }) => [
-          styles.back,
-          { top: insetTop + space.snug },
-          pressed && { opacity: 0.7 },
-        ]}
+    <View style={styles.hero}>
+      <View
+        style={[styles.cover, { height: COVER_HEIGHT + insetTop }]}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setField((current) =>
+            current.width === width && current.height === height ? current : { width, height }
+          );
+        }}
       >
-        <Ionicons name="chevron-back" size={24} color={colors.onAccent} />
-      </Pressable>
-
-      {/* Everything that says who this is sits at the foot, like a caption. */}
-      <View style={styles.identity}>
-        <View style={styles.markStage}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.ripple,
-              {
-                borderColor: isRegistered ? accent.surface : colors.onAccent,
-                opacity: rippleCue.interpolate({
-                  inputRange: [0, 0.15, 1],
-                  outputRange: [0, 0.5, 0],
-                }),
-                transform: [
-                  { scale: rippleCue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 2.1] }) },
-                ],
-              },
-            ]}
-          />
-          {isClaiming && (
-            <ClaimRings claim={claim} rank={rank} color={accent.surface} size={MARK_SIZE} />
-          )}
-          <Animated.View
-            style={[
-              styles.heroMark,
-              isRegistered && !isClaiming && !logoUrl && { backgroundColor: accent.surface },
-              {
-                opacity: markCue,
-                transform: [{ scale: Animated.multiply(markCue, swell) }],
-              },
-            ]}
-          >
-            {logoUrl ? (
+        {field.width > 0 && (
+          <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, fieldEntrance]}>
+            {isPhoto ? (
               <Image
-                source={{ uri: logoUrl }}
-                style={styles.heroLogo}
+                source={{ uri: backdrop.uri }}
+                style={StyleSheet.absoluteFill}
                 contentFit="cover"
-                transition={150}
-                accessibilityLabel={`${name} logo`}
+                transition={200}
+                accessibilityLabel={`Photo of ${name}`}
               />
-            ) : (
-              <Text
-                style={[
-                  styles.heroInitials,
-                  isRegistered && !isClaiming && { color: accent.ink },
-                ]}
-              >
-                {initials}
-              </Text>
-            )}
-            {/* The shop's colour arriving over the mark. A whole coloured
-                layer rather than an animated text colour, because text colour
-                cannot run on the native driver. Over a logo it is a tint that
-                lets the logo through. */}
-            {isClaiming && (
-              <Animated.View
-                style={[
-                  styles.markWash,
-                  { backgroundColor: accent.surface, opacity: logoUrl ? Animated.multiply(fill, 0.55) : fill },
-                ]}
-              >
-                {!logoUrl && (
-                  <Text style={[styles.heroInitials, { color: accent.ink }]}>{initials}</Text>
+            ) : null}
+            <Svg
+              style={StyleSheet.absoluteFill}
+              width={field.width}
+              height={field.height}
+              pointerEvents="none"
+            >
+              <Defs>
+                {isPhoto ? (
+                  // Only the top is shaded, for the chevron and the clock. No
+                  // words sit on the photo any more, so the rest stays clear.
+                  <SvgLinearGradient id="shopScrim" x1="0" y1="0" x2="0" y2="1">
+                    <Stop offset="0" stopColor={SCRIM} stopOpacity="0.45" />
+                    <Stop offset="0.35" stopColor={SCRIM} stopOpacity="0" />
+                  </SvgLinearGradient>
+                ) : (
+                  // Lower left to upper right, so the light falls from above.
+                  <SvgLinearGradient id="shopScrim" x1="0" y1="1" x2="1" y2="0">
+                    <Stop offset="0" stopColor={HERO_GRADIENT[0]} />
+                    <Stop offset="0.55" stopColor={HERO_GRADIENT[1]} />
+                    <Stop offset="1" stopColor={HERO_GRADIENT[2]} />
+                  </SvgLinearGradient>
                 )}
-              </Animated.View>
-            )}
+              </Defs>
+              <Rect x={0} y={0} width={field.width} height={field.height} fill="url(#shopScrim)" />
+            </Svg>
           </Animated.View>
+        )}
+
+        {/* The wash line is the splash's motif on the field; across a photograph
+            it would read as a scratch. */}
+        {!isPhoto && <WashLine progress={progress} width={field.width} height={field.height} />}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to shops"
+          onPress={onBack}
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.back,
+            { top: insetTop + space.snug },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="chevron-back" size={24} color={colors.onAccent} />
+        </Pressable>
+      </View>
+
+      <View style={styles.storeCard}>
+        <View style={styles.identityRow}>
+          <View style={styles.markStage}>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                styles.ripple,
+                {
+                  borderColor: accent.ink,
+                  opacity: rippleCue.interpolate({
+                    inputRange: [0, 0.15, 1],
+                    outputRange: [0, 0.5, 0],
+                  }),
+                  transform: [
+                    { scale: rippleCue.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.8] }) },
+                  ],
+                },
+              ]}
+            />
+            {isClaiming && (
+              <ClaimRings claim={claim} rank={rank} color={accent.surface} size={MARK_SIZE} />
+            )}
+            <Animated.View
+              style={[
+                styles.heroMark,
+                !logoUrl && { backgroundColor: accent.surface },
+                {
+                  opacity: markCue,
+                  transform: [{ scale: Animated.multiply(markCue, swell) }],
+                },
+              ]}
+            >
+              {logoUrl ? (
+                <Image
+                  source={{ uri: logoUrl }}
+                  style={styles.heroLogo}
+                  contentFit="cover"
+                  transition={150}
+                  accessibilityLabel={`${name} logo`}
+                />
+              ) : (
+                <Text style={[styles.heroInitials, { color: accent.ink }]}>{initials}</Text>
+              )}
+              {/* The shop's colour arriving over the mark. A whole coloured
+                  layer rather than an animated text colour, because text colour
+                  cannot run on the native driver. Over a logo it is a tint that
+                  lets the logo through. */}
+              {isClaiming && (
+                <Animated.View
+                  style={[
+                    styles.markWash,
+                    {
+                      backgroundColor: accent.surface,
+                      opacity: logoUrl ? Animated.multiply(fill, 0.55) : fill,
+                    },
+                  ]}
+                >
+                  {!logoUrl && (
+                    <Text style={[styles.heroInitials, { color: accent.ink }]}>{initials}</Text>
+                  )}
+                </Animated.View>
+              )}
+            </Animated.View>
+          </View>
+
+          {/* The marketplace "Following" state: a connected shop says so in
+              its own colour, where a stranger's shop shows the Connect button. */}
+          {isRegistered && (
+            <View style={[styles.yourShop, { backgroundColor: accent.surface }]}>
+              <Ionicons name="checkmark-circle" size={14} color={accent.ink} />
+              <Text style={[styles.yourShopText, { color: accent.ink }]}>Your shop</Text>
+            </View>
+          )}
         </View>
 
-        <Animated.View style={[styles.namePill, rise(nameCue, 18)]}>
+        <Animated.View style={[styles.names, rise(nameCue, 14)]}>
           <Text style={styles.heroName} accessibilityRole="header" numberOfLines={2}>
             {name}
           </Text>
+          {tagline ? (
+            <Text style={styles.heroTagline} numberOfLines={2}>
+              {tagline}
+            </Text>
+          ) : null}
         </Animated.View>
-        {tagline ? (
-          <Animated.Text style={[styles.heroTagline, rise(addressCue, 14)]}>
-            {tagline}
-          </Animated.Text>
-        ) : null}
+
         {address ? (
-          <Animated.Text style={[styles.heroAddress, rise(addressCue, 14)]}>
-            {address}
-          </Animated.Text>
+          <Animated.View style={[styles.addressRow, rise(addressCue, 10)]}>
+            <Ionicons name="location-outline" size={15} color={colors.subtle} />
+            <Text style={styles.heroAddress} numberOfLines={2}>
+              {address}
+            </Text>
+          </Animated.View>
         ) : null}
 
-        {facts.length > 0 && (
-          <Animated.View
-            style={[styles.factRow, rise(factsCue, 12)]}
-            accessibilityLabel={facts.join('. ')}
-          >
-            {reputationLabel ? (
-              <Ionicons name="star" size={13} color="#FFD25E" style={styles.factStar} />
-            ) : null}
-            {facts.map((fact, index) => (
-              <React.Fragment key={fact}>
-                {index > 0 && <Text style={styles.factDot}>·</Text>}
-                <Text style={styles.factText}>{fact}</Text>
-              </React.Fragment>
-            ))}
-          </Animated.View>
-        )}
+        <Animated.View
+          style={[styles.statStrip, rise(factsCue, 10)]}
+          accessible
+          accessibilityLabel={stats.map((stat) => `${stat.value} ${stat.label}`).join('. ')}
+        >
+          {stats.map((stat, index) => (
+            <View key={stat.key} style={[styles.stat, index > 0 && styles.statDivided]}>
+              <View style={styles.statValueRow}>
+                {stat.hasStar ? <Ionicons name="star" size={15} color={STAR} /> : null}
+                <Text style={styles.statValue}>{stat.value}</Text>
+              </View>
+              <Text style={styles.statLabel} numberOfLines={1}>
+                {stat.label}
+              </Text>
+            </View>
+          ))}
+        </Animated.View>
 
         {!isRegistered && (
           <Pressable
@@ -310,17 +346,12 @@ export function ShopfrontHero({
             accessibilityState={{ disabled: isConnecting }}
             onPress={onConnect}
             disabled={isConnecting}
-            style={({ pressed }) => [
-              styles.heroCta,
-              (pressed || isConnecting) && { opacity: 0.85 },
-            ]}
+            style={({ pressed }) => [styles.heroCta, (pressed || isConnecting) && { opacity: 0.85 }]}
           >
             <Text style={styles.heroCtaText}>
               {isConnecting ? 'Connecting…' : 'Connect to book'}
             </Text>
-            {!isConnecting && (
-              <Ionicons name="arrow-forward" size={17} color={colors.actionInk} />
-            )}
+            {!isConnecting && <Ionicons name="arrow-forward" size={17} color={colors.onAccent} />}
           </Pressable>
         )}
       </View>
@@ -329,42 +360,21 @@ export function ShopfrontHero({
 }
 
 const styles = StyleSheet.create({
-  // Escapes the page gutter on three sides so the field reaches every edge,
+  // Escapes the page gutter on three sides so the banner reaches every edge,
   // the same idiom the home hero uses.
   hero: {
     marginTop: -space.room,
     marginHorizontal: -space.room,
     marginBottom: space.snug,
-    paddingHorizontal: space.section,
-    paddingBottom: space.section,
-    // The arc, copied from the shop's own web page rather than invented here.
-    // An elliptical corner — half the block's width across, HERO_SWEEP deep —
-    // on each bottom corner; the two meet at the centre and read as one
-    // continuous curve rather than as two corners with a flat run between
-    // them. A 28pt nub at this width was a corner you noticed; the arc is a
-    // shape. Native has no elliptical radius, so it takes a round corner of
-    // the same depth, which is the nearest honest approximation.
-    ...Platform.select({
-      web: {
-        borderBottomLeftRadius: `50% ${HERO_SWEEP}px`,
-        borderBottomRightRadius: `50% ${HERO_SWEEP}px`,
-      } as object,
-      default: {
-        borderBottomLeftRadius: HERO_SWEEP,
-        borderBottomRightRadius: HERO_SWEEP,
-      },
-    }),
-    overflow: 'hidden',
-    // The mid stop as a floor: while the photo loads, or if a rounded corner
-    // antialiases past it, what shows through is still blue.
-    backgroundColor: HERO_GRADIENT[1],
-    ...elevation.hero,
   },
-  identity: {
-    flex: 1,
-    justifyContent: 'flex-end',
-    alignItems: 'flex-start',
-    gap: space.tight,
+  cover: {
+    overflow: 'hidden',
+    // Soft bottom corners so the banner's edge matches the rounded card
+    // sitting on it, instead of a hard crop behind a soft shape.
+    borderBottomLeftRadius: COVER_RADIUS,
+    borderBottomRightRadius: COVER_RADIUS,
+    // The mid stop as a floor: while the photo loads, what shows is still blue.
+    backgroundColor: HERO_GRADIENT[1],
   },
   // Navy at 45% rather than white at 18%: over a photograph the white wash
   // could land on a white wall and vanish.
@@ -378,10 +388,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(4,32,63,0.45)',
   },
+  storeCard: {
+    marginTop: -CARD_OVERLAP,
+    marginHorizontal: space.room,
+    paddingHorizontal: space.room,
+    paddingBottom: space.room,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    gap: space.snug,
+    ...elevation.lift,
+  },
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+  },
   markStage: {
+    marginTop: -MARK_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: space.snug,
   },
   ripple: {
     position: 'absolute',
@@ -397,11 +422,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.22)',
-    borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.9)',
+    backgroundColor: colors.card,
+    borderWidth: 3,
+    borderColor: colors.card,
+    ...elevation.rest,
   },
-  heroLogo: { width: '100%', height: '100%' },
+  heroLogo: { width: '100%', height: '100%', borderRadius: MARK_SIZE / 2 },
   markWash: {
     position: 'absolute',
     top: 0,
@@ -412,56 +438,50 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroInitials: { ...type.value, fontSize: 22, color: colors.onAccent },
-  /** The tag the name sits on: a caption on the photo, not text floating over it. */
-  namePill: {
-    alignSelf: 'flex-start',
-    maxWidth: '100%',
-    paddingHorizontal: space.room,
-    paddingVertical: space.snug,
-    borderRadius: 999,
-    backgroundColor: 'rgba(4,32,63,0.72)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-  },
-  heroName: {
-    ...type.hero,
-    fontSize: 24,
-    fontWeight: '800',
-    letterSpacing: -0.4,
-    color: colors.onAccent,
-  },
-  heroTagline: {
-    ...type.body,
-    fontWeight: '600',
-    color: colors.onAccent,
-  },
-  heroAddress: {
-    ...type.body,
-    color: colors.onAccent,
-    opacity: 0.88,
-  },
-  factRow: {
+  heroInitials: { ...type.value },
+  yourShop: {
     flexDirection: 'row',
     alignItems: 'center',
-    flexWrap: 'wrap',
+    gap: space.tight,
+    marginTop: space.cosy,
+    paddingHorizontal: space.snug + 2,
+    paddingVertical: space.tight,
+    borderRadius: 999,
+  },
+  yourShopText: { ...type.caption, fontFamily: type.label.fontFamily },
+  names: { gap: 2 },
+  heroName: { ...type.value, color: colors.text },
+  heroTagline: { ...type.label, color: colors.subtle },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.tight,
+  },
+  heroAddress: { ...type.caption, color: colors.subtle, flex: 1, marginTop: 1 },
+  statStrip: {
+    flexDirection: 'row',
+    marginTop: space.tight,
+    paddingTop: space.cosy,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  stat: { flex: 1, alignItems: 'center', gap: 2 },
+  statDivided: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.border,
+  },
+  statValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
+  statValue: { ...type.section, color: colors.text },
+  statLabel: { ...type.caption, color: colors.subtle },
+  heroCta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: space.snug,
     marginTop: space.snug,
-  },
-  factStar: { marginRight: -2 },
-  factText: { ...type.label, fontSize: 13, color: colors.onAccent },
-  factDot: { ...type.label, fontSize: 13, color: colors.onAccent, opacity: 0.55 },
-  heroCta: {
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    marginTop: space.room,
-    paddingHorizontal: space.gulf,
     paddingVertical: space.cosy + 2,
     borderRadius: 999,
-    backgroundColor: colors.card,
-    ...elevation.lift,
+    backgroundColor: colors.action,
   },
-  heroCtaText: { ...type.label, fontSize: 16, color: colors.actionInk },
+  heroCtaText: { ...type.label, fontSize: 16, color: colors.onAccent },
 });

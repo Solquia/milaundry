@@ -1,10 +1,10 @@
-import { Ionicons } from '@expo/vector-icons';
 import { Redirect, Tabs, useRouter , usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DoorbellBanner } from '@/components/doorbell-banner';
+import { SettingsButton } from '@/components/header-button';
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading, colors, space, type } from '@/components/ui-kit';
 import { useAuth } from '@/lib/auth';
@@ -110,17 +110,7 @@ export default function MerchantLayout() {
           // The grey circle in the header was the Expo dev-client button, which
           // does not ship in a production build — until now the app had no
           // account affordance at all beyond a text link in the order list.
-          headerRight: () => (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Shop settings"
-              onPress={() => router.push('/(merchant)/settings')}
-              hitSlop={12}
-              style={styles.headerButton}
-            >
-              <Ionicons name="settings-outline" size={22} color={colors.subtle} />
-            </Pressable>
-          ),
+          headerRight: () => <SettingsButton />,
         }}
         tabBar={renderTabBar}
       >
@@ -143,6 +133,7 @@ export default function MerchantLayout() {
         ))}
         <Tabs.Screen name="order/[id]" options={{ href: null, title: 'Order' }} />
         <Tabs.Screen name="customer/[key]" options={{ href: null, title: 'Customer' }} />
+        <Tabs.Screen name="scan" options={{ href: null, title: 'Scan a tag' }} />
         <Tabs.Screen
           name="settings"
           options={{ href: null, title: 'Settings', headerRight: undefined }}
@@ -157,7 +148,6 @@ const styles = StyleSheet.create({
   // `type.title`, not the navigator default: the screen name is the largest
   // word on the screen and was rendering a step below the type scale.
   headerTitle: { ...type.title, color: colors.text },
-  headerButton: { paddingHorizontal: 16, paddingVertical: 8 },
   bannerSafeArea: { backgroundColor: colors.primaryDark },
   banner: {
     flexDirection: 'row',

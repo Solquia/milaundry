@@ -13,6 +13,7 @@ const complete: ServiceDraft = {
   unit: 'per_kg',
   price: '35',
   minQuantity: '5',
+  maxQuantity: '',
   description: 'Regular clothes',
 };
 
@@ -30,6 +31,7 @@ describe('validateServiceDraft', () => {
         unit: 'per_kg',
         price: 35,
         min_quantity: 5,
+        max_quantity: 0,
         description: 'Regular clothes',
       },
     });
@@ -116,6 +118,7 @@ describe('draftFromService', () => {
       unit: 'per_item',
       price: '120',
       minQuantity: '',
+      maxQuantity: '',
       description: 'Queen size',
     });
   });
@@ -169,5 +172,59 @@ describe('unitHelp', () => {
     expect(unitHelp('per_kg')).toMatch(/weigh/i);
     expect(unitHelp('per_item')).toMatch(/each/i);
     expect(unitHelp('flat')).toMatch(/one price/i);
+  });
+});
+
+describe('load weight limit', () => {
+  const perLoad: ServiceDraft = {
+    name: 'Wash-Dry-Fold',
+    category: 'wash_fold',
+    unit: 'flat',
+    price: '150',
+    minQuantity: '',
+    maxQuantity: '6',
+    description: 'Regular clothes',
+  };
+
+  it('saves the most a load can weigh on a per-load price', () => {
+    const result = validateServiceDraft(perLoad);
+    expect(result.ok && result.value.max_quantity).toBe(6);
+  });
+
+  it('treats a blank limit as no limit', () => {
+    const result = validateServiceDraft({ ...perLoad, maxQuantity: '  ' });
+    expect(result.ok && result.value.max_quantity).toBe(0);
+  });
+
+  it('rejects a limit that is not a positive weight', () => {
+    for (const bad of ['0', '-2', 'six']) {
+      const result = validateServiceDraft({ ...perLoad, maxQuantity: bad });
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.errors.maxQuantity).toMatch(/kg/);
+    }
+  });
+
+  it('rejects a limit lighter than the smallest load it charges for', () => {
+    const result = validateServiceDraft({ ...complete, minQuantity: '8', maxQuantity: '6' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.maxQuantity).toMatch(/smallest/);
+  });
+
+  it('ignores a limit on a per-piece price, where weight is not charged', () => {
+    const result = validateServiceDraft({ ...perLoad, unit: 'per_item', maxQuantity: '6' });
+    expect(result.ok && result.value.max_quantity).toBe(0);
+  });
+
+  it('opens a saved limit for editing', () => {
+    const draft = draftFromService({
+      name: 'Comforters',
+      category: 'special_items',
+      unit: 'flat',
+      price: 150,
+      min_quantity: 0,
+      max_quantity: 4,
+      description: '',
+    });
+    expect(draft.maxQuantity).toBe('4');
   });
 });

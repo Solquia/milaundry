@@ -8,12 +8,13 @@
  * in it, and where the pin itself lands. What draws them is `components/shop-map`.
  *
  * The projection is Web Mercator, the same one every slippy map uses, which is
- * why a tile from Carto lines up with a pin placed on Apple Maps.
+ * why a tile from MapTiler lines up with a pin placed on Apple Maps.
  *
  * OpenStreetMap's own `tile.openstreetmap.org` servers are for osm.org, not
  * for apps: they answer a production shopfront with a "Access blocked" tile.
- * Carto's Voyager raster CDN is OSM data on hosts that allow this use, and
- * the credit in `OSM_ATTRIBUTION` names both.
+ * Carto's keyless CDN went the same way and now paints "API KEY REQUIRED"
+ * over every tile. MapTiler serves OSM data under a key locked to our
+ * origins, and the credit in `OSM_ATTRIBUTION` names both.
  */
 
 import type { ShopPin } from './shop-location';
@@ -21,11 +22,10 @@ import type { ShopPin } from './shop-location';
 /** Every tile server in this projection serves 256×256 pictures. */
 export const TILE_SIZE = 256;
 
-/** The credit Carto asks: OSM for the data, CARTO for the tiles. */
-export const OSM_ATTRIBUTION = '© OpenStreetMap © CARTO';
+/** The credit MapTiler asks: MapTiler for the tiles, OSM for the data. */
+export const OSM_ATTRIBUTION = '© MapTiler © OpenStreetMap contributors';
 
-/** Carto's four Voyager hosts; neighbouring tiles fan out across them. */
-const CARTO_HOSTS = ['a', 'b', 'c', 'd'] as const;
+const MAPTILER_STYLE = 'streets-v2';
 
 /**
  * Mercator runs to infinity at the poles, so the projection is cut where every
@@ -72,12 +72,16 @@ export function projectToTile(pin: ShopPin, zoom: number): { x: number; y: numbe
   return { x: clamp(x, 0, scale), y: clamp(y, 0, scale) };
 }
 
-/** The picture for one tile. Columns wrap around the world; rows never do. */
-export function tileUrl({ z, x, y }: TileAddress): string {
+/**
+ * The picture for one tile. Columns wrap around the world; rows never do.
+ * The key is public by design — it ships in the page — and is locked to our
+ * origins in the MapTiler dashboard.
+ */
+export function tileUrl({ z, x, y }: TileAddress, apiKey: string): string {
   const span = 2 ** z;
   const column = ((x % span) + span) % span;
-  const host = CARTO_HOSTS[(Math.abs(x) + y) % CARTO_HOSTS.length];
-  return `https://${host}.basemaps.cartocdn.com/rastertiles/voyager/${z}/${column}/${y}.png`;
+  const key = encodeURIComponent(apiKey);
+  return `https://api.maptiler.com/maps/${MAPTILER_STYLE}/256/${z}/${column}/${y}.png?key=${key}`;
 }
 
 interface MosaicInput {

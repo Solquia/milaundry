@@ -12,6 +12,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ProductCard, ProductGrid } from './product-grid';
 import { SoapArt } from './soap-art';
+import { TouchArt } from './touch-art';
 import { BLUE_FIELD, ErrorText, Field, colors, elevation, space, type } from './ui-kit';
 import {
   DETERGENT_LABELS,
@@ -36,7 +37,9 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
  */
 type TileArt =
   | { kind: 'powder' | 'bar' | 'bottle'; color: string }
-  | { kind: 'icon'; icon: IconName; color: string };
+  | { kind: 'icon'; icon: IconName; color: string }
+  /** A personal touch, drawn like the services shelf's objects. */
+  | { kind: 'touch'; touch: TogglePreference };
 
 interface TileOption<T> {
   value: T;
@@ -99,11 +102,6 @@ const SOFTENER_TILES: readonly TileOption<SoftenerChoice | null>[] = [
   },
 ];
 
-const TOGGLE_ICONS: Record<TogglePreference, IconName> = {
-  separate_whites: 'shirt-outline',
-  delicates: 'flower-outline',
-  air_dry: 'sunny-outline',
-};
 const TOGGLE_NOTES: Record<TogglePreference, string> = {
   separate_whites: 'Washed alone',
   delicates: 'Gentle cycle',
@@ -112,9 +110,12 @@ const TOGGLE_NOTES: Record<TogglePreference, string> = {
 const TOGGLES = Object.keys(TOGGLE_LABELS) as TogglePreference[];
 
 const ART_SIZE = 56;
+/** A drawn touch fills most of the well, the way a product photo does. */
+const TOUCH_ART_SIZE = 104;
 
 /** Fills a product card's photo well: the drawn pack, or the idea's icon. */
 function Art({ art }: { art: TileArt }) {
+  if (art.kind === 'touch') return <TouchArt touch={art.touch} size={TOUCH_ART_SIZE} />;
   if (art.kind !== 'icon') return <SoapArt shape={art.kind} color={art.color} size={ART_SIZE} />;
   return (
     <View style={styles.iconArt}>
@@ -238,7 +239,7 @@ export function PreferencePicker({
               <Tile
                 label={TOGGLE_LABELS[key].replace(' / hang dry', '')}
                 note={key === 'delicates' && delicatesNote ? delicatesNote : TOGGLE_NOTES[key]}
-                art={{ kind: 'icon', icon: TOGGLE_ICONS[key], color: BLUE_FIELD.mid }}
+                art={{ kind: 'touch', touch: key }}
                 role="checkbox"
                 isOn={value[key]}
                 onPress={() => set({ [key]: !value[key] })}

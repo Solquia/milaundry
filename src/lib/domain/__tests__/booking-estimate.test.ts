@@ -70,6 +70,18 @@ describe('buildBookingItems', () => {
     expect(items).toEqual([{ serviceId: 'comforter', quantity: 1 }]);
   });
 
+  it('sends a flat extra as one line per piece, so each is billed once', () => {
+    const steam: Service = { id: 'steam', name: 'Steam', unit: 'flat', price: 90 };
+    const items = buildBookingItems('wash', 6, { steam: 3 }, [washFold, steam]);
+    expect(items).toEqual([
+      { serviceId: 'wash', quantity: 6 },
+      { serviceId: 'steam', quantity: 1 },
+      { serviceId: 'steam', quantity: 1 },
+      { serviceId: 'steam', quantity: 1 },
+    ]);
+    expect(estimateBooking([washFold, steam], 'wash', 6, { steam: 3 })?.total).toBe(6 * 35 + 270);
+  });
+
   it('returns an empty list when nothing is selected', () => {
     expect(buildBookingItems('wash', 0, {})).toEqual([]);
   });

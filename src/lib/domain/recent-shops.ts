@@ -7,7 +7,7 @@
  * scanned once at a mall. Recent shops come from the orders instead, newest
  * first, each carrying last time's booking so one tap starts the next.
  */
-import { formatQuantity } from './price-label';
+import { lineQuantity } from './price-label';
 import { rebookDraft, rebookHref, type RebookOrder } from './rebook';
 
 export interface RecentShopOrder extends RebookOrder {
@@ -17,6 +17,8 @@ export interface RecentShopOrder extends RebookOrder {
     id: string;
     name: string;
     logo_url: string;
+    /** Optional so older fixtures without it still type; '' when none. */
+    cover_url?: string;
     brand_accent: number | null;
   } | null;
 }
@@ -25,6 +27,8 @@ export interface RecentShop {
   shopId: string;
   name: string;
   logoUrl: string;
+  /** Photo of the physical shop; '' when it has none. */
+  coverUrl: string;
   brandAccent: number | null;
   lastOrderAt: string;
   /** "Wash & Fold · 5 kg" — what one tap would book, or null when nothing can be. */
@@ -39,7 +43,8 @@ function summaryOf(order: RecentShopOrder): string | null {
   const draft = rebookDraft(order);
   if (!draft) return null;
   const name = draft.itemNames[draft.serviceId] ?? 'Laundry';
-  return `${name} · ${formatQuantity(draft.serviceUnit, draft.weightKg)}`;
+  const size = lineQuantity(draft.serviceUnit, draft.weightKg);
+  return size ? `${name} · ${size}` : name;
 }
 
 export function recentShops(
@@ -66,6 +71,7 @@ export function recentShops(
       shopId: order.shop_id,
       name: order.shop.name,
       logoUrl: order.shop.logo_url,
+      coverUrl: order.shop.cover_url ?? '',
       brandAccent: order.shop.brand_accent,
       lastOrderAt: order.created_at,
       lastSummary: href ? summaryOf(order) : null,

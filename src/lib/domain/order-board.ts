@@ -1,15 +1,16 @@
 /**
  * The orders board: what the counter sees when it opens the app.
  *
- * A laundry owner's day is two questions — whose load is done, and who still
- * owes me — and the old list answered both only by scrolling. The board
- * answers them in its headline, counts every view so a chip can say how many
- * are behind it, searches by the three things a customer says across the
- * counter (their name, their number, the ticket), and groups the list by day
- * so "yesterday's" is a heading rather than a date to decode on every card.
+ * A laundry owner's day is three questions — what is late, whose load is done,
+ * and who still owes me. The board counts every view so a tile can answer each
+ * at a glance, searches by the three things a customer says across the counter
+ * (their name, their number, the ticket), and groups history by day so
+ * "yesterday's" is a heading rather than a date to decode on every card. The
+ * live queue itself is sorted by urgency in `order-queue`.
  */
 import { formatMoney } from './money';
 import { formatOrderTime } from './order-card';
+import { classify, showsUnpaid } from './order-queue';
 import { STATUS_LABELS, TERMINAL_STATUSES, type OrderStatus } from './order-status';
 import { isClaimedWalkIn, type OrderType, type PaymentStatus } from './order-tags';
 import { searchDigits } from './phone';
@@ -27,46 +28,58 @@ export interface BoardOrder {
   estimated_total: number;
   final_total: number | null;
   created_at: string;
+  updated_at: string;
+  deliver_by: string | null;
 }
 
-export type BoardView = 'active' | 'ready' | 'unpaid' | 'done' | 'all';
+/**
+ * `active` is the whole live queue; the next four are its tiles, each order in
+ * exactly one; `collect` is money owed on laundry that is ready or gone.
+ */
+export type BoardView =
+  | 'active'
+  | 'overdue'
+  | 'working'
+  | 'ready'
+  | 'stuck'
+  | 'collect'
+  | 'done'
+  | 'all';
 
-export const BOARD_VIEWS: readonly { key: BoardView; label: string }[] = [
-  { key: 'active', label: 'In the shop' },
-  { key: 'ready', label: 'Ready' },
-  { key: 'unpaid', label: 'Unpaid' },
-  { key: 'done', label: 'Done' },
-  { key: 'all', label: 'All' },
-];
-
-export type SourceKey = 'all' | OrderType;
-
-export const SOURCE_OPTIONS: readonly { key: SourceKey; label: string }[] = [
-  { key: 'all', label: 'All sources' },
-  { key: 'walk_in', label: 'Walk-in' },
-  { key: 'online', label: 'Online' },
+export const BOARD_VIEWS: readonly BoardView[] = [
+  'active',
+  'overdue',
+  'working',
+  'ready',
+  'stuck',
+  'collect',
+  'done',
+  'all',
 ];
 
 export interface BoardQuery {
   view: BoardView;
-  source: SourceKey;
   query: string;
 }
 
 const isActive = (order: BoardOrder): boolean => !TERMINAL_STATUSES.includes(order.status);
-const isOwed = (order: BoardOrder): boolean =>
-  order.payment_status !== 'paid' && order.status !== 'cancelled';
 const orderValue = (order: BoardOrder): number => order.final_total ?? order.estimated_total;
 const isEstimate = (order: BoardOrder): boolean => (order.final_total ?? null) === null;
 
-function inView(order: BoardOrder, view: BoardView): boolean {
+function inView(order: BoardOrder, view: BoardView, now: Date): boolean {
   switch (view) {
     case 'active':
-      return isActive(order);
+      return isActive(order) && classify(order, now) !== 'stuck';
+    case 'overdue':
     case 'ready':
-      return order.status === 'ready';
-    case 'unpaid':
-      return isOwed(order);
+    case 'stuck':
+      return classify(order, now) === view;
+    case 'working': {
+      const key = classify(order, now);
+      return key === 'working' || key === 'new';
+    }
+    case 'collect':
+      return showsUnpaid(order);
     case 'done':
       return !isActive(order);
     case 'all':
@@ -74,11 +87,20 @@ function inView(order: BoardOrder, view: BoardView): boolean {
   }
 }
 
-export function boardCounts(orders: readonly BoardOrder[]): Record<BoardView, number> {
-  const counts: Record<BoardView, number> = { active: 0, ready: 0, unpaid: 0, done: 0, all: 0 };
+export function boardCounts(orders: readonly BoardOrder[], now: Date): Record<BoardView, number> {
+  const counts: Record<BoardView, number> = {
+    active: 0,
+    overdue: 0,
+    working: 0,
+    ready: 0,
+    stuck: 0,
+    collect: 0,
+    done: 0,
+    all: 0,
+  };
   for (const order of orders) {
-    for (const { key } of BOARD_VIEWS) {
-      if (inView(order, key)) counts[key] += 1;
+    for (const key of BOARD_VIEWS) {
+      if (inView(order, key, now)) counts[key] += 1;
     }
   }
   return counts;
@@ -95,40 +117,14 @@ export function matchesQuery(order: BoardOrder, query: string): boolean {
   return wanted.length > 0 && searchDigits(order.customer_phone).includes(wanted);
 }
 
-export function boardOrders<T extends BoardOrder>(orders: readonly T[], board: BoardQuery): T[] {
+export function boardOrders<T extends BoardOrder>(
+  orders: readonly T[],
+  board: BoardQuery,
+  now: Date
+): T[] {
   return orders.filter(
-    (order) =>
-      inView(order, board.view) &&
-      (board.source === 'all' || order.order_type === board.source) &&
-      matchesQuery(order, board.query)
+    (order) => inView(order, board.view, now) && matchesQuery(order, board.query)
   );
-}
-
-export interface BoardHeadline {
-  inShop: number;
-  ready: number;
-  toCollect: number;
-  title: string;
-  detail: string;
-}
-
-/** `3 in the shop` / `1 ready for pickup · ₱440.00 to collect`. */
-export function boardHeadline(orders: readonly BoardOrder[]): BoardHeadline {
-  const inShop = orders.filter(isActive).length;
-  const ready = orders.filter((order) => order.status === 'ready').length;
-  const toCollect = orders.filter(isOwed).reduce((sum, order) => sum + orderValue(order), 0);
-
-  const clauses: string[] = [];
-  if (ready > 0) clauses.push(`${ready} ready for pickup`);
-  if (toCollect > 0) clauses.push(`${formatMoney(toCollect)} to collect`);
-
-  return {
-    inShop,
-    ready,
-    toCollect,
-    title: inShop === 0 ? 'Nothing in the shop' : `${inShop} in the shop`,
-    detail: clauses.length > 0 ? clauses.join(' · ') : 'Everyone has paid',
-  };
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

@@ -25,7 +25,15 @@ import {
   type SavedPrinter,
   type ScannedDevice,
 } from './domain/printer';
-import { PAPER_COLUMNS, buildReceipt, receiptToEscPos, type ReceiptLine, type ReceiptShop } from './domain/receipt';
+import {
+  PAPER_COLUMNS,
+  buildReceipt,
+  receiptToEscPos,
+  type PaperColumns,
+  type ReceiptLine,
+  type ReceiptShop,
+} from './domain/receipt';
+import { buildTags } from './domain/tag';
 import * as transport from './printer/ble-transport';
 import { forgetSavedPrinter, loadSavedPrinter, saveSavedPrinter } from './printer-store';
 
@@ -162,6 +170,11 @@ function printReceipt(order: OrderWithDetails, shop: ReceiptShop): Promise<boole
   return send(buildReceipt(order, shop, { columns: columnsNow() }));
 }
 
+/** The bag tags: name, phone and a shop-only QR, one per bag. */
+function printTags(order: OrderWithDetails, shop: ReceiptShop, count: number): Promise<boolean> {
+  return send(buildTags(order, shop, { columns: columnsNow(), count }));
+}
+
 function testPrint(shop: ReceiptShop): Promise<boolean> {
   const paper = snapshot.saved?.paper ?? DEFAULT_PAPER;
   return send([
@@ -172,6 +185,11 @@ function testPrint(shop: ReceiptShop): Promise<boolean> {
     { kind: 'feed', lines: 3 },
     { kind: 'cut' },
   ]);
+}
+
+/** Any ready-made slip — the Z-report — at the paired paper width. */
+function printLines(build: (columns: PaperColumns) => ReceiptLine[]): Promise<boolean> {
+  return send(build(columnsNow()));
 }
 
 /** Surfaces a failure that happened outside the transport, in the same place. */
@@ -194,7 +212,9 @@ export function usePrinter() {
     setPaper,
     forget,
     printReceipt,
+    printTags,
     testPrint,
+    printLines,
     reportError,
   };
 }

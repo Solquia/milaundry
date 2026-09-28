@@ -1,4 +1,4 @@
-import { buildShopQr, buildOrderQr, parseQrPayload } from '../qr';
+import { buildShopQr, buildOrderQr, buildTagQr, parseQrPayload, parseTagCode } from '../qr';
 
 const SHOP_ID = '2f6f2f9e-6f0a-4a8e-9a3b-1c2d3e4f5a6b';
 const ORDER_ID = 'a1b2c3d4-e5f6-4a8e-9a3b-0f1e2d3c4b5a';
@@ -85,5 +85,31 @@ describe('QR payload build/parse', () => {
 
   it('returns null when the id is not a uuid', () => {
     expect(parseQrPayload(`milaundry://order/not-a-uuid?token=${TOKEN}`)).toBeNull();
+  });
+});
+
+describe('bag tag codes', () => {
+  it('prints the tag code as a web link with no token on it', () => {
+    expect(buildTagQr(ORDER_ID)).toBe(`https://milaundry.app/tag/${ORDER_ID}`);
+  });
+
+  it('reads a tag code back to its order id', () => {
+    expect(parseTagCode(buildTagQr(ORDER_ID))).toBe(ORDER_ID);
+    expect(parseTagCode(`milaundry://tag/${ORDER_ID}`)).toBe(ORDER_ID);
+  });
+
+  it('is not a claim: the customer parser does not accept a tag', () => {
+    expect(parseQrPayload(buildTagQr(ORDER_ID))).toBeNull();
+  });
+
+  it('refuses a tag that carries anything past the id, or no id at all', () => {
+    expect(parseTagCode(`https://milaundry.app/tag/${ORDER_ID}?token=${TOKEN}`)).toBeNull();
+    expect(parseTagCode('https://milaundry.app/tag/not-a-uuid')).toBeNull();
+    expect(parseTagCode(buildOrderQr(ORDER_ID, TOKEN))).toBeNull();
+    expect(parseTagCode('https://example.com/tag/' + ORDER_ID)).toBeNull();
+  });
+
+  it('still refuses a receipt code that lost its token', () => {
+    expect(parseQrPayload(`https://milaundry.app/claim/${ORDER_ID}`)).toBeNull();
   });
 });

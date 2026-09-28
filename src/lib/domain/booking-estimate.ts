@@ -26,14 +26,24 @@ export type AddOnQuantities = Record<string, number>;
 export function buildBookingItems(
   mainServiceId: string,
   weightKg: number,
-  addOns: AddOnQuantities
+  addOns: AddOnQuantities,
+  /** The shop's services, so a flat extra can be split into one line each. */
+  catalog: readonly Service[] = []
 ): OrderItemInput[] {
   const items: OrderItemInput[] = [];
   if (weightKg > 0) {
     items.push({ serviceId: mainServiceId, quantity: weightKg });
   }
+  const units = new Map(catalog.map((service) => [service.id, service.unit]));
   for (const [serviceId, quantity] of Object.entries(addOns)) {
-    if (quantity > 0) {
+    if (!(quantity > 0)) continue;
+    // A flat price is billed once per line, by the server as here. Three
+    // comforters at a flat ₱200 go as three lines, so they cost ₱600.
+    if (units.get(serviceId) === 'flat') {
+      for (let piece = 0; piece < Math.round(quantity); piece += 1) {
+        items.push({ serviceId, quantity: 1 });
+      }
+    } else {
       items.push({ serviceId, quantity });
     }
   }
@@ -50,7 +60,7 @@ export function estimateBooking(
   weightKg: number,
   addOns: AddOnQuantities
 ): OrderEstimate | null {
-  const items = buildBookingItems(mainServiceId, weightKg, addOns);
+  const items = buildBookingItems(mainServiceId, weightKg, addOns, catalog);
   if (items.length === 0) return null;
   try {
     return estimateOrderTotal(catalog, items);

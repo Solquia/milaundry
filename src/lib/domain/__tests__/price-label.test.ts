@@ -1,6 +1,9 @@
 import {
+  capacityLabel,
   formatPriceLine,
   formatQuantity,
+  lineLabel,
+  lineQuantity,
   minimumChargeNotice,
   minimumLabel,
   priceSubtitle,
@@ -187,5 +190,60 @@ describe('minimumLabel', () => {
   it('agrees with the notice shown once a quantity is chosen', () => {
     // Two labels for one rule that could disagree is worse than one label.
     expect(minimumChargeNotice(curtains, 1)).toContain(minimumLabel(curtains)!);
+  });
+});
+
+describe('capacityLabel', () => {
+  const perLoad: Service = { id: 'wdf', name: 'Wash-Dry-Fold', unit: 'flat', price: 150, max_quantity: 6 };
+
+  it('states the load limit', () => {
+    expect(capacityLabel(perLoad)).toBe('max 6 kg per load');
+  });
+
+  it('is null when the shop set no limit', () => {
+    expect(capacityLabel(selfService)).toBeNull();
+  });
+
+  it('is null on a per-piece price, which is not weighed', () => {
+    expect(capacityLabel({ ...comforter, max_quantity: 4 })).toBeNull();
+  });
+});
+
+describe('load limit in price lines', () => {
+  const perLoad: Service = { id: 'wdf', name: 'Wash-Dry-Fold', unit: 'flat', price: 150, max_quantity: 6 };
+
+  it('reads a limited flat price as per load', () => {
+    expect(formatPriceLine(perLoad)).toBe('₱150.00/load · max 6 kg per load');
+    expect(priceSubtitle(perLoad)).toBe('₱150/load · max 6 kg per load');
+  });
+
+  it('puts the minimum and the limit side by side on a per-kg price', () => {
+    expect(formatPriceLine({ ...curtains, max_quantity: 8 })).toBe(
+      '₱60.00/kg · 3 kg minimum · max 8 kg per load'
+    );
+  });
+});
+
+describe('lineQuantity', () => {
+  it('reads kilos and pieces as they are', () => {
+    expect(lineQuantity('per_kg', 3)).toBe('3 kg');
+    expect(lineQuantity('per_item', 2)).toBe('2 pieces');
+  });
+
+  it('reads a per-load flat line booked by weight in kilos', () => {
+    expect(lineQuantity('flat', 5)).toBe('5 kg');
+  });
+
+  it('says nothing for a one-off flat charge', () => {
+    expect(lineQuantity('flat', 1)).toBeNull();
+    expect(lineQuantity('flat', 0)).toBeNull();
+  });
+});
+describe('lineLabel', () => {
+  it('names each kind of line the way the bill reads', () => {
+    expect(lineLabel('Wash & Fold', 'per_kg', 5)).toBe('Wash & Fold × 5 kg');
+    expect(lineLabel('Comforter', 'per_item', 2)).toBe('Comforter × 2');
+    expect(lineLabel('Wash Only', 'flat', 5)).toBe('Wash Only · 5 kg');
+    expect(lineLabel('Delivery', 'flat', 1)).toBe('Delivery');
   });
 });

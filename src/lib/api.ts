@@ -13,6 +13,12 @@ import type { PhotoKind } from './domain/photo-upload';
 import { signedOrderPhotoUrl, uploadImage } from './imagekit';
 import type { ShopPin as ShopLocationPin } from './domain/shop-location';
 import type { ShopPaymentDetails } from './domain/shop-payment';
+import {
+  readAvailability,
+  type Availability,
+  type Closure,
+  type WeekHours,
+} from './domain/shop-availability';
 import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
@@ -23,7 +29,9 @@ import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
 import type { ShopFormValues } from './domain/shop-form';
 import type { QrPayloadType } from './domain/qr';
+import { PULSE_WINDOW_DAYS, type PulseOrder } from './domain/platform-pulse';
 import type { ScannedShop } from './domain/welcome-flow';
+import { readStorefrontStyle, type StorefrontStyle } from './domain/storefront-style';
 import { supabase } from './supabase';
 import { clearPasswordPending, markPasswordPending } from './web-guest-state';
 import type {
@@ -51,6 +59,8 @@ export interface OrderWithDetails extends OrderRow {
         // the docket, so without it here every ticket fell back to initials
         // however much branding the merchant had actually done.
         | 'logo_url'
+        // The storefront photo, behind the shop's machine on the home rail.
+        | 'cover_url'
         // The rails ride along so the customer's pay screen can say where the
         // money actually goes without a second fetch racing the first.
         | 'gcash_number'
@@ -68,7 +78,7 @@ export interface OrderWithDetails extends OrderRow {
 // Without it the order screen falls back to the id hash, and a laundry that had
 // chosen teal would be teal everywhere in the app except on its own orders.
 const ORDER_SELECT =
-  '*, shop:shops(id, name, slug, brand_accent, logo_url, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
+  '*, shop:shops(id, name, slug, brand_accent, logo_url, cover_url, gcash_number, gcash_name, maya_number, bank_name, bank_account_name, bank_account_number), order_items(*)';
 
 function unwrap<T>(result: { data: T | null; error: { message: string } | null }): T {
   if (result.error) throw new Error(result.error.message);
@@ -435,6 +445,26 @@ export async function weighOrder(
 }
 
 /**
+ * The counter's check of every line — kilos off the scale, pieces out of the
+ * bag — sent to the customer as the price they now pay. The photo is uploaded
+ * first so a failed upload never leaves a repriced order with no evidence.
+ * `confirm_order_price` re-prices on the server; the preview is advisory.
+ */
+export async function confirmOrderPrice(
+  orderId: string,
+  check: { lines: readonly { itemId: string; quantity: number }[]; photoUri?: string | null }
+): Promise<OrderRow> {
+  const photoPath = check.photoUri ? await uploadOrderPhoto(orderId, 'weigh', check.photoUri) : null;
+
+  const result = await supabase.rpc('confirm_order_price', {
+    p_order_id: orderId,
+    p_lines: check.lines.map((line) => ({ item_id: line.itemId, quantity: line.quantity })),
+    p_photo_path: photoPath,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/**
  * The customer's claim that they have sent the money. Deliberately does not
  * mark the order paid — only the shop, looking at their own wallet, can do
  * that via `markOrderPaid`.
@@ -794,6 +824,23 @@ export async function updateShopAddon(
 }
 
 /**
+ * The shop's active add-ons and pick-one rules, readable signed out (0037).
+ * For the web page, whose visitors are often not signed in yet; the app reads
+ * the tables directly. A failure costs the shelf, never the booking.
+ */
+export async function getShopAddonShelf(
+  shopId: string
+): Promise<{ addons: ShopAddon[]; addon_groups: AddonGroupRules }> {
+  const { data, error } = await supabase.rpc('get_shop_addon_shelf', { p_shop_id: shopId });
+  if (error || !data) return { addons: [], addon_groups: {} };
+  const shelf = data as { addons?: ShopAddon[]; addon_groups?: AddonGroupRules };
+  return {
+    addons: (shelf.addons ?? []).map((row) => ({ ...row, price: Number(row.price) })),
+    addon_groups: shelf.addon_groups ?? {},
+  };
+}
+
+/**
  * The shop's pick-one or pick-several setting for each kind. A kind it has not
  * set is left out, and `allowsMultiple` fills in the house rule.
  */
@@ -920,6 +967,64 @@ export async function setShopWebEnabled(shopId: string, isEnabled: boolean): Pro
   return unwrap(result) as Shop;
 }
 
+/**
+ * Flips the sign on the door to CLOSED until `until`, or back to OPEN with
+ * null. Any member may: the counter closes for lunch too.
+ */
+export async function setShopPause(
+  shopId: string,
+  until: Date | null,
+  note = ''
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_pause', {
+    p_shop_id: shopId,
+    p_until: until ? until.toISOString() : null,
+    p_note: note,
+  });
+  return unwrap(result) as Shop;
+}
+
+/** Saves the shop's weekly hours (null = open all day) and its days closed ahead. */
+export async function setShopSchedule(
+  shopId: string,
+  hours: WeekHours | null,
+  closures: readonly Closure[]
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_schedule', {
+    p_shop_id: shopId,
+    p_hours: hours,
+    p_closures: closures,
+  });
+  return unwrap(result) as Shop;
+}
+
+/** Switches how the shop's page looks and books for customers. Owners only. */
+export async function setShopStorefrontStyle(
+  shopId: string,
+  style: StorefrontStyle
+): Promise<Shop> {
+  const result = await supabase.rpc('set_shop_storefront_style', {
+    p_shop_id: shopId,
+    p_style: style,
+  });
+  return unwrap(result) as Shop;
+}
+
+/**
+ * The look the web page draws. A shop not found, or a project without 0036,
+ * reads as the classic page: the look is never a reason the page fails.
+ */
+export async function getShopStorefrontStyle(shopId: string): Promise<StorefrontStyle> {
+  const { data, error } = await supabase.rpc('get_shop_storefront_style', { p_shop_id: shopId });
+  return readStorefrontStyle(error ? null : data);
+}
+
+/** The sign on the door for the web page, which does not read shop rows. */
+export async function getShopAvailability(shopId: string): Promise<Availability> {
+  const result = await supabase.rpc('get_shop_availability', { p_shop_id: shopId });
+  return readAvailability((unwrap(result) as Record<string, unknown> | null) ?? {});
+}
+
 export async function adminSetShopActive(
   shopId: string,
   isActive: boolean
@@ -929,6 +1034,22 @@ export async function adminSetShopActive(
     p_is_active: isActive,
   });
   return unwrap(result) as Shop;
+}
+
+/**
+ * Every order across the platform from the last few weeks, for the console's
+ * pulse. Bounded by date and capped, so a busy platform cannot turn the
+ * overview into a full-table read.
+ */
+export async function adminRecentOrders(): Promise<PulseOrder[]> {
+  const since = new Date(Date.now() - PULSE_WINDOW_DAYS * 86_400_000).toISOString();
+  const result = await supabase
+    .from('orders')
+    .select('shop_id, status, estimated_total, final_total, created_at')
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  return unwrap(result) as PulseOrder[];
 }
 
 /** Total shop logins across the platform, for the console overview. */

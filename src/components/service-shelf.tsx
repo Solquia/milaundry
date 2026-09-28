@@ -22,6 +22,7 @@ import { SectionHeading } from './section-heading';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
 import { RADII, colors, fontFor, space, type } from './ui-kit';
 import { staggerDelay } from '@/lib/domain/entrance';
+import { serviceLooks } from '@/lib/domain/service-look';
 import { filterShelf, shelfEmptyNote, type ShelfEntry } from '@/lib/domain/service-shelf';
 import { gridRows } from '@/lib/domain/web-layout';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
@@ -138,6 +139,9 @@ export function ServiceShelf<T extends ShowcaseCardService>({
    * result — a second letter of a word already matched — does not restart the
    * whole grid under the customer's thumb.
    */
+  // Across every entry, not just the ones a search left: a card keeps its dyes.
+  const looks = React.useMemo(() => serviceLooks(entries.map((entry) => entry.service)), [entries]);
+
   const generation = React.useMemo(
     () => shown.map((entry) => entry.service.id).join('|'),
     [shown]
@@ -200,6 +204,7 @@ export function ServiceShelf<T extends ShowcaseCardService>({
                     <ServiceTileCard
                       service={entry.service}
                       categoryLabel={entry.label}
+                      look={looks.get(entry.service.id)}
                       bookTone={bookTone}
                       isDisabled={isDisabled}
                       onBook={onBook ? () => onBook(entry.service) : undefined}

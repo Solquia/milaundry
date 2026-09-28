@@ -55,3 +55,6 @@ supabase/.temp/
 
 .vercel
 .env*
+
+# copied from zxing-wasm on install (scripts/copy-zxing-wasm.js)
+public/zxing_reader.wasm

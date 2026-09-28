@@ -27,13 +27,14 @@ import { showcaseTone } from '@/lib/domain/service-showcase';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { ServiceScene } from './service-scene';
+import { DrumBackdrop } from './stage-scene';
 import type { WelledService } from './service-well';
 import { colors, fontFor } from './ui-kit';
 
 /** The rim, as a share of the door: thick enough to read as metal at 64pt. */
 const RIM_SHARE = 0.1;
 /** The object's margin inside the glass, so it floats rather than touches. */
-const ART_INSET_SHARE = 0.12;
+const ART_INSET_SHARE = 0.07;
 /** How far the load tips when the door is tapped. */
 const TUMBLE_DEG = 14;
 /** One pass of the water's surface across the glass. */
@@ -247,6 +248,9 @@ export function ServicePorthole({
           />
         ) : (
           <>
+            <View style={StyleSheet.absoluteFill}>
+              <DrumBackdrop color={tone.bg} size={glass} isWarm={false} />
+            </View>
             {/* The water, behind the load: it sits in the drum, the load
                 tumbles in front of it. */}
             <Animated.View

@@ -22,13 +22,13 @@ export const MERCHANT_TABS: readonly TabConfig[] = [
   { name: 'orders', title: 'Orders', icon: 'receipt-outline' },
   { name: 'pos', title: 'New Order', icon: 'cart-outline' },
   { name: 'customers', title: 'Customers', icon: 'qr-code', isCenter: true },
-  { name: 'analytics', title: 'Earnings', icon: 'stats-chart-outline' },
+  { name: 'analytics', title: 'Sales', icon: 'stats-chart-outline' },
   { name: 'services', title: 'Prices', icon: 'pricetags-outline' },
 ];
 
 /**
  * What a staff login sees: the orders coming in, a new walk-in order, and the
- * price list. Earnings and the customer book are the owner's. "New Order" is
+ * price list. Sales and the customer book are the owner's. "New Order" is
  * the raised button because it is the one thing staff do most.
  */
 export const STAFF_TABS: readonly TabConfig[] = [

@@ -1,113 +1,125 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { Redirect, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { Redirect, useRouter } from "expo-router";
+import React, { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { ChipRow } from '@/components/chip-row';
-import { CustomerRow } from '@/components/customer-row';
-import { SectionHeading } from '@/components/section-heading';
-import { ShareRows } from '@/components/share-rows';
-import { StatGrid, StatTile } from '@/components/stat-tile';
-import { TrendBars } from '@/components/trend-bars';
+import { BestsellerRail } from "@/components/bestseller-rail";
+import { CloseDaySheet } from "@/components/close-day-sheet";
+import { CollectLanes } from "@/components/collect-lanes";
+import { DrawerCard } from "@/components/drawer-card";
+import { GoalBurst } from "@/components/goal-burst";
+import { GoalSheet } from "@/components/goal-sheet";
+import { LiveToast } from "@/components/live-toast";
+import { NudgeSheet } from "@/components/nudge-sheet";
+import { PaymentsSheet } from "@/components/payments-sheet";
+import { PeriodSheet } from "@/components/period-sheet";
+import { RushHeatmap } from "@/components/rush-heatmap";
+import { SalesHero } from "@/components/sales-hero";
+import { SalesSkeleton } from "@/components/sales-skeleton";
+import { SectionHeading } from "@/components/section-heading";
 import {
-  Card,
   EmptyState,
   ErrorState,
-  Loading,
+  ErrorText,
+  RADII,
   Screen,
-  TAG_TONES,
   colors,
   elevation,
-  formatMoney,
   space,
   type,
-  CROWN,
-  RADII,
-  fontFor,
-} from '@/components/ui-kit';
-import { getShopCustomers, getShopOrders } from '@/lib/api';
-import { RANGES, RANGE_LABELS, rangeCaption, type RangeKey } from '@/lib/domain/analytics-range';
-import { buildCustomerBook, sortCustomers } from '@/lib/domain/customer-insights';
-import { computeDailyMoney } from '@/lib/domain/daily-analytics';
-import { computeEarnings, describeChange, type ChangeTone } from '@/lib/domain/earnings-summary';
-import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import { canOpenMerchantRoute } from '@/lib/domain/merchant-access';
-import { useActiveShop } from '@/lib/use-active-shop';
+} from "@/components/ui-kit";
+import { getShopCustomers, getShopOrders } from "@/lib/api";
+import { splitCollect } from "@/lib/domain/collect-queue";
+import { buildCustomerBook } from "@/lib/domain/customer-insights";
+import type { DaySummary } from "@/lib/domain/day-close";
+import { friendlyMerchantError } from "@/lib/domain/merchant-error";
+import { canOpenMerchantRoute } from "@/lib/domain/merchant-access";
+import { rushGrid } from "@/lib/domain/rush-hours";
+import { dailyTotals, suggestGoals } from "@/lib/domain/sales-goal";
+import { computeSales, type MetricKey } from "@/lib/domain/sales-metrics";
+import {
+  frameFor,
+  isSamePeriod,
+  stepPeriod,
+  type SalesPeriod,
+} from "@/lib/domain/sales-period";
+import { useActiveShop } from "@/lib/use-active-shop";
+import { useHaptic } from "@/lib/use-app-settings";
+import { useNow } from "@/lib/use-now";
+import {
+  useDayClose,
+  useLivePayments,
+  useSalesGoal,
+} from "@/lib/use-sales-screen";
 
-const RANGE_OPTIONS = RANGES.map((key) => ({ key, label: RANGE_LABELS[key] }));
-const TOP_CUSTOMERS = 3;
+const TODAY: SalesPeriod = { kind: "day", offset: 0 };
+const GOAL_HISTORY_DAYS = 14;
 
-/** "1 payment" / "3 payments" — a bare digit under a peso figure reads as money. */
-function countLabel(count: number, noun: string): string {
-  return `${count} ${noun}${count === 1 ? '' : 's'}`;
-}
-
-const CHANGE_TONES: Record<ChangeTone, { bg: string; ink: string; icon: string }> = {
-  up: { ...TAG_TONES.settled, icon: 'trending-up-outline' },
-  down: { ...TAG_TONES.owed, icon: 'trending-down-outline' },
-  flat: { ...TAG_TONES.neutral, icon: 'remove-outline' },
-};
+type Sheet = "period" | "payments" | "nudge" | "close" | "goal" | null;
 
 /**
- * The comparison with the previous window. A pill rather than a bare
- * percentage so a fall reads as a fact about the period, not an alarm: amber
- * is the app's "owed" colour, and last week being better is not an emergency.
+ * Sales: the owner's counter, not a report. Every figure opens something —
+ * the big number lists its payments, the owed lanes open the orders or a
+ * reminder, the drawer closes the day — and the comparison is always with the
+ * same point in the period before, so a normal morning reads as normal.
  */
-function ChangePill({ text, tone }: { text: string; tone: ChangeTone }) {
-  const look = CHANGE_TONES[tone];
-  return (
-    <View style={[styles.changePill, { backgroundColor: look.bg }]}>
-      <Ionicons name={look.icon as never} size={14} color={look.ink} />
-      <Text style={[styles.changeText, { color: look.ink }]}>{text}</Text>
-    </View>
-  );
-}
-
-export default function MerchantEarnings() {
+export default function MerchantSales() {
   const router = useRouter();
+  const haptic = useHaptic();
   const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
-  // One clock for the whole screen, so the caption and the figures can never
-  // disagree about which day it is.
-  const now = useMemo(() => new Date(), []);
-  const [range, setRange] = useState<RangeKey>('today');
+  // Ticks, so a counter tablet left open overnight turns over to the new day.
+  const now = useNow();
+  const [period, setPeriod] = useState<SalesPeriod>(TODAY);
+  const [metric, setMetric] = useState<MetricKey>("sales");
+  const [sheet, setSheet] = useState<Sheet>(null);
+  const [notice, setNotice] = useState("");
 
+  // The merchant shell already polls this query (the doorbell) and listens
+  // for new orders, so this screen reads the shared cache and adds no traffic.
   const {
     data: orders,
     isLoading,
     error,
     refetch,
   } = useQuery({
-    queryKey: ['shop-orders', shop?.id],
+    queryKey: ["shop-orders", shop?.id],
     queryFn: () => getShopOrders(shop!.id),
     enabled: Boolean(shop),
-    refetchInterval: 15_000,
   });
   const { data: registered } = useQuery({
-    queryKey: ['shop-customers', shop?.id],
+    queryKey: ["shop-customers", shop?.id],
     queryFn: () => getShopCustomers(shop!.id),
     enabled: Boolean(shop),
   });
 
-  const earnings = useMemo(() => computeEarnings(orders ?? [], range, now), [orders, range, now]);
-  const daily = useMemo(() => computeDailyMoney(orders ?? [], now), [orders, now]);
-  const book = useMemo(
-    () => buildCustomerBook(orders ?? [], registered ?? [], now),
-    [orders, registered, now]
+  const all = useMemo(() => orders ?? [], [orders]);
+  const todayFrame = useMemo(() => frameFor(TODAY, now), [now]);
+  const frame = useMemo(() => frameFor(period, now), [period, now]);
+  const today = useMemo(() => computeSales(all, todayFrame), [all, todayFrame]);
+  const sales = useMemo(
+    () => (isSamePeriod(period, TODAY) ? today : computeSales(all, frame)),
+    [all, frame, period, today],
   );
-  const topCustomers = useMemo(
-    () =>
-      sortCustomers(book.customers, 'value')
-        .filter((customer) => customer.orderCount > 0)
-        .slice(0, TOP_CUSTOMERS),
-    [book]
+  const split = useMemo(() => splitCollect(all, now), [all, now]);
+  const rush = useMemo(() => rushGrid(all, now), [all, now]);
+  const book = useMemo(
+    () => buildCustomerBook(all, registered ?? [], now),
+    [all, registered, now],
+  );
+  const goalIdeas = useMemo(
+    () => suggestGoals(dailyTotals(all, now, GOAL_HISTORY_DAYS)),
+    [all, now],
   );
 
-  if (isShopLoading || isLoading) return <Loading />;
+  const goal = useSalesGoal(shop?.id, today.metrics.sales.total, now);
+  const live = useLivePayments(shop?.id, today.payments);
+  const dayClose = useDayClose(shop?.id, now);
+
+  if (isShopLoading || (isLoading && !orders)) return <SalesSkeleton />;
   // Owner-only. A staff login has no tab for this screen, but a stale link or
-  // a typed web address can still land here; the RPCs behind it would refuse
-  // them, so send them back to the counter instead of showing an error.
-  if (!canOpenMerchantRoute(shopRole, 'analytics')) {
+  // a typed web address can still land here; send them back to the counter.
+  if (!canOpenMerchantRoute(shopRole, "analytics")) {
     return <Redirect href="/(merchant)/orders" />;
   }
   if (!shop) {
@@ -116,163 +128,175 @@ export default function MerchantEarnings() {
     );
   }
 
-  const caption = rangeCaption(range, now);
-  const change = describeChange(earnings.changePct, range);
-  const { summary } = book;
-  const trendLabel =
-    earnings.trendPeak > 0
-      ? `Collections over time. Best ${range === 'today' || range === '7d' ? 'day' : 'period'}: ${formatMoney(earnings.trendPeak)}.`
-      : 'Collections over time. Nothing collected yet.';
+  const isToday = isSamePeriod(period, TODAY);
+  const owedTotal =
+    split.ready.amount + split.overdue.amount + split.washing.amount;
+  const daySummary: DaySummary = {
+    caption: todayFrame.caption,
+    sales: today.metrics.sales.total,
+    payments: today.payments.length,
+    ordersTaken: today.metrics.orders.total,
+    methods: today.methods,
+    toCollect: owedTotal,
+  };
+  const later = stepPeriod(period, 1);
+  const choosePeriod = (next: SalesPeriod) => {
+    haptic("select");
+    setPeriod(next);
+    setSheet(null);
+  };
+  const openOrder = (orderId: string) => {
+    setSheet(null);
+    router.push(`/(merchant)/order/${orderId}`);
+  };
 
   return (
-    <Screen>
-      {error ? (
-        <ErrorState
-          message={friendlyMerchantError('load-earnings', error.message)}
-          onRetry={() => refetch()}
-        />
-      ) : null}
-
-      <ChipRow options={RANGE_OPTIONS} value={range} onChange={setRange} label="Choose the period" />
-
-      {/* A tinted field rather than a coloured rule or a badge: the whole card
-          is the period's takings, so the whole card is the thing that changes. */}
-      <View style={styles.hero}>
-        <Text style={styles.heroLabel}>Collected · {caption}</Text>
-        <Text style={styles.figure} accessibilityRole="header">
-          {formatMoney(earnings.collected)}
-        </Text>
-        <View style={styles.heroLine}>
-          <Text style={styles.heroHint}>{countLabel(earnings.paymentsCount, 'payment')}</Text>
-          {change ? <ChangePill text={change.text} tone={change.tone} /> : null}
-        </View>
-        <TrendBars
-          points={earnings.trend}
-          peak={earnings.trendPeak}
-          accessibilityLabel={trendLabel}
-        />
-      </View>
-
-      <StatGrid>
-        <StatTile label="Orders taken" value={String(earnings.ordersTaken)} hint={caption} />
-        <StatTile
-          label="Average order"
-          value={formatMoney(earnings.averageOrder)}
-          hint="Per order taken"
-        />
-        <StatTile
-          label="Still to collect"
-          value={formatMoney(earnings.receivables)}
-          tone="owed"
-          hint={`${countLabel(earnings.unpaidCount, 'unpaid order')}, any date`}
-        />
-        {range === 'today' ? (
-          <StatTile
-            label="Expected by end of day"
-            value={formatMoney(daily.projectedToday)}
-            hint="Collected, plus today's orders still to be paid"
+    <View style={styles.shell}>
+      <Screen>
+        {error ? (
+          <ErrorState
+            message={friendlyMerchantError("load-earnings", error.message)}
+            onRetry={() => refetch()}
           />
-        ) : (
-          <StatTile
-            label="Payments received"
-            value={String(earnings.paymentsCount)}
-            hint={caption}
-          />
-        )}
-      </StatGrid>
+        ) : null}
+        <ErrorText>{notice}</ErrorText>
 
-      <SectionHeading title="Where the money came from" caption={caption} />
-      <Card>
-        <Text style={styles.subheading}>By source</Text>
-        <ShareRows items={earnings.sources} emptyText="Nothing collected in this period yet." />
-        <View style={styles.divider} />
-        <Text style={styles.subheading}>By payment method</Text>
-        <ShareRows items={earnings.methods} emptyText="Nothing collected in this period yet." />
-      </Card>
-
-      <SectionHeading title="Top services" caption="By revenue from orders taken" />
-      <Card>
-        <ShareRows
-          items={earnings.topServices.map((service) => ({
-            key: service.name,
-            label: service.name,
-            amount: service.revenue,
-            share: service.share,
-            note: countLabel(service.count, 'order line'),
-          }))}
-          emptyText="No orders taken in this period yet."
+        <SalesHero
+          frame={frame}
+          sales={sales}
+          metric={metric}
+          onMetric={(next) => {
+            haptic("select");
+            setMetric(next);
+          }}
+          onOpenPeriods={() => setSheet("period")}
+          onStepBack={() => choosePeriod(stepPeriod(period, -1) ?? period)}
+          onStepForward={later ? () => choosePeriod(later) : null}
+          goal={goal.goal}
+          onEditGoal={() => setSheet("goal")}
+          onOpenPayments={() => setSheet("payments")}
         />
-      </Card>
 
-      <SectionHeading
-        title="Customers"
-        caption="Across everything you have taken"
-        actionLabel="See all"
-        onAction={() => router.push('/(merchant)/customers')}
+        <SectionHeading title="To collect" caption="Unpaid orders, any date" />
+        <CollectLanes
+          split={split}
+          onOpenReady={() =>
+            router.push("/(merchant)/orders?view=collect" as never)
+          }
+          onNudge={() => setSheet("nudge")}
+        />
+
+        <SectionHeading
+          title="Drawer & wallets"
+          caption={`Money in · ${frame.caption}`}
+        />
+        <DrawerCard
+          methods={sales.methods}
+          canClose={isToday}
+          savedClose={isToday ? dayClose.saved : null}
+          onCloseDay={() => setSheet("close")}
+        />
+
+        <SectionHeading
+          title="Bestsellers"
+          caption={`Orders taken · ${frame.caption}`}
+        />
+        <BestsellerRail items={sales.bestsellers} />
+
+        <SectionHeading
+          title="Rush hours"
+          caption="Orders taken, last 8 weeks"
+        />
+        <RushHeatmap grid={rush} />
+
+        <Pressable
+          onPress={() => router.push("/(merchant)/customers")}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.customers,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="people-outline" size={20} color={colors.actionInk} />
+          <View style={styles.customersWords}>
+            <Text style={styles.customersTitle}>Customer book</Text>
+            <Text style={styles.customersHint}>
+              {book.summary.repeatRate}% come back · {book.summary.newThisMonth}{" "}
+              new this month
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+        </Pressable>
+      </Screen>
+
+      <LiveToast payment={live.toast} onDone={live.clearToast} />
+      <GoalBurst goal={goal.burst} onDone={goal.clearBurst} />
+
+      <PeriodSheet
+        visible={sheet === "period"}
+        value={period}
+        onChoose={choosePeriod}
+        onClose={() => setSheet(null)}
       />
-      <StatGrid>
-        <StatTile
-          label="Customers"
-          value={String(summary.total)}
-          hint={`${summary.ordering} have ordered`}
+      <PaymentsSheet
+        visible={sheet === "payments"}
+        title={frame.title}
+        payments={sales.payments}
+        total={sales.metrics.sales.total}
+        unit={frame.unit}
+        onOpenOrder={openOrder}
+        onClose={() => setSheet(null)}
+      />
+      <NudgeSheet
+        visible={sheet === "nudge"}
+        orders={[...split.overdue.orders, ...split.ready.orders]}
+        shop={shop}
+        now={now}
+        onError={setNotice}
+        onClose={() => setSheet(null)}
+      />
+      {/* Mounted per opening, so each count starts blank. */}
+      {sheet === "close" ? (
+        <CloseDaySheet
+          visible
+          summary={daySummary}
+          shopName={shop.name}
+          onSaved={(close) => {
+            dayClose.save(close);
+            haptic(close.tone === "short" ? "warning" : "success");
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
         />
-        <StatTile
-          label="Repeat rate"
-          value={`${summary.repeatRate}%`}
-          hint="Came back at least once"
-        />
-        <StatTile
-          label="Average lifetime value"
-          value={formatMoney(summary.averageLifetimeValue)}
-          tone="in"
-          hint="Per customer who has ordered"
-        />
-        <StatTile
-          label="New this month"
-          value={String(summary.newThisMonth)}
-          hint="First order in the last 30 days"
-        />
-      </StatGrid>
-      {topCustomers.length > 0 ? (
-        <>
-          <Text style={styles.subheading}>Top customers by lifetime value</Text>
-          {topCustomers.map((customer) => (
-            <CustomerRow
-              key={customer.key}
-              customer={customer}
-              now={now}
-              onPress={() =>
-                router.push(`/(merchant)/customer/${encodeURIComponent(customer.key)}` as never)
-              }
-            />
-          ))}
-        </>
       ) : null}
-    </Screen>
+      {sheet === "goal" ? (
+        <GoalSheet
+          visible
+          goal={goal.goal}
+          suggestions={goalIdeas}
+          onSave={(next) => {
+            goal.setGoal(next);
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  hero: {
+  shell: { flex: 1, backgroundColor: colors.bg },
+  customers: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: space.cosy,
-    padding: space.section,
-    ...CROWN,
-    backgroundColor: colors.takingsSurface,
+    padding: space.room,
+    borderRadius: RADII.card,
+    backgroundColor: colors.card,
     ...elevation.rest,
   },
-  heroLabel: { ...type.label, color: colors.subtle },
-  figure: { ...type.hero, color: colors.moneyIn },
-  heroLine: { flexDirection: 'row', alignItems: 'center', gap: space.snug, flexWrap: 'wrap' },
-  heroHint: { ...type.caption, color: colors.subtle },
-  changePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: RADII.pill,
-    paddingHorizontal: space.cosy,
-    paddingVertical: 3,
-  },
-  changeText: { ...type.caption, fontFamily: fontFor(600) },
-  subheading: { ...type.label, color: colors.subtle },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: space.tight },
+  customersWords: { flex: 1, gap: 2 },
+  customersTitle: { ...type.label, color: colors.text },
+  customersHint: { ...type.caption, color: colors.subtle },
 });

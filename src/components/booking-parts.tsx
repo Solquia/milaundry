@@ -1,5 +1,5 @@
 /**
- * The small pieces of the booking flow: a schedule leg, a chip, the price in
+ * The small pieces of the booking flow: a chip, the price in
  * the buy bar, the review rows. Used by the shared booking flow on the app and
  * on the shop's web page alike.
  */
@@ -9,93 +9,10 @@ import { Pressable, StyleProp, Text, View, ViewStyle } from 'react-native';
 
 import { bookingStyles as styles } from '@/components/booking-styles';
 import { Odometer } from '@/components/odometer';
-import { Reveal } from '@/components/reveal';
-import { SlotCalendar } from '@/components/slot-calendar';
 import { Button, Card, Screen, Subtle, colors, formatMoney } from '@/components/ui-kit';
 import type { CatalogProblem } from '@/lib/domain/booking-error';
-import type { BookingStep, SlotValue } from '@/lib/domain/booking-seed';
-import { BOOKING_WINDOW_DAYS, slotSummary } from '@/lib/domain/booking-slot';
 import { addonPriceLabel, type PickedAddon } from '@/lib/domain/shop-addons';
 import type { OrderEstimate } from '@/lib/domain/pricing';
-
-/**
- * One leg of the schedule: a settled answer you can open if it is wrong.
- *
- * Both legs used to stand open at once — four day chips and six hour chips,
- * twice, twenty chips on a step whose defaults were already right for most
- * bookings. The customer read a wall to confirm something they agreed with.
- *
- * Now each leg is a single line that states its own answer, and the chips sit
- * behind it. Only one leg opens at a time, so the most that can ever be on
- * screen is ten chips belonging to one question.
- */
-export function ScheduleLeg({
-  label,
-  icon,
-  value,
-  minOffset,
-  openHours: hoursOnOffer,
-  isOpen,
-  onToggle,
-  onChange,
-}: {
-  label: string;
-  icon: string;
-  value: SlotValue;
-  /** Earliest day this leg offers. Delivery counts from pickup, not today. */
-  minOffset: number;
-  /** The hours still bookable on the chosen day; the rest are drawn but shut. */
-  openHours: readonly number[];
-  isOpen: boolean;
-  onToggle: () => void;
-  onChange: (next: SlotValue) => void;
-}) {
-  const now = new Date();
-  const summary = slotSummary(value, now);
-
-  return (
-    <View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ expanded: isOpen }}
-        // Two texts on screen, one fact when spoken.
-        accessibilityLabel={`${label}: ${summary}`}
-        accessibilityHint={
-          isOpen ? 'Closes the day and time choices' : 'Opens the day and time choices'
-        }
-        onPress={onToggle}
-        style={[styles.legRow, isOpen && styles.legRowOpen]}
-      >
-        <Ionicons name={icon as never} size={18} color={colors.actionInk} />
-        <Text style={styles.legLabel}>{label}</Text>
-        <Text style={styles.legValue}>{summary}</Text>
-        <Ionicons
-          name={isOpen ? 'chevron-up' : 'chevron-down'}
-          size={16}
-          color={colors.subtle}
-        />
-      </Pressable>
-
-      {isOpen && (
-        <Reveal style={styles.legPanel}>
-          {/* The row above already names this leg and states its answer, so
-              the picker does not say either a second time. */}
-          <SlotCalendar
-            label={label}
-            value={value}
-            onChange={onChange}
-            minOffset={minOffset}
-            maxOffset={minOffset + BOOKING_WINDOW_DAYS}
-            now={now}
-            showHeading={false}
-            framed={false}
-            openHours={hoursOnOffer}
-          />
-        </Reveal>
-      )}
-    </View>
-  );
-}
 
 export function Chip({
   label,
@@ -170,25 +87,14 @@ function priceAmount(estimate: OrderEstimate | null, hasSelection: boolean): str
   return '—';
 }
 
-/**
- * The one line under the figure. It advances with the step rather than
- * repeating: the schedule step used to restate the estimate step's sentence
- * word for word, directly below a card that said it a third time.
- */
+/** The one line under the figure: what settles the price, or why there is none. */
 function priceNote(
   estimate: OrderEstimate | null,
   hasSelection: boolean,
-  step: BookingStep,
   /** What settles the price for this service: the scale, a count, or nothing. */
   finalPriceNote: string
 ): string {
-  if (estimate) {
-    // The payment methods are a fact you need once, at the last tap. Naming
-    // them on the schedule step spent two lines on something the customer
-    // cannot act on yet, directly under the loudest figure on the screen.
-    if (step === 'review') return 'Pay once the shop confirms the price — cash, GCash, Maya, or bank.';
-    return finalPriceNote;
-  }
+  if (estimate) return finalPriceNote;
   if (hasSelection) {
     return "This shop's price list may have just changed — pick your items again.";
   }
@@ -196,9 +102,8 @@ function priceNote(
 }
 
 /**
- * The running total, the left half of the buy bar pinned under the page. One
- * shape across all three steps: the figure keeps a fixed home so the layout
- * never jumps, and an unpriceable selection reads as unknown rather than as
+ * The running total, the left half of the buy bar pinned under the page. The
+ * figure keeps a fixed home so the layout never jumps, and an unpriceable selection reads as unknown rather than as
  * free.
  *
  * It sits beside the button rather than over it, the way a shop's checkout
@@ -208,17 +113,16 @@ function priceNote(
 export function PriceSummary({
   estimate,
   hasSelection,
-  step,
   finalPriceNote,
 }: {
   estimate: OrderEstimate | null;
   hasSelection: boolean;
-  step: BookingStep;
   finalPriceNote: string;
 }) {
+  const note = priceNote(estimate, hasSelection, finalPriceNote);
   return (
     <View style={styles.priceBlock}>
-      <Text style={styles.priceLabel}>Estimated total</Text>
+      <Text style={styles.priceLabel}>Total</Text>
       {/* An em dash is not a number and has no wheels to turn, so the
           unpriceable case stays plain text. */}
       {estimate && hasSelection ? (
@@ -232,9 +136,12 @@ export function PriceSummary({
           {priceAmount(estimate, hasSelection)}
         </Text>
       )}
-      <Text style={styles.priceNote} numberOfLines={2}>
-        {priceNote(estimate, hasSelection, step, finalPriceNote)}
-      </Text>
+      {/* A set price has nothing left to settle, so it says nothing here. */}
+      {note ? (
+        <Text style={styles.priceNote} numberOfLines={1}>
+          {note}
+        </Text>
+      ) : null}
     </View>
   );
 }
