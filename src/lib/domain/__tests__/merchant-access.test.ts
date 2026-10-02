@@ -38,6 +38,11 @@ describe('canOpenMerchantRoute', () => {
     expect(canOpenMerchantRoute('staff', 'customers')).toBe(false);
   });
 
+  it('keeps staff off the shop expenses', () => {
+    expect(canOpenMerchantRoute('staff', 'expenses')).toBe(false);
+    expect(canOpenMerchantRoute('owner', 'expenses')).toBe(true);
+  });
+
   it('lets staff into orders, new order, prices and settings', () => {
     ['orders', 'pos', 'services', 'settings', 'order/[id]'].forEach((route) =>
       expect(canOpenMerchantRoute('staff', route)).toBe(true)

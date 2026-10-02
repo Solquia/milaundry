@@ -8,12 +8,14 @@ import { BestsellerRail } from "@/components/bestseller-rail";
 import { CloseDaySheet } from "@/components/close-day-sheet";
 import { CollectLanes } from "@/components/collect-lanes";
 import { DrawerCard } from "@/components/drawer-card";
+import { ExpenseSheet } from "@/components/expense-sheet";
 import { GoalBurst } from "@/components/goal-burst";
 import { GoalSheet } from "@/components/goal-sheet";
 import { LiveToast } from "@/components/live-toast";
 import { NudgeSheet } from "@/components/nudge-sheet";
 import { PaymentsSheet } from "@/components/payments-sheet";
 import { PeriodSheet } from "@/components/period-sheet";
+import { ProfitCard } from "@/components/profit-card";
 import { RushHeatmap } from "@/components/rush-heatmap";
 import { SalesHero } from "@/components/sales-hero";
 import { SalesSkeleton } from "@/components/sales-skeleton";
@@ -33,6 +35,7 @@ import { getShopCustomers, getShopOrders } from "@/lib/api";
 import { splitCollect } from "@/lib/domain/collect-queue";
 import { buildCustomerBook } from "@/lib/domain/customer-insights";
 import type { DaySummary } from "@/lib/domain/day-close";
+import { profitOf, toDateKey } from "@/lib/domain/expense-metrics";
 import { friendlyMerchantError } from "@/lib/domain/merchant-error";
 import { canOpenMerchantRoute } from "@/lib/domain/merchant-access";
 import { rushGrid } from "@/lib/domain/rush-hours";
@@ -47,6 +50,7 @@ import {
 import { useActiveShop } from "@/lib/use-active-shop";
 import { useHaptic } from "@/lib/use-app-settings";
 import { useNow } from "@/lib/use-now";
+import { useShopExpenses } from "@/lib/use-shop-expenses";
 import {
   useDayClose,
   useLivePayments,
@@ -56,7 +60,7 @@ import {
 const TODAY: SalesPeriod = { kind: "day", offset: 0 };
 const GOAL_HISTORY_DAYS = 14;
 
-type Sheet = "period" | "payments" | "nudge" | "close" | "goal" | null;
+type Sheet = "period" | "payments" | "nudge" | "close" | "goal" | "expense" | null;
 
 /**
  * Sales: the owner's counter, not a report. Every figure opens something —
@@ -115,6 +119,7 @@ export default function MerchantSales() {
   const goal = useSalesGoal(shop?.id, today.metrics.sales.total, now);
   const live = useLivePayments(shop?.id, today.payments);
   const dayClose = useDayClose(shop?.id, now);
+  const expenses = useShopExpenses(shop?.id, frame);
 
   if (isShopLoading || (isLoading && !orders)) return <SalesSkeleton />;
   // Owner-only. A staff login has no tab for this screen, but a stale link or
@@ -139,6 +144,8 @@ export default function MerchantSales() {
     methods: today.methods,
     toCollect: owedTotal,
   };
+  const collected = sales.metrics.sales.total;
+  const { profit, marginPct } = profitOf(collected, expenses.summary.total);
   const later = stepPeriod(period, 1);
   const choosePeriod = (next: SalesPeriod) => {
     haptic("select");
@@ -175,6 +182,25 @@ export default function MerchantSales() {
           goal={goal.goal}
           onEditGoal={() => setSheet("goal")}
           onOpenPayments={() => setSheet("payments")}
+        />
+
+        <SectionHeading
+          title="Profit"
+          caption={`Money in less expenses · ${frame.caption}`}
+        />
+        <ProfitCard
+          collected={collected}
+          spent={expenses.summary.total}
+          profit={profit}
+          marginPct={marginPct}
+          expenseCount={expenses.summary.count}
+          isLoading={expenses.isLoading}
+          onAddExpense={() => setSheet("expense")}
+          onOpenExpenses={() =>
+            router.push(
+              `/(merchant)/expenses?kind=${period.kind}&offset=${period.offset}` as never,
+            )
+          }
         />
 
         <SectionHeading title="To collect" caption="Unpaid orders, any date" />
@@ -264,6 +290,19 @@ export default function MerchantSales() {
           onSaved={(close) => {
             dayClose.save(close);
             haptic(close.tone === "short" ? "warning" : "success");
+            setSheet(null);
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === "expense" ? (
+        <ExpenseSheet
+          visible
+          shopId={shop.id}
+          expense={null}
+          today={toDateKey(now)}
+          onSaved={() => {
+            haptic("success");
             setSheet(null);
           }}
           onClose={() => setSheet(null)}

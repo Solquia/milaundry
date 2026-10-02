@@ -12,7 +12,7 @@ import { MERCHANT_TABS, STAFF_TABS, type TabConfig } from './tab-config';
  */
 
 /** Route file names inside (merchant) that only an owner may open. */
-export const OWNER_ONLY_ROUTES: readonly string[] = ['analytics', 'customers'];
+export const OWNER_ONLY_ROUTES: readonly string[] = ['analytics', 'customers', 'expenses'];
 
 /** The tab bar for a member of this role. */
 export function tabsForShopRole(role: ShopAccountRole): readonly TabConfig[] {

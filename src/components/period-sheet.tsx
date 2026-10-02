@@ -14,16 +14,18 @@ import { RADII, colors, space, type } from './ui-kit';
 export function PeriodSheet({
   visible,
   value,
+  title = "Show sales for",
   onChoose,
   onClose,
 }: {
   visible: boolean;
   value: SalesPeriod;
+  title?: string;
   onChoose: (next: SalesPeriod) => void;
   onClose: () => void;
 }) {
   return (
-    <SalesSheet visible={visible} title="Show sales for" onClose={onClose}>
+    <SalesSheet visible={visible} title={title} onClose={onClose}>
       <View style={styles.list}>
         {PERIOD_PRESETS.map((preset) => {
           const isOn = isSamePeriod(preset.period, value);

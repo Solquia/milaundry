@@ -24,6 +24,7 @@ import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
 import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
+import type { Expense, ExpenseInput } from './domain/expense-metrics';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
@@ -790,6 +791,37 @@ export function uploadShopCover(shopId: string, localUri: string): Promise<strin
 /** The owner's own photo of an add-on — the Ariel on their shelf. Same bucket policy. */
 export function uploadAddonPhoto(shopId: string, localUri: string): Promise<string> {
   return uploadShopAsset(shopId, localUri, 'addon');
+}
+
+// ── shop expenses: what the shop spends (0039, owner-only) ────────────────
+/** Expenses paid from `from` up to, not including, `to` (both YYYY-MM-DD). */
+export async function getShopExpenses(shopId: string, from: string, to: string): Promise<Expense[]> {
+  const result = await supabase
+    .from('shop_expenses')
+    .select('id, shop_id, spent_on, amount, category, note, paid_from, created_at')
+    .eq('shop_id', shopId)
+    .gte('spent_on', from)
+    .lt('spent_on', to)
+    .order('spent_on', { ascending: false })
+    .order('created_at', { ascending: false });
+  const rows = unwrap(result) as (Omit<Expense, 'amount'> & { amount: number | string })[];
+  // numeric comes back as a string from PostgREST.
+  return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
+}
+
+export async function createShopExpense(shopId: string, input: ExpenseInput): Promise<void> {
+  const { error } = await supabase.from('shop_expenses').insert({ shop_id: shopId, ...input });
+  if (error) throw new Error(error.message);
+}
+
+export async function updateShopExpense(expenseId: string, input: ExpenseInput): Promise<void> {
+  const { error } = await supabase.from('shop_expenses').update(input).eq('id', expenseId);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteShopExpense(expenseId: string): Promise<void> {
+  const { error } = await supabase.from('shop_expenses').delete().eq('id', expenseId);
+  if (error) throw new Error(error.message);
 }
 
 // ── shop add-ons: soaps, fabcons, extras ──────────────────────────────────
