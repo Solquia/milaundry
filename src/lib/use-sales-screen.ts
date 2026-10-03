@@ -6,8 +6,16 @@
  * Stored values are held with the key they were loaded for (the shop, the
  * day), so switching shop or crossing midnight reads as "not loaded yet"
  * without an effect having to reset anything.
+ *
+ * The goal and the drawer count live on the server (0040), so a second
+ * tablet or the web dashboard sees them. The phone keeps a copy: it answers
+ * when the server cannot, and a goal set before 0040 is uploaded once.
+ * The once-a-day celebration stays on the device — it is this screen's.
  */
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState } from 'react';
+
+import { getDayClose, getSalesGoal, saveDayClose, setSalesGoal } from './api';
 
 import type { DrawerClose } from './domain/day-close';
 import { arrivedPayments } from './domain/live-payments';
@@ -24,28 +32,56 @@ import {
 } from './sales-store';
 import { useHaptic } from './use-app-settings';
 
-interface StoredGoal {
+interface StoredCheer {
   shopId: string;
-  goal: number | null;
   celebrated: string | null;
+}
+
+const salesGoalKey = (shopId: string | undefined) => ['sales-goal', shopId] as const;
+const dayCloseKey = (shopId: string | undefined, day: string) => ['day-close', shopId, day] as const;
+
+/** The server's goal; a goal only this phone knows is uploaded the first time. */
+async function readGoal(shopId: string): Promise<number | null> {
+  try {
+    const server = await getSalesGoal(shopId);
+    if (server.hasRow) return server.goal;
+    const local = await loadGoal(shopId);
+    if (local !== null) await setSalesGoal(shopId, local);
+    return local;
+  } catch {
+    return loadGoal(shopId);
+  }
+}
+
+async function readClose(shopId: string, day: string): Promise<SavedClose | null> {
+  try {
+    return (await getDayClose(shopId, day)) ?? (await loadClose(shopId, day));
+  } catch {
+    return loadClose(shopId, day);
+  }
 }
 
 export function useSalesGoal(shopId: string | undefined, collectedToday: number, now: Date) {
   const haptic = useHaptic();
-  const [stored, setStored] = useState<StoredGoal | null>(null);
+  const queryClient = useQueryClient();
+  const [cheer, setCheer] = useState<StoredCheer | null>(null);
   const [burst, setBurst] = useState<number | null>(null);
   const today = dayKey(now);
+  const goalQuery = useQuery({
+    queryKey: salesGoalKey(shopId),
+    queryFn: () => readGoal(shopId!),
+    enabled: Boolean(shopId),
+  });
 
   useEffect(() => {
     if (!shopId) return;
     let isCurrent = true;
-    void Promise.all([loadGoal(shopId), loadCelebrated(shopId)]).then(([goal, celebrated]) => {
+    void loadCelebrated(shopId).then((celebrated) => {
       if (!isCurrent) return;
       // A celebration recorded in memory while the read was in flight wins over
       // the older stored day, or the burst could play twice.
-      setStored((current) => ({
+      setCheer((current) => ({
         shopId,
-        goal,
         celebrated:
           current?.shopId === shopId && current.celebrated && (!celebrated || current.celebrated > celebrated)
             ? current.celebrated
@@ -57,14 +93,14 @@ export function useSalesGoal(shopId: string | undefined, collectedToday: number,
     };
   }, [shopId]);
 
-  const isReady = stored !== null && stored.shopId === shopId;
-  const goal = isReady ? stored.goal : null;
+  const isReady = goalQuery.isSuccess && cheer !== null && cheer.shopId === shopId;
+  const goal = goalQuery.data ?? null;
   const isHit = goal !== null && goalProgress(collectedToday, goal).isHit;
 
   // Decided while rendering, so the burst shows on the same frame the figure
   // crosses the line; recording "celebrated" first makes it fire once.
-  if (isReady && goal !== null && shouldCelebrate(isHit, stored.celebrated, today)) {
-    setStored({ ...stored, celebrated: today });
+  if (isReady && goal !== null && shouldCelebrate(isHit, cheer.celebrated, today)) {
+    setCheer({ ...cheer, celebrated: today });
     setBurst(goal);
   }
 
@@ -77,14 +113,13 @@ export function useSalesGoal(shopId: string | undefined, collectedToday: number,
   const setGoal = useCallback(
     (next: number | null) => {
       if (!shopId) return;
-      setStored((current) => ({
-        shopId,
-        goal: next,
-        celebrated: current?.shopId === shopId ? current.celebrated : null,
-      }));
+      queryClient.setQueryData(salesGoalKey(shopId), next);
       void saveGoal(shopId, next);
+      // The phone's copy already holds it; a failed upload is retried by the
+      // next save, and the screen never shows an error for a personal target.
+      setSalesGoal(shopId, next).catch(() => undefined);
     },
-    [shopId]
+    [shopId, queryClient]
   );
 
   const clearBurst = useCallback(() => setBurst(null), []);
@@ -112,20 +147,13 @@ export function useLivePayments(shopId: string | undefined, payments: readonly S
 }
 
 export function useDayClose(shopId: string | undefined, now: Date) {
-  const [stored, setStored] = useState<{ key: string; close: SavedClose | null } | null>(null);
+  const queryClient = useQueryClient();
   const today = dayKey(now);
-  const key = `${shopId ?? ''}:${today}`;
-
-  useEffect(() => {
-    if (!shopId) return;
-    let isCurrent = true;
-    void loadClose(shopId, today).then((close) => {
-      if (isCurrent) setStored({ key: `${shopId}:${today}`, close });
-    });
-    return () => {
-      isCurrent = false;
-    };
-  }, [shopId, today]);
+  const closeQuery = useQuery({
+    queryKey: dayCloseKey(shopId, today),
+    queryFn: () => readClose(shopId!, today),
+    enabled: Boolean(shopId),
+  });
 
   const save = useCallback(
     (close: DrawerClose) => {
@@ -136,11 +164,12 @@ export function useDayClose(shopId: string | undefined, now: Date) {
         difference: close.difference,
         tone: close.tone,
       };
-      setStored({ key: `${shopId}:${today}`, close: record });
+      queryClient.setQueryData(dayCloseKey(shopId, today), record);
       void saveClose(shopId, today, record);
+      saveDayClose(shopId, today, record).catch(() => undefined);
     },
-    [shopId, today]
+    [shopId, today, queryClient]
   );
 
-  return { saved: stored?.key === key ? stored.close : null, save };
+  return { saved: closeQuery.data ?? null, save };
 }

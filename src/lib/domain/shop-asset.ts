@@ -41,3 +41,16 @@ export function shopAssetPath(
 ): string {
   return `${shopId}/${kind}-${now.getTime()}.${extension}`;
 }
+
+/**
+ * The private bucket expense receipts go to (0040). Same folder rule as the
+ * logos — the shop id first, checked against `can_manage_shop` — but never
+ * public: a receipt carries a supplier's name, amounts, sometimes an account.
+ * Viewed by signed URL only.
+ */
+export const SHOP_RECEIPT_BUCKET = 'shop-receipts';
+
+/** `<shop_id>/receipt-<timestamp>.<ext>`; 0040 checks the first segment is the expense's shop. */
+export function shopReceiptPath(shopId: string, extension: string, now: Date = new Date()): string {
+  return `${shopId}/receipt-${now.getTime()}.${extension}`;
+}

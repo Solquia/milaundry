@@ -31,6 +31,10 @@ export interface Expense {
   note: string;
   paid_from: ExpensePaidFrom;
   created_at: string;
+  /** The recurring bill this logs, once per month (0040). */
+  recurring_id: string | null;
+  /** `<shop_id>/receipt-<ms>.<ext>` in the private shop-receipts bucket (0040). */
+  receipt_path: string | null;
 }
 
 /** What the sheet sends to the database, already checked. */
@@ -40,6 +44,8 @@ export interface ExpenseInput {
   spent_on: string;
   paid_from: ExpensePaidFrom;
   note: string;
+  receipt_path?: string | null;
+  recurring_id?: string | null;
 }
 
 export interface CategoryShare {
@@ -179,7 +185,7 @@ export interface ExpenseDraft {
 
 export type DraftCheck = { ok: true; value: ExpenseInput } | { ok: false; error: string };
 
-function parsePesos(input: string): number | null {
+export function parsePesos(input: string): number | null {
   const cleaned = input.replace(/[₱,\s]/g, '');
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   return Number(cleaned);

@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Redirect, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -6,6 +7,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ExpenseBreakdown } from '@/components/expense-breakdown';
 import { ExpenseSheet } from '@/components/expense-sheet';
 import { PeriodSheet } from '@/components/period-sheet';
+import { DueBills, MonthlyBillList } from '@/components/recurring-bills';
+import { RecurringSheet } from '@/components/recurring-sheet';
 import { SectionHeading } from '@/components/section-heading';
 import {
   EmptyState,
@@ -19,15 +22,23 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
+import { createShopExpense } from '@/lib/api';
 import { CATEGORY_LOOKS, PAID_FROM_LABELS } from '@/lib/domain/expense-categories';
+import { expenseCsvFilename, expensesToCsv } from '@/lib/domain/expense-csv';
 import { dayLabel, toDateKey, type Expense } from '@/lib/domain/expense-metrics';
+import { dueBills, type DueBill, type RecurringExpense } from '@/lib/domain/expense-recurring';
 import { canOpenMerchantRoute } from '@/lib/domain/merchant-access';
 import { formatMoney } from '@/lib/domain/money';
 import { frameFor, stepPeriod, type PeriodKind, type SalesPeriod } from '@/lib/domain/sales-period';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { useHaptic } from '@/lib/use-app-settings';
 import { useNow } from '@/lib/use-now';
-import { useShopExpenses } from '@/lib/use-shop-expenses';
+import { shareCsv } from '@/lib/share-csv';
+import {
+  invalidateShopExpenses,
+  useRecurringExpenses,
+  useShopExpenses,
+} from '@/lib/use-shop-expenses';
 
 const KINDS: readonly PeriodKind[] = ['day', 'week', 'month', 'year'];
 const THIS_MONTH: SalesPeriod = { kind: 'month', offset: 0 };
@@ -40,6 +51,7 @@ function periodFromParams(kind?: string, offset?: string): SalesPeriod {
 }
 
 type Editing = { expense: Expense | null } | null;
+type BillEditing = { bill: RecurringExpense | null } | null;
 
 /**
  * Expenses: what the shop paid out, for the same periods the Sales screen
@@ -56,10 +68,42 @@ export default function MerchantExpenses() {
   const [isPicking, setIsPicking] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
   const [notice, setNotice] = useState('');
+  const [billEditing, setBillEditing] = useState<BillEditing>(null);
+  const queryClient = useQueryClient();
 
   const frame = useMemo(() => frameFor(period, now), [period, now]);
+  const monthFrame = useMemo(() => frameFor(THIS_MONTH, now), [now]);
   const today = toDateKey(now);
   const { summary, isLoading, error, refetch } = useShopExpenses(shop?.id, frame);
+  // Due bills are always this month's, whatever period is on screen.
+  const thisMonth = useShopExpenses(shop?.id, monthFrame);
+  const { data: bills } = useRecurringExpenses(shop?.id);
+  const due = useMemo(
+    () => dueBills(bills ?? [], thisMonth.summary.days.flatMap((day) => day.items), today),
+    [bills, thisMonth.summary, today]
+  );
+
+  const logBill = useMutation({
+    mutationFn: ({ bill, dueOn }: DueBill) =>
+      createShopExpense(bill.shop_id, {
+        amount: bill.amount,
+        category: bill.category,
+        spent_on: dueOn,
+        paid_from: bill.paid_from,
+        note: bill.note,
+        recurring_id: bill.id,
+      }),
+    onSuccess: async (_, { bill }) => {
+      haptic('success');
+      await invalidateShopExpenses(queryClient, bill.shop_id);
+      setNotice('Bill logged.');
+    },
+    // The unique index refuses a second log for the month (0040); refetching shows it already there.
+    onError: async (_, { bill }) => {
+      await invalidateShopExpenses(queryClient, bill.shop_id);
+      setNotice('Could not log the bill. Check your connection and try again.');
+    },
+  });
 
   if (isShopLoading) return <Loading />;
   if (!canOpenMerchantRoute(shopRole, 'expenses')) return <Redirect href="/(merchant)/orders" />;
@@ -72,6 +116,12 @@ export default function MerchantExpenses() {
     haptic('select');
     setPeriod(next);
     setIsPicking(false);
+  };
+  const exportCsv = () => {
+    const items = summary.days.flatMap((day) => day.items);
+    shareCsv(expenseCsvFilename(shop.name, frame.caption), expensesToCsv(items)).catch(() =>
+      setNotice('Could not export. Try again.')
+    );
   };
   const isUp = summary.delta > 0;
   const paceTone = summary.delta === 0 ? TAG_TONES.neutral : isUp ? TAG_TONES.owed : TAG_TONES.settled;
@@ -131,6 +181,13 @@ export default function MerchantExpenses() {
           </View>
         </View>
 
+        <DueBills
+          due={due}
+          today={today}
+          loggingId={logBill.isPending ? (logBill.variables?.bill.id ?? null) : null}
+          onLog={(item) => logBill.mutate(item)}
+        />
+
         {summary.byCategory.length > 0 ? (
           <>
             <SectionHeading title="Where it went" caption={frame.caption} />
@@ -138,9 +195,14 @@ export default function MerchantExpenses() {
           </>
         ) : null}
 
+        <SectionHeading title="Every month" caption="Rent, wages, bills — offered on their day" />
+        <MonthlyBillList bills={bills ?? []} onOpen={(bill) => setBillEditing({ bill })} />
+
         <SectionHeading
           title="Every expense"
           caption={summary.count === 0 ? 'None yet' : `${summary.count} in ${frame.caption}`}
+          actionLabel={summary.count > 0 ? 'Export CSV' : undefined}
+          onAction={summary.count > 0 ? exportCsv : undefined}
         />
         {summary.days.length === 0 && !isLoading ? (
           <EmptyState
@@ -172,6 +234,9 @@ export default function MerchantExpenses() {
                     {CATEGORY_LOOKS[item.category].label} · {PAID_FROM_LABELS[item.paid_from]}
                   </Text>
                 </View>
+                {item.receipt_path ? (
+                  <Ionicons name="receipt-outline" size={14} color={colors.subtle} accessibilityLabel="Has a receipt" />
+                ) : null}
                 <Text style={styles.rowAmount}>{formatMoney(item.amount)}</Text>
               </Pressable>
             ))}
@@ -198,6 +263,19 @@ export default function MerchantExpenses() {
         onChoose={choosePeriod}
         onClose={() => setIsPicking(false)}
       />
+      {billEditing ? (
+        <RecurringSheet
+          visible
+          shopId={shop.id}
+          bill={billEditing.bill}
+          onSaved={(message) => {
+            haptic('success');
+            setNotice(message);
+            setBillEditing(null);
+          }}
+          onClose={() => setBillEditing(null)}
+        />
+      ) : null}
       {/* Mounted per opening, so each form starts from the expense it edits. */}
       {editing ? (
         <ExpenseSheet

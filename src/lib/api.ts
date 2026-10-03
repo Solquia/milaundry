@@ -2,7 +2,9 @@ import { isImagekitFilePath } from './domain/imagekit';
 import { ensurePhotoBytes, extensionOf } from './domain/photo-upload';
 import {
   SHOP_ASSET_BUCKET,
+  SHOP_RECEIPT_BUCKET,
   shopAssetPath,
+  shopReceiptPath,
   type ShopAssetKind,
 } from './domain/shop-asset';
 import type { PeekedReceipt } from './domain/receipt-peek';
@@ -25,6 +27,8 @@ import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
 import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
 import type { Expense, ExpenseInput } from './domain/expense-metrics';
+import type { RecurringExpense, RecurringInput } from './domain/expense-recurring';
+import type { SavedClose } from './sales-store';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
 import { phoneToAuthEmail } from './domain/phone-email';
@@ -798,7 +802,7 @@ export function uploadAddonPhoto(shopId: string, localUri: string): Promise<stri
 export async function getShopExpenses(shopId: string, from: string, to: string): Promise<Expense[]> {
   const result = await supabase
     .from('shop_expenses')
-    .select('id, shop_id, spent_on, amount, category, note, paid_from, created_at')
+    .select('id, shop_id, spent_on, amount, category, note, paid_from, created_at, recurring_id, receipt_path')
     .eq('shop_id', shopId)
     .gte('spent_on', from)
     .lt('spent_on', to)
@@ -821,6 +825,112 @@ export async function updateShopExpense(expenseId: string, input: ExpenseInput):
 
 export async function deleteShopExpense(expenseId: string): Promise<void> {
   const { error } = await supabase.from('shop_expenses').delete().eq('id', expenseId);
+  if (error) throw new Error(error.message);
+}
+
+// ── recurring bills, receipts, goal and drawer count (0040, owner-only) ──
+export async function getRecurringExpenses(shopId: string): Promise<RecurringExpense[]> {
+  const result = await supabase
+    .from('shop_recurring_expenses')
+    .select('id, shop_id, amount, category, note, paid_from, day_of_month, is_active')
+    .eq('shop_id', shopId)
+    .order('day_of_month', { ascending: true });
+  const rows = unwrap(result) as (Omit<RecurringExpense, 'amount'> & { amount: number | string })[];
+  return rows.map((row) => ({ ...row, amount: Number(row.amount) }));
+}
+
+export async function createRecurringExpense(shopId: string, input: RecurringInput): Promise<string> {
+  const result = await supabase
+    .from('shop_recurring_expenses')
+    .insert({ shop_id: shopId, ...input })
+    .select('id')
+    .single();
+  return (unwrap(result) as { id: string }).id;
+}
+
+export async function updateRecurringExpense(
+  billId: string,
+  patch: Partial<RecurringInput> & { is_active?: boolean }
+): Promise<void> {
+  const { error } = await supabase.from('shop_recurring_expenses').update(patch).eq('id', billId);
+  if (error) throw new Error(error.message);
+}
+
+/** Undoes a bill made for an expense that then failed to save. */
+export async function deleteRecurringExpense(billId: string): Promise<void> {
+  const { error } = await supabase.from('shop_recurring_expenses').delete().eq('id', billId);
+  if (error) throw new Error(error.message);
+}
+
+/** Uploads a receipt photo to the private bucket and returns its storage path. */
+export async function uploadExpenseReceipt(shopId: string, localUri: string): Promise<string> {
+  const { bytes, contentType } = await readImage(localUri);
+  ensurePhotoBytes(bytes.byteLength);
+  const path = shopReceiptPath(shopId, extensionOf(localUri));
+  const { error } = await supabase.storage.from(SHOP_RECEIPT_BUCKET).upload(path, bytes, { contentType });
+  if (error) throw new Error(error.message);
+  return path;
+}
+
+const RECEIPT_LINK_SECONDS = 60 * 60;
+
+export async function expenseReceiptUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage
+    .from(SHOP_RECEIPT_BUCKET)
+    .createSignedUrl(path, RECEIPT_LINK_SECONDS);
+  if (error || !data) throw new Error(error?.message ?? 'No receipt link returned');
+  return data.signedUrl;
+}
+
+/** Best effort: a receipt left behind costs storage, not correctness. */
+export async function removeExpenseReceipt(path: string): Promise<void> {
+  await supabase.storage.from(SHOP_RECEIPT_BUCKET).remove([path]);
+}
+
+/** `hasRow` tells "never set on the server" from "removed", so a phone's old goal is uploaded once, not forever. */
+export async function getSalesGoal(shopId: string): Promise<{ hasRow: boolean; goal: number | null }> {
+  const result = await supabase
+    .from('shop_sales_goals')
+    .select('daily_goal')
+    .eq('shop_id', shopId)
+    .maybeSingle();
+  if (result.error) throw new Error(result.error.message);
+  if (!result.data) return { hasRow: false, goal: null };
+  const goal = result.data.daily_goal === null ? null : Number(result.data.daily_goal);
+  return { hasRow: true, goal };
+}
+
+export async function setSalesGoal(shopId: string, goal: number | null): Promise<void> {
+  const { error } = await supabase.from('shop_sales_goals').upsert({ shop_id: shopId, daily_goal: goal });
+  if (error) throw new Error(error.message);
+}
+
+export async function getDayClose(shopId: string, day: string): Promise<SavedClose | null> {
+  const result = await supabase
+    .from('shop_day_closes')
+    .select('counted, difference, tone, closed_at')
+    .eq('shop_id', shopId)
+    .eq('day', day)
+    .maybeSingle();
+  if (result.error) throw new Error(result.error.message);
+  if (!result.data) return null;
+  return {
+    closedAt: result.data.closed_at,
+    counted: Number(result.data.counted),
+    difference: Number(result.data.difference),
+    tone: result.data.tone,
+  };
+}
+
+export async function saveDayClose(shopId: string, day: string, close: SavedClose): Promise<void> {
+  const { error } = await supabase.from('shop_day_closes').upsert({
+    shop_id: shopId,
+    day,
+    counted: close.counted,
+    difference: close.difference,
+    tone: close.tone,
+    closed_at: close.closedAt,
+  });
   if (error) throw new Error(error.message);
 }
 

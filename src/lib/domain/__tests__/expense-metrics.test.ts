@@ -26,6 +26,8 @@ const expense = (spent_on: string, amount: number, category: Expense['category']
   note: '',
   paid_from: 'cash',
   created_at: `${spent_on}T08:00:00Z`,
+  recurring_id: null,
+  receipt_path: null,
 });
 
 describe('calendar dates', () => {

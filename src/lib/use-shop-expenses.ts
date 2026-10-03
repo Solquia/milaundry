@@ -8,13 +8,13 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 
-import { getShopExpenses } from './api';
+import { getRecurringExpenses, getShopExpenses } from './api';
 import { expenseRange, summarizeExpenses } from './domain/expense-metrics';
 import type { PeriodFrame } from './domain/sales-period';
 
 export const shopExpensesKey = (shopId: string) => ['shop-expenses', shopId] as const;
 
-/** After any add, edit or delete: every period of this shop's expenses refetches. */
+/** After any add, edit or delete: every period of this shop's expenses, and its recurring bills, refetch. */
 export function invalidateShopExpenses(queryClient: QueryClient, shopId: string): Promise<void> {
   return queryClient.invalidateQueries({ queryKey: shopExpensesKey(shopId) });
 }
@@ -33,4 +33,13 @@ export function useShopExpenses(shopId: string | undefined, frame: PeriodFrame) 
     error: query.error,
     refetch: query.refetch,
   };
+}
+
+/** The shop's recurring bills, stopped ones included (they stay listed so they can be restarted). */
+export function useRecurringExpenses(shopId: string | undefined) {
+  return useQuery({
+    queryKey: ['shop-expenses', shopId, 'recurring'],
+    queryFn: () => getRecurringExpenses(shopId!),
+    enabled: Boolean(shopId),
+  });
 }

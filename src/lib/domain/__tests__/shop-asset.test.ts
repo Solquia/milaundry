@@ -1,4 +1,4 @@
-import { SHOP_ASSET_BUCKET, shopAssetPath } from '../shop-asset';
+import { SHOP_ASSET_BUCKET, SHOP_RECEIPT_BUCKET, shopAssetPath, shopReceiptPath } from '../shop-asset';
 
 const SHOP = '3e322460-95c8-4c89-a571-8e91bbbc481e';
 const AT = new Date('2026-09-09T01:00:00Z');
@@ -37,5 +37,15 @@ describe('SHOP_ASSET_BUCKET', () => {
   it('is the public bucket the shopfront is already served from', () => {
     // A shopfront is meant to be looked at; there is nothing to sign.
     expect(SHOP_ASSET_BUCKET).toBe('shop-logos');
+  });
+});
+
+describe('shopReceiptPath', () => {
+  it('files a receipt under the shop folder the storage policy checks', () => {
+    expect(shopReceiptPath('shop-1', 'jpg', new Date(1700000000000))).toBe('shop-1/receipt-1700000000000.jpg');
+  });
+
+  it('keeps receipts out of the public logo bucket', () => {
+    expect(SHOP_RECEIPT_BUCKET).not.toBe(SHOP_ASSET_BUCKET);
   });
 });
