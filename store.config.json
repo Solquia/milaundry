@@ -43,6 +43,8 @@
       "lastName": "Solquia",
       "email": "hyansolquia@gmail.com",
       "phone": "+639855421396",
+      "demoUsername": "reviewshop",
+      "demoPassword": "ReviewLoad1",
       "demoRequired": true,
       "notes": "Sign in from Welcome, then Sign in. There is no email login and no SMS code. The box accepts a Philippine mobile number or a shop username.\n\nShop owner — this is the demo account. It opens the counter for Riverside Laundry, which already has a price list, GCash and bank details, and orders at every stage (just dropped off, washing, ready for pickup, completed, and a new online booking).\nUsername: reviewshop\nPassword: ReviewLoad1\n\nCustomer — booking and order tracking for Ana Reyes, who already has a pending booking at Riverside Laundry.\nMobile: 0917 000 8801\nPassword: ReviewLoad1\n\nCounter staff — same shop, without owner settings.\nUsername: reviewstaff\nPassword: ReviewLoad1\n\nThe camera scans laundry QR codes. Location only pins a shop. Photos are for logos, covers, weigh pictures, and receipts. No ads, no in-app purchases, and no gambling."
     }
