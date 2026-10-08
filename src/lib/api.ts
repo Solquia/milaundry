@@ -289,6 +289,9 @@ export async function getServices(shopId: string): Promise<ServiceRow[]> {
     .select('*')
     .eq('shop_id', shopId)
     .eq('is_active', true)
+    // The shop's own order first (busiest service on top, as on its wall
+    // sign), then by name where the shop has not set one.
+    .order('sort_order', { ascending: true })
     .order('name');
   return unwrap(result) as ServiceRow[];
 }
@@ -699,8 +702,24 @@ export async function getShopAnalytics(shopId: string): Promise<ShopAnalytics> {
 export async function upsertService(
   service: Partial<ServiceRow> & { shop_id: string; name: string; unit: string; price: number }
 ): Promise<ServiceRow> {
-  const result = await supabase.from('services').upsert(service).select().single();
+  // A new service joins the end of the list rather than jumping above the
+  // shop's busiest ones at the default position 0.
+  const row = service.id || service.sort_order !== undefined
+    ? service
+    : { ...service, sort_order: await nextServiceSortOrder(service.shop_id) };
+  const result = await supabase.from('services').upsert(row).select().single();
   return unwrap(result) as ServiceRow;
+}
+
+async function nextServiceSortOrder(shopId: string): Promise<number> {
+  const result = await supabase
+    .from('services')
+    .select('sort_order')
+    .eq('shop_id', shopId)
+    .order('sort_order', { ascending: false })
+    .limit(1);
+  const rows = unwrap(result) as { sort_order: number }[];
+  return rows.length > 0 ? rows[0].sort_order + 1 : 0;
 }
 
 export async function updateService(

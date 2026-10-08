@@ -87,6 +87,9 @@ export default function CustomerSettings() {
   const [payError, setPayError] = React.useState('');
   const payment = useMutation({
     mutationFn: savePaymentPreference,
+    // Cleared per attempt, so a second failure with the same message still
+    // reads as a new error to the card and rolls its tick back again.
+    onMutate: () => setPayError(''),
     onSuccess: async () => {
       setPayError('');
       // The preference lives on the profile row, which the session holds.
@@ -174,6 +177,10 @@ export default function CustomerSettings() {
       />
 
       <PaymentPreferenceCard
+        // Keyed on the saved value like the card below: the profile can arrive
+        // after this screen mounts, and a draft seeded from `null` would show
+        // no method at all for a customer who has one.
+        key={`${profile?.preferred_payment_method ?? ''}:${profile?.payment_handle ?? ''}`}
         method={profile?.preferred_payment_method ?? null}
         handle={profile?.payment_handle ?? ''}
         isBusy={payment.isPending}

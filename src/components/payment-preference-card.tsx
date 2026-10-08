@@ -61,6 +61,17 @@ export function PaymentPreferenceCard({
   const [draftHandle, setDraftHandle] = useState(handle);
   const [handleError, setHandleError] = useState('');
 
+  // A method with no number saves the moment it is tapped, so a failed save
+  // must put the tick back on what is really saved — otherwise the card claims
+  // a choice the profile does not hold. A typed number is left alone: its Save
+  // button stays lit, which already says "not saved yet", and the customer
+  // keeps what they typed for the retry.
+  const [seenError, setSeenError] = useState(error);
+  if (error !== seenError) {
+    setSeenError(error);
+    if (error && chosen !== null && !needsHandle(chosen)) setChosen(method);
+  }
+
   const isDirty = chosen !== method || draftHandle.trim() !== handle;
 
   const save = (nextMethod: PreferredMethod, nextHandle: string) => {

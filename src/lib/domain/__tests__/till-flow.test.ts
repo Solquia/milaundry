@@ -1,5 +1,7 @@
 import {
   TILL_STEPS,
+  receiptButtonLabel,
+  receiptSetupNote,
   savedSlipNote,
   savedSlipTitle,
   savedScanNote,
@@ -66,5 +68,21 @@ describe('the slip a saved walk-in prints to the screen', () => {
 
   test('tells the counter what the code on screen is for', () => {
     expect(savedScanNote()).toBe('They scan this to follow the order');
+  });
+});
+
+describe('receipt button', () => {
+  it('prints straight away once a printer is paired', () => {
+    expect(receiptButtonLabel({ hasPrinter: true, isPrinting: false })).toBe('Print receipt');
+  });
+
+  it('says it is busy while the slip is going out', () => {
+    expect(receiptButtonLabel({ hasPrinter: true, isPrinting: true })).toBe('Printing…');
+  });
+
+  it('still offers the receipt with no printer, and says where it goes first', () => {
+    expect(receiptButtonLabel({ hasPrinter: false, isPrinting: false })).toBe('Print receipt');
+    expect(receiptSetupNote(false)).toMatch(/pair/i);
+    expect(receiptSetupNote(true)).toBeNull();
   });
 });

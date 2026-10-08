@@ -145,6 +145,16 @@ describe('showcasePrice', () => {
       minimum: null,
     });
   });
+
+  it('marks a price per load, so the customer reads it as per load', () => {
+    const perLoad = { ...selfWash, category: 'wash_fold' as const, max_quantity: 4 };
+    expect(showcasePrice(perLoad).unit).toBe('/load');
+  });
+
+  it('keeps a bedding size limit off the price, where it is per piece', () => {
+    const comforter = { ...selfWash, category: 'special_items' as const, max_quantity: 4 };
+    expect(showcasePrice(comforter).unit).toBeNull();
+  });
 });
 
 describe('showcaseTone', () => {

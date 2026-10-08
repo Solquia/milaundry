@@ -76,3 +76,17 @@ export function savedSlipNote(fulfillment: Fulfillment): string {
 export function savedScanNote(): string {
   return 'They scan this to follow the order';
 }
+
+/**
+ * The receipt button on the saved slip. It shows whether or not a printer is
+ * paired: hiding it until one was paired left owners thinking the till could
+ * not print at all. With no printer it leads to pairing one first.
+ */
+export function receiptButtonLabel(printer: { hasPrinter: boolean; isPrinting: boolean }): string {
+  return printer.hasPrinter && printer.isPrinting ? 'Printing…' : 'Print receipt';
+}
+
+/** The line under the button while no printer is paired, or null once one is. */
+export function receiptSetupNote(hasPrinter: boolean): string | null {
+  return hasPrinter ? null : 'No printer yet. Tapping Print receipt opens Settings to pair your Bluetooth receipt printer.';
+}

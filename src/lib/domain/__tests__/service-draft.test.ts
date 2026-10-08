@@ -1,6 +1,7 @@
 import {
   EMPTY_SERVICE_DRAFT,
   draftFromService,
+  loadSizeExample,
   looksLikeAddon,
   unitHelp,
   validateServiceDraft,
@@ -226,5 +227,96 @@ describe('load weight limit', () => {
       description: '',
     });
     expect(draft.maxQuantity).toBe('4');
+  });
+});
+
+describe('per-load price', () => {
+  const perLoad: ServiceDraft = {
+    name: 'Wash-Dry-Fold',
+    category: 'wash_fold',
+    unit: 'per_load',
+    price: '150',
+    minQuantity: '',
+    maxQuantity: '4',
+    description: '',
+  };
+
+  it('saves as a flat price per load with the load size the owner chose', () => {
+    // Act
+    const result = validateServiceDraft(perLoad);
+
+    // Assert
+    expect(result.ok && result.value).toMatchObject({ unit: 'flat', price: 150, max_quantity: 4 });
+  });
+
+  it('takes any load size, not only round ones', () => {
+    const result = validateServiceDraft({ ...perLoad, maxQuantity: '7.5' });
+    expect(result.ok && result.value.max_quantity).toBe(7.5);
+  });
+
+  it('needs the load size, since the price means nothing without it', () => {
+    const result = validateServiceDraft({ ...perLoad, maxQuantity: '' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.maxQuantity).toMatch(/kg/);
+  });
+
+  it('never saves a minimum, which a per-load price does not bill', () => {
+    const result = validateServiceDraft({ ...perLoad, minQuantity: '5' });
+    expect(result.ok && result.value.min_quantity).toBe(0);
+  });
+
+  it('refuses Bedding, where a load size would read as a size per piece', () => {
+    const result = validateServiceDraft({ ...perLoad, category: 'special_items' });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.errors.unit).toMatch(/piece/i);
+  });
+
+  it('opens a saved per-load price as Per load', () => {
+    const draft = draftFromService({
+      name: 'Wash-Dry-Fold',
+      category: 'wash_fold',
+      unit: 'flat',
+      price: 150,
+      min_quantity: 0,
+      max_quantity: 4,
+      description: '',
+    });
+    expect(draft.unit).toBe('per_load');
+    expect(draft.maxQuantity).toBe('4');
+  });
+
+  it('keeps a flat price with no load size as Flat price', () => {
+    const draft = draftFromService({
+      name: 'Self-service wash',
+      category: 'wash_fold',
+      unit: 'flat',
+      price: 60,
+      min_quantity: 0,
+      max_quantity: 0,
+      description: '',
+    });
+    expect(draft.unit).toBe('flat');
+  });
+
+  it('explains that heavier laundry is billed as more loads', () => {
+    expect(unitHelp('per_load')).toMatch(/more loads/i);
+  });
+});
+
+describe('loadSizeExample', () => {
+  it('works one heavier load through with the owner’s own figures', () => {
+    expect(loadSizeExample({ ...EMPTY_SERVICE_DRAFT, maxQuantity: '4', price: '150' })).toBe(
+      '9 kg is 3 loads = ₱450.'
+    );
+  });
+
+  it('leaves the price out until there is one', () => {
+    expect(loadSizeExample({ ...EMPTY_SERVICE_DRAFT, maxQuantity: '7.5' })).toBe(
+      '16 kg is 3 loads.'
+    );
+  });
+
+  it('asks for the size while there is none', () => {
+    expect(loadSizeExample({ ...EMPTY_SERVICE_DRAFT, maxQuantity: 'x' })).toMatch(/one load holds/);
   });
 });

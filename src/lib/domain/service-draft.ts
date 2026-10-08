@@ -8,16 +8,25 @@
  * answered for the owner, every problem is reported against its own field at
  * once, and the edit form opens from the same draft so every field can change.
  */
+import { formatMoneyCompact } from './money';
 import { CATEGORY_ORDER, type ServiceCategory } from './service-catalog';
-import type { PricingUnit } from './pricing';
+import { isWeighed, type PricingUnit } from './pricing';
+
+/**
+ * How the owner says they charge. "Per load" is not a unit of its own on the
+ * server: it is a flat price with a load size, which the till weighs and bills
+ * once per load (13 kg at 6 kg a load is three loads). Hidden under "Flat
+ * price → most per load", owners could not find it, so the form names it.
+ */
+export type ChargeKind = PricingUnit | 'per_load';
 
 export interface ServiceDraft {
   name: string;
   category: ServiceCategory | null;
-  unit: PricingUnit | null;
+  unit: ChargeKind | null;
   price: string;
   minQuantity: string;
-  /** Most a load may weigh, in kg; blank means no limit. */
+  /** Most a load may weigh, in kg; blank means no limit, except per load, where it is the load size. */
   maxQuantity: string;
   description: string;
 }
@@ -80,8 +89,27 @@ function minimumError(minimum: number | null): string | undefined {
 }
 
 /** A load limit only means something where the laundry is weighed or loaded. */
-function takesLoadLimit(unit: PricingUnit | null): boolean {
-  return unit === 'per_kg' || unit === 'flat';
+function takesLoadLimit(unit: ChargeKind | null): boolean {
+  return unit === 'per_kg' || unit === 'flat' || unit === 'per_load';
+}
+
+function loadSizeError(unit: ChargeKind | null, maximum: number | null): string | undefined {
+  if (unit !== 'per_load' || maximum !== null) return undefined;
+  return 'Enter how many kg one load holds, like 4.';
+}
+
+/** Bedding is counted by the piece; a load size there reads as a size per piece. */
+function chargeKindError(unit: ChargeKind | null, category: ServiceCategory | null): string | undefined {
+  if (!unit) return 'Choose how you charge for it.';
+  if (unit === 'per_load' && category === 'special_items') {
+    return 'Bedding is charged by the piece. Choose Per piece or Flat price, or another section.';
+  }
+  return undefined;
+}
+
+/** What the server stores: a per-load price is a flat price with a load size. */
+function storedUnit(unit: ChargeKind): PricingUnit {
+  return unit === 'per_load' ? 'flat' : unit;
 }
 
 function maximumError(maximum: number | null, minimum: number | null): string | undefined {
@@ -105,12 +133,13 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
   if (!name) errors.name = 'Name the service the way customers ask for it.';
   else if (name.length > NAME_LIMIT) errors.name = `Keep the name under ${NAME_LIMIT} characters.`;
   if (!draft.category) errors.category = 'Choose where it sits on your price list.';
-  if (!draft.unit) errors.unit = 'Choose how you charge for it.';
+  const unitProblem = chargeKindError(draft.unit, draft.category);
+  if (unitProblem) errors.unit = unitProblem;
   const priceProblem = priceError(price);
   if (priceProblem) errors.price = priceProblem;
   const minimumProblem = minimumError(minimum);
   if (minimumProblem) errors.minQuantity = minimumProblem;
-  const maximumProblem = maximumError(maximum, minimum);
+  const maximumProblem = loadSizeError(draft.unit, maximum) ?? maximumError(maximum, minimum);
   if (maximumProblem) errors.maxQuantity = maximumProblem;
 
   if (Object.keys(errors).length > 0 || !draft.category || !draft.unit || price === null) {
@@ -121,7 +150,7 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
     value: {
       name,
       category: draft.category,
-      unit: draft.unit,
+      unit: storedUnit(draft.unit),
       price: Math.round(price * 100) / 100,
       min_quantity: minimum ?? 0,
       max_quantity: maximum ?? 0,
@@ -141,10 +170,13 @@ export function draftFromService(service: {
   description: string | null;
 }): ServiceDraft {
   const isKnown = (CATEGORY_ORDER as readonly string[]).includes(service.category);
+  const isPerLoad =
+    service.unit === 'flat' &&
+    isWeighed({ unit: service.unit, max_quantity: service.max_quantity ?? 0, category: service.category });
   return {
     name: service.name,
     category: isKnown ? (service.category as ServiceCategory) : 'other',
-    unit: service.unit,
+    unit: isPerLoad ? 'per_load' : service.unit,
     // A ₱0 price is an unfinished row: show it empty so the field asks for one.
     price: service.price > 0 ? String(service.price) : '',
     minQuantity: service.min_quantity > 0 ? String(service.min_quantity) : '',
@@ -181,8 +213,29 @@ export function looksLikeAddon(name: string): boolean {
 }
 
 /** What the chosen unit means for the customer's bill. */
-export function unitHelp(unit: PricingUnit): string {
+export function unitHelp(unit: ChargeKind): string {
   if (unit === 'per_kg') return 'You weigh the load and charge by the kilo.';
+  if (unit === 'per_load') {
+    return 'One price for each load. You weigh it at the counter, and heavier laundry is billed as more loads.';
+  }
   if (unit === 'per_item') return 'You charge for each piece, like a comforter or a barong.';
   return 'One price for the whole job, whatever it weighs.';
+}
+
+/**
+ * The load size worked through once with the owner's own figures, so "per
+ * load" reads as a rule rather than a label: 9 kg at 4 kg a load is 3 loads.
+ */
+export function loadSizeExample(draft: Pick<ServiceDraft, 'maxQuantity' | 'price'>): string {
+  const kg = Number(draft.maxQuantity.trim());
+  if (draft.maxQuantity.trim() === '' || !Number.isFinite(kg) || kg <= 0) {
+    return 'How much one load holds. Any weight you like.';
+  }
+  const heavier = Math.floor(kg * 2) + 1;
+  const loads = Math.ceil(heavier / kg - 1e-9);
+  const price = Number(draft.price.trim());
+  const charge = draft.price.trim() !== '' && Number.isFinite(price) && price > 0
+    ? ` = ${formatMoneyCompact(price * loads)}`
+    : '';
+  return `${heavier} kg is ${loads} loads${charge}.`;
 }

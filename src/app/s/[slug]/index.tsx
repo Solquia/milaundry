@@ -70,7 +70,7 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
     retry: false,
   });
   if (style.isLoading) return <Loading />;
-  return style.data === 'market' || true ? ( // TEMP-PREVIEW
+  return style.data === 'market' ? (
     <MarketBody storefront={storefront} />
   ) : (
     <ClassicBody storefront={storefront} />

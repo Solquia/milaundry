@@ -120,16 +120,21 @@ export default function CustomerOrderDetail() {
     onError: (err: Error) => setError(err.message),
   });
 
-  const handleCancel = async () => {
-    if (!id) return;
-    setError('');
-    try {
-      await updateOrderStatus(id, 'cancelled');
+  // A mutation, not a bare async handler: `isPending` stops a double-tap from
+  // firing a second cancel while the first is still in flight.
+  const cancelMutation = useMutation({
+    mutationFn: () => updateOrderStatus(id!, 'cancelled'),
+    onMutate: () => setError(''),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['order', id] });
       queryClient.invalidateQueries({ queryKey: ['my-orders'] });
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Cancel failed');
-    }
+    },
+    onError: (err: Error) => setError(err.message || 'Cancel failed'),
+  });
+
+  const handleCancel = () => {
+    if (!id || cancelMutation.isPending) return;
+    cancelMutation.mutate();
   };
 
   if (isLoading || !order) return <Loading />;
@@ -419,10 +424,17 @@ export default function CustomerOrderDetail() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Cancel order"
+            accessibilityState={{ disabled: cancelMutation.isPending, busy: cancelMutation.isPending }}
+            disabled={cancelMutation.isPending}
             onPress={handleCancel}
-            style={({ pressed }) => [styles.cancel, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [
+              styles.cancel,
+              (pressed || cancelMutation.isPending) && { opacity: 0.6 },
+            ]}
           >
-            <Text style={styles.cancelText}>Cancel order</Text>
+            <Text style={styles.cancelText}>
+              {cancelMutation.isPending ? 'Cancelling…' : 'Cancel order'}
+            </Text>
           </Pressable>
         )}
       </View>

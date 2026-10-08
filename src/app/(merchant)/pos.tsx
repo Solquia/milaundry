@@ -105,6 +105,8 @@ import {
   TILL_STEPS,
   savedScanNote,
   savedSlipNote,
+  receiptButtonLabel,
+  receiptSetupNote,
   savedSlipTitle,
   tillCta,
   tillEstimateLabel,
@@ -476,36 +478,48 @@ export default function Pos() {
 
           <Reveal delay={120}>
             <View style={styles.savedActions}>
-              <View style={styles.buttons}>
-                <BrandButton
-                  title="Next customer"
-                  onPress={startNext}
-                  fill={theme.brand}
-                  ink={theme.onBrand}
-                  flex={2}
-                />
-                {printer.saved ? (
+              {/* The receipt shows whether or not a printer is paired. With
+                  none it opens Settings to pair one; the tab stays mounted,
+                  so this slip is still here to print on the way back. */}
+              {printer.isSupported ? (
+                <View style={styles.buttons}>
                   <BrandButton
-                    title={printer.state.kind === 'printing' ? 'Printing…' : 'Print'}
-                    onPress={() => printLastOrder(lastOrder.id)}
+                    title={receiptButtonLabel({
+                      hasPrinter: Boolean(printer.saved),
+                      isPrinting: printer.state.kind === 'printing',
+                    })}
+                    onPress={() =>
+                      printer.saved
+                        ? printLastOrder(lastOrder.id)
+                        : router.push('/(merchant)/settings')
+                    }
                     disabled={printer.state.kind === 'printing'}
                     fill={theme.brandSoft}
                     ink={theme.brandInk}
-                    flex={1}
+                    flex={2}
                   />
-                ) : null}
-                {printer.saved ? (
-                  <BrandButton
-                    title="Tag"
-                    onPress={() => printLastOrder(lastOrder.id, 'tag')}
-                    disabled={printer.state.kind === 'printing'}
-                    fill={theme.brandSoft}
-                    ink={theme.brandInk}
-                    flex={1}
-                  />
-                ) : null}
-              </View>
+                  {printer.saved ? (
+                    <BrandButton
+                      title="Tag"
+                      onPress={() => printLastOrder(lastOrder.id, 'tag')}
+                      disabled={printer.state.kind === 'printing'}
+                      fill={theme.brandSoft}
+                      ink={theme.brandInk}
+                      flex={1}
+                    />
+                  ) : null}
+                </View>
+              ) : null}
+              {printer.isSupported && !printer.saved ? (
+                <Text style={styles.receiptNote}>{receiptSetupNote(false)}</Text>
+              ) : null}
               {printer.state.kind === 'error' ? <ErrorText>{printer.state.message}</ErrorText> : null}
+              <BrandButton
+                title="Next customer"
+                onPress={startNext}
+                fill={theme.brand}
+                ink={theme.onBrand}
+              />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Open this order"
@@ -785,6 +799,7 @@ const styles = StyleSheet.create({
     gap: space.section,
   },
   savedActions: { gap: space.cosy },
+  receiptNote: { ...type.caption, color: colors.subtle, textAlign: 'center' },
   openRow: { alignSelf: 'center', minHeight: 44, justifyContent: 'center' },
   openText: { ...type.label },
 

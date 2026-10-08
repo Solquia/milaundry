@@ -224,7 +224,7 @@ Deno.serve(async (request: Request) => {
     if (!UUID_RE.test(orderId) || !ORDER_KINDS.includes(kind)) {
       return json({ error: 'Unknown image' }, 400);
     }
-    if (!(await mayReadOrder(asCaller, orderId))) {
+    if (!(await mayWriteOrderPhoto(asCaller, authorization, orderId, kind))) {
       return json({ error: 'not allowed' }, 403);
     }
     folder = `/orders/${orderId}`;
@@ -266,4 +266,38 @@ async function mayReadOrder(
     .eq('id', orderId)
     .maybeSingle();
   return !error && Boolean(data);
+}
+
+/**
+ * Whether the caller may add this kind of photo to the order. Reading is
+ * shared, writing is not: the scale photo is the shop's evidence for the bill
+ * and the receipt is the customer's evidence of payment, so each side may only
+ * upload its own — the same split confirm_order_price and
+ * submit_payment_proof enforce when the path is saved.
+ */
+async function mayWriteOrderPhoto(
+  client: ReturnType<typeof createClient>,
+  authorization: string,
+  orderId: string,
+  kind: string
+): Promise<boolean> {
+  const { data: order, error } = await client
+    .from('orders')
+    .select('customer_id, shop_id')
+    .eq('id', orderId)
+    .maybeSingle();
+  if (error || !order) return false;
+
+  if (kind === 'proof') {
+    // No stored session here, so the caller's token is handed over outright.
+    const { data: auth } = await client.auth.getUser(authorization.replace(/^Bearer\s+/i, ''));
+    return Boolean(auth.user) && auth.user!.id === order.customer_id;
+  }
+  if (kind === 'weigh') {
+    const { data: allowed, error: roleError } = await client.rpc('can_operate_shop', {
+      p_shop_id: order.shop_id,
+    });
+    return !roleError && allowed === true;
+  }
+  return false;
 }

@@ -15,14 +15,15 @@ import { upsertService, updateService } from '@/lib/api';
 import { confirmAction } from '@/lib/confirm';
 import { removeServicePrompt } from '@/lib/domain/confirm-prompts';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import type { PricingUnit } from '@/lib/domain/pricing';
 import { CATEGORY_LABELS, CATEGORY_ORDER, type ServiceCategory } from '@/lib/domain/service-catalog';
 import {
   EMPTY_SERVICE_DRAFT,
   draftFromService,
+  loadSizeExample,
   looksLikeAddon,
   unitHelp,
   validateServiceDraft,
+  type ChargeKind,
   type ServiceDraft,
 } from '@/lib/domain/service-draft';
 import { sceneFor } from '@/lib/domain/service-scene';
@@ -34,25 +35,28 @@ import { ServiceScene } from './service-scene';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
 import { Button, ErrorText, Field, RADII, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
 
-const UNIT_OPTIONS: { key: PricingUnit; label: string }[] = [
+const UNIT_OPTIONS: { key: ChargeKind; label: string }[] = [
   { key: 'per_kg', label: 'Per kg' },
+  { key: 'per_load', label: 'Per load' },
   { key: 'per_item', label: 'Per piece' },
-  { key: 'flat', label: 'Flat price' },
+  { key: 'flat', label: 'Flat' },
 ];
 
 /** The preview never shows a stepper, but the card asks for its colours. */
 const PREVIEW_TONE = { bg: colors.action, ink: colors.onAccent };
 
-function priceLabel(unit: PricingUnit | null): string {
+function priceLabel(unit: ChargeKind | null): string {
   if (unit === 'per_kg') return 'Price per kg (₱)';
+  if (unit === 'per_load') return 'Price per load (₱)';
   if (unit === 'per_item') return 'Price per piece (₱)';
   if (unit === 'flat') return 'Price for the whole job (₱)';
   return 'Price (₱)';
 }
 
 /** What follows the figure in the price box, so "₱ 35 per kg" reads as one sentence. */
-function unitSuffix(unit: PricingUnit | null): string {
+function unitSuffix(unit: ChargeKind | null): string {
   if (unit === 'per_kg') return 'per kg';
+  if (unit === 'per_load') return 'per load';
   if (unit === 'per_item') return 'per piece';
   if (unit === 'flat') return 'per job';
   return '';
@@ -66,13 +70,15 @@ function unitSuffix(unit: PricingUnit | null): string {
 function previewService(draft: ServiceDraft, id: string): ShowcaseCardService {
   const price = Number(draft.price.trim());
   const minimum = Number(draft.minQuantity.trim());
+  const loadSize = Number(draft.maxQuantity.trim());
   return {
     id,
     name: draft.name.trim() || 'Your service',
     category: draft.category ?? 'other',
-    unit: draft.unit ?? 'flat',
+    unit: draft.unit === 'per_load' || !draft.unit ? 'flat' : draft.unit,
     price: Number.isFinite(price) && price > 0 ? price : 0,
     min_quantity: draft.unit === 'per_kg' && Number.isFinite(minimum) ? minimum : 0,
+    max_quantity: draft.unit === 'per_load' && Number.isFinite(loadSize) && loadSize > 0 ? loadSize : 0,
     description: draft.description,
   };
 }
@@ -132,7 +138,7 @@ function PriceInput({
   value,
   onChange,
 }: {
-  unit: PricingUnit | null;
+  unit: ChargeKind | null;
   value: string;
   onChange: (price: string) => void;
 }) {
@@ -289,6 +295,20 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
           {draft.unit ? <Text style={styles.help}>{unitHelp(draft.unit)}</Text> : null}
           <ErrorText>{errors.price}</ErrorText>
         </View>
+
+        {draft.unit === 'per_load' ? (
+          <View style={styles.group}>
+            <Field
+              label="Kg per load"
+              value={draft.maxQuantity}
+              onChangeText={(maxQuantity) => update({ maxQuantity })}
+              keyboardType="decimal-pad"
+              placeholder="4"
+            />
+            <Text style={styles.help}>{loadSizeExample(draft)}</Text>
+            <ErrorText>{errors.maxQuantity}</ErrorText>
+          </View>
+        ) : null}
 
         {draft.unit === 'per_kg' || draft.unit === 'flat' ? (
           <View style={styles.group}>

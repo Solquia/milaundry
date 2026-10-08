@@ -68,12 +68,15 @@ export default function MerchantSettings() {
 
       {/* Branding before payment: this is the card an owner comes looking for,
           and the one they will change more than once. */}
-      {shop && isOwner ? <BrandingCard shop={shop} /> : null}
-      {shop && isOwner ? <StorefrontStyleCard shop={shop} /> : null}
-      {shop && isOwner ? <ShopHoursCard shop={shop} /> : null}
-      {shop && isOwner ? <WebPageCard shop={shop} /> : null}
-      {shop && isOwner ? <ShopLocationCard shop={shop} /> : null}
-      {shop && isOwner ? <PaymentRailsCard shop={shop} /> : null}
+      {/* Each form seeds its draft from `shop` once. Keyed on the shop, so a
+          superadmin switching "view as" never saves one shop's draft onto
+          another. */}
+      {shop && isOwner ? <BrandingCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <StorefrontStyleCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <ShopHoursCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <WebPageCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <ShopLocationCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <PaymentRailsCard key={shop.id} shop={shop} /> : null}
       {shop ? <DoorbellCard /> : null}
       {shop ? <PrinterCard shop={shop} /> : null}
 

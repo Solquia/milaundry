@@ -14,7 +14,7 @@
  */
 import { formatMoneyCompact } from './money';
 import { minimumLabel, unitCaption } from './price-label';
-import type { Service } from './pricing';
+import { isWeighed, type Service } from './pricing';
 import type { ServiceCategory } from './service-catalog';
 
 /** A titled, categorised service — what the storefront and the app both hold. */
@@ -114,7 +114,8 @@ export function showcasePrice(service: ShowcaseService): ShowcasePrice {
     figure,
     symbol: mark === -1 ? '' : '₱',
     amount: mark === -1 ? figure : figure.slice(mark + 1),
-    unit: unitCaption(service.unit),
+    // A flat price with a load size is billed per load; a bare figure hid that.
+    unit: service.unit === 'flat' && isWeighed(service) ? '/load' : unitCaption(service.unit),
     minimum: minimumLabel(service),
   };
 }
