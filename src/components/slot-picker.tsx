@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, space, type } from '@/components/ui-kit';
+import { APP_TINT, colors, space, type, useTint } from '@/components/ui-kit';
 import { RADII } from '@/lib/domain/design-scale';
 import {
   STRIP_LENGTH,
@@ -239,6 +239,7 @@ function PageArrow({
   isEnabled: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   return (
     <Pressable
       accessibilityRole="button"
@@ -250,13 +251,13 @@ function PageArrow({
       style={({ pressed }) => [
         styles.arrow,
         !isEnabled && styles.arrowOff,
-        pressed && styles.arrowPressed,
+        pressed && { backgroundColor: tint.surface },
       ]}
     >
       <Ionicons
         name={direction === 'back' ? 'chevron-back' : 'chevron-forward'}
         size={18}
-        color={colors.actionInk}
+        color={tint.ink}
       />
     </Pressable>
   );
@@ -280,7 +281,10 @@ function DayCell({
   isOn: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   const isOpen = day.status === 'open';
+  // The stock app blue keeps its brighter dot; a shop's own colour carries through.
+  const dotColor = tint === APP_TINT ? colors.primary : tint.fill;
   const spoken = isOpen
     ? `${day.openCount} time${day.openCount === 1 ? '' : 's'} open`
     : DAY_STATUS_WORD[day.status as Exclude<DayStatus, 'open'>];
@@ -297,13 +301,18 @@ function DayCell({
       style={({ pressed }) => [
         styles.day,
         isOn && styles.dayOn,
+        isOn && { backgroundColor: tint.fill, borderColor: tint.fill, shadowColor: tint.fill },
         !isOpen && styles.dayOff,
-        pressed && isOpen && !isOn && styles.dayPressed,
+        pressed && isOpen && !isOn && { backgroundColor: tint.surface },
       ]}
     >
       <Text
         numberOfLines={1}
-        style={[styles.dayLead, day.isToday && styles.dayLeadToday, isOn && styles.inkOnAccent]}
+        style={[
+          styles.dayLead,
+          day.isToday && [styles.dayLeadToday, { color: tint.ink }],
+          isOn && styles.inkOnAccent,
+        ]}
       >
         {day.lead}
       </Text>
@@ -313,7 +322,7 @@ function DayCell({
       {isOpen ? (
         <View style={styles.dots}>
           {Array.from({ length: dotsFor(day.openCount) }, (_, i) => (
-            <View key={i} style={[styles.dot, isOn && styles.dotOn]} />
+            <View key={i} style={[styles.dot, { backgroundColor: dotColor }, isOn && styles.dotOn]} />
           ))}
         </View>
       ) : (
@@ -394,6 +403,7 @@ function WindowChip({
   isSoonest: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   const shut = window.reason ? SHUT_WORD[window.reason] : null;
   return (
     <Pressable
@@ -407,8 +417,9 @@ function WindowChip({
       style={({ pressed }) => [
         styles.window,
         isOn && styles.windowOn,
+        isOn && { backgroundColor: tint.fill, borderColor: tint.fill, shadowColor: tint.fill },
         !window.isOpen && styles.windowOff,
-        pressed && window.isOpen && !isOn && styles.windowPressed,
+        pressed && window.isOpen && !isOn && { backgroundColor: tint.surface },
       ]}
     >
       <View style={styles.windowLine}>
@@ -450,7 +461,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   arrowOff: { opacity: 0.35 },
-  arrowPressed: { backgroundColor: colors.actionSurface },
 
   /** Seven equal columns: they always fit, so nothing is ever cut off at the edge. */
   days: { flexDirection: 'row', gap: 4 },
@@ -466,9 +476,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   dayOn: {
-    backgroundColor: colors.action,
-    borderColor: colors.action,
-    shadowColor: colors.action,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 6,
@@ -476,14 +483,13 @@ const styles = StyleSheet.create({
   },
   /** Recessed rather than greyed out: still legible, plainly not a button. */
   dayOff: { backgroundColor: 'transparent', borderColor: 'transparent' },
-  dayPressed: { backgroundColor: colors.actionSurface },
   dayLead: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   /** Today is told by its word, in ink — never by a ring that looks like a selection. */
-  dayLeadToday: { color: colors.actionInk, fontFamily: type.label.fontFamily },
+  dayLeadToday: { fontFamily: type.label.fontFamily },
   dayNumber: { ...type.section, color: colors.text },
   dayNumberOff: { color: colors.subtle, opacity: 0.55 },
   dots: { flexDirection: 'row', gap: 3, height: 12, alignItems: 'center' },
-  dot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.primary },
+  dot: { width: 5, height: 5, borderRadius: 3 },
   dotOn: { backgroundColor: colors.onAccent },
   dayWord: { ...type.caption, fontSize: 10, lineHeight: 12, color: colors.subtle },
   inkOnAccent: { color: colors.onAccent },
@@ -509,16 +515,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   windowOn: {
-    backgroundColor: colors.action,
-    borderColor: colors.action,
-    shadowColor: colors.action,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.18,
     shadowRadius: 6,
     elevation: 2,
   },
   windowOff: { backgroundColor: colors.sunken, borderStyle: 'dashed' },
-  windowPressed: { backgroundColor: colors.actionSurface },
   windowLine: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   windowText: { ...type.label, color: colors.text },
   windowTextOff: { color: colors.subtle, textDecorationLine: 'line-through' },

@@ -154,6 +154,14 @@ export function cartEstimate(cart: Cart, catalog: readonly CartService[]): numbe
   return estimateBooking(catalog, booking.serviceId, booking.weightKg, booking.addOns)?.total ?? null;
 }
 
+/**
+ * One line's price on its own, for the basket sheet: priced the way the
+ * booking would price it alone, so a load is again a "from" figure.
+ */
+export function lineEstimate(line: CartLine<CartService>): number | null {
+  return cartEstimate({ [line.service.id]: line.quantity }, [line.service]);
+}
+
 /** The basket in a link: `id:qty,id:qty`. */
 export function encodeCart(cart: Cart): string {
   return Object.entries(cart)

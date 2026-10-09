@@ -19,7 +19,8 @@ import { Pressable, Text, View } from "react-native";
 
 import { AddressChips } from "@/components/address-book";
 import { AddonShelf } from "@/components/addon-shelf";
-import { PriceSummary } from "@/components/booking-parts";
+import { BrandTintProvider, tintFromAccent } from "@/components/brand-tint";
+import { LinkText, NoticeText, PriceSummary } from "@/components/booking-parts";
 import { bookingStyles as styles } from "@/components/booking-styles";
 import {
   BasketRecap,
@@ -155,9 +156,13 @@ export interface BookingFlowProps {
   /**
    * `market`: the booking came from the market storefront's basket, so the
    * first page reads as a basket (`market-checkout`) instead of the ticket.
+   * `spotlight`: the same basket, from the spotlight storefront — it shows
+   * the services' product photos and wears the shop's colour throughout.
    * The second page, the checks and the order are the same either way.
    */
-  look?: "classic" | "market";
+  look?: "classic" | "market" | "spotlight";
+  /** The shop's accent, for the spotlight look's tint. */
+  accent?: { ink: string; surface: string };
   /**
    * The market's way back to the shop with the basket as it stands now, so
    * the customer can add or take things out. Not given, no button is drawn.
@@ -182,9 +187,14 @@ export function BookingFlow({
   hours = DEFAULT_SHOP_HOURS,
   shop,
   look = "classic",
+  accent,
   onEditBasket,
 }: BookingFlowProps) {
-  const isMarket = look === "market";
+  // The spotlight books through the market's basket, in its own clothes.
+  const isMarket = look !== "classic";
+  const isSpotlight = look === "spotlight";
+  /** The shop's colour for the spotlight's checkout; null keeps the app's blue. */
+  const tint = isSpotlight && accent ? tintFromAccent(accent) : null;
   const queryClient = useQueryClient();
   const { profile, session } = useAuth();
   const serviceId = service.id;
@@ -509,10 +519,10 @@ export function BookingFlow({
       <ErrorText>{error}</ErrorText>
       {mayHaveBooked && onCheckOrders ? (
         <Pressable accessibilityRole="link" onPress={onCheckOrders}>
-          <Text style={styles.editLinkText}>
+          <LinkText>
             Your booking may have gone through. Check your orders before trying
             again ›
-          </Text>
+          </LinkText>
         </Pressable>
       ) : null}
       <View style={styles.buyBar}>
@@ -616,9 +626,9 @@ export function BookingFlow({
             priceFor={priceFor}
           />
           {mainMinimumNotice && (
-            <Text style={styles.noticeText}>{mainMinimumNotice}</Text>
+            <NoticeText>{mainMinimumNotice}</NoticeText>
           )}
-          {overLoad && <Text style={styles.noticeText}>{overLoad}</Text>}
+          {overLoad && <NoticeText>{overLoad}</NoticeText>}
         </Section>
       ) : (
         // A count is one tap either way, so it answers on its own line.
@@ -711,6 +721,7 @@ export function BookingFlow({
     <>
       {seed.rebook ? <RebookBanner dropped={seed.rebook.droppedNames} /> : null}
       <MarketBasketPage
+        hasPhotos={isSpotlight}
         service={service}
         isByWeight={isByWeight}
         quantity={weightKg}
@@ -812,7 +823,7 @@ export function BookingFlow({
               schedule that already works: the next free rider window. */}
           <Section
             icon="time"
-            tint={SECTION_TINTS.schedule}
+            tint={tint?.fill ?? SECTION_TINTS.schedule}
             title="Schedule"
             problem={whenProblem}
           >
@@ -854,7 +865,8 @@ export function BookingFlow({
   );
 
   return (
-    // Keyed by page so each page opens at its top rather than mid-scroll.
+    <BrandTintProvider value={tint}>
+    {/* Keyed by page so each page opens at its top rather than mid-scroll. */}
     <Frame key={page} footer={footer}>
       <BookingSteps
         page={page}
@@ -867,6 +879,7 @@ export function BookingFlow({
           : renderLaundryPage()
         : renderDeliveryPage()}
     </Frame>
+    </BrandTintProvider>
   );
 }
 

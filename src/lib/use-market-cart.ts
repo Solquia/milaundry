@@ -63,6 +63,7 @@ export function useMarketCart<T extends CartService>(
     add,
     remove,
     cart: pruneCart(cart, services),
+    lines: cartLines(cart, services),
     count: cartCount(cart, services),
     estimate: cartEstimate(cart, services),
     isFromPrice: cartLines(cart, services).some((line) => isLoad(line.service)),

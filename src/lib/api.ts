@@ -816,6 +816,47 @@ export function uploadAddonPhoto(shopId: string, localUri: string): Promise<stri
   return uploadShopAsset(shopId, localUri, 'addon');
 }
 
+/**
+ * The owner's own photo of a service, for the spotlight storefront (0042):
+ * uploaded to the shop's folder, then saved on the service row, which RLS
+ * already limits to the shop's managers.
+ */
+export async function uploadServiceImage(
+  shopId: string,
+  serviceId: string,
+  localUri: string
+): Promise<ServiceRow> {
+  const url = await uploadShopAsset(shopId, localUri, 'service');
+  return setServiceImage(serviceId, url);
+}
+
+/** Back to the app's own cut-out for this service. The old file stays; nothing points at it. */
+export function clearServiceImage(serviceId: string): Promise<ServiceRow> {
+  return setServiceImage(serviceId, '');
+}
+
+async function setServiceImage(serviceId: string, imageUrl: string): Promise<ServiceRow> {
+  const result = await supabase
+    .from('services')
+    .update({ image_url: imageUrl })
+    .eq('id', serviceId)
+    .select()
+    .single();
+  return unwrap(result) as ServiceRow;
+}
+
+/**
+ * The shop's own service photos, by service id, for the public web page —
+ * read on their own (0042) so a page that cannot read them still opens, on
+ * the app's cut-outs.
+ */
+export async function getShopServiceImages(shopId: string): Promise<Record<string, string>> {
+  const { data, error } = await supabase.rpc('get_shop_service_images', { p_shop_id: shopId });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { service_id: string; image_url: string }[];
+  return Object.fromEntries(rows.map((row) => [row.service_id, row.image_url]));
+}
+
 // ── shop expenses: what the shop spends (0039, owner-only) ────────────────
 /** Expenses paid from `from` up to, not including, `to` (both YYYY-MM-DD). */
 export async function getShopExpenses(shopId: string, from: string, to: string): Promise<Expense[]> {

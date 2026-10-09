@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useBrandTint } from './brand-tint';
 import {
   BLUE_FIELD,
   ErrorText,
@@ -25,6 +26,7 @@ import {
   elevation,
   space,
   type,
+  useTint,
 } from './ui-kit';
 import {
   formatAddressLine,
@@ -66,6 +68,7 @@ export function AddressBook({
 }: AddressBookProps) {
   /** The address being edited, the empty draft when adding, or null when shut. */
   const [editing, setEditing] = useState<SavedAddress | 'new' | null>(null);
+  const tint = useTint();
   const rows = sortAddresses(addresses);
 
   return (
@@ -84,7 +87,13 @@ export function AddressBook({
 
       {rows.map((row, index) => (
         <View key={row.id} style={[styles.row, index > 0 && styles.rowSeam]}>
-          <View style={[styles.pin, row.is_default && styles.pinDefault]}>
+          <View
+            style={[
+              styles.pin,
+              { backgroundColor: tint.surface },
+              row.is_default && styles.pinDefault,
+            ]}
+          >
             <Ionicons
               name={row.is_default ? 'location' : 'location-outline'}
               size={18}
@@ -98,8 +107,8 @@ export function AddressBook({
                 {row.label}
               </Text>
               {row.is_default ? (
-                <View style={styles.defaultChip}>
-                  <Text style={styles.defaultChipText}>Default</Text>
+                <View style={[styles.defaultChip, { backgroundColor: tint.surface }]}>
+                  <Text style={[styles.defaultChipText, { color: tint.ink }]}>Default</Text>
                 </View>
               ) : null}
             </View>
@@ -116,7 +125,7 @@ export function AddressBook({
                 hitSlop={space.snug}
                 style={({ pressed }) => [styles.makeDefault, pressed && styles.pressed]}
               >
-                <Text style={styles.makeDefaultText}>Use by default</Text>
+                <Text style={[styles.makeDefaultText, { color: tint.ink }]}>Use by default</Text>
               </Pressable>
             ) : null}
           </View>
@@ -182,6 +191,8 @@ export function AddressChips({
   value: string;
   onPick: (saved: SavedAddress) => void;
 }) {
+  // A shop's own colour inside its checkout; the address book's blue elsewhere.
+  const chipColor = useBrandTint()?.fill ?? BLUE_FIELD.mid;
   if (addresses.length === 0) return null;
   const rows = sortAddresses(addresses);
 
@@ -198,14 +209,14 @@ export function AddressChips({
             onPress={() => onPick(row)}
             style={({ pressed }) => [
               styles.chip,
-              isActive && styles.chipActive,
+              isActive && [styles.chipActive, { backgroundColor: chipColor, borderColor: chipColor }],
               pressed && styles.pressed,
             ]}
           >
             <Ionicons
               name={isActive ? 'location' : 'location-outline'}
               size={14}
-              color={isActive ? colors.onAccent : BLUE_FIELD.mid}
+              color={isActive ? colors.onAccent : chipColor}
             />
             <Text style={[styles.chipText, isActive && styles.chipTextActive]} numberOfLines={1}>
               {row.label}
@@ -443,7 +454,6 @@ const styles = StyleSheet.create({
     borderRadius: RADII.control,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
   },
   pinDefault: { backgroundColor: BLUE_FIELD.mid },
   rowWords: { flex: 1, gap: 2 },
@@ -453,13 +463,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.snug,
     paddingVertical: 1,
     borderRadius: 999,
-    backgroundColor: colors.actionSurface,
   },
-  defaultChipText: { ...type.caption, fontSize: 11, color: colors.actionInk },
+  defaultChipText: { ...type.caption, fontSize: 11 },
   rowAddress: { ...type.body, fontSize: 15, color: colors.subtle },
   rowNotes: { ...type.caption, color: colors.subtle, fontStyle: 'italic' },
   makeDefault: { alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center' },
-  makeDefaultText: { ...type.label, fontSize: 13, color: colors.actionInk },
+  makeDefaultText: { ...type.label, fontSize: 13 },
   rowKeys: { flexDirection: 'row', gap: space.tight },
   key: {
     width: 36,

@@ -26,6 +26,8 @@ import {
   getMyLaundryPreferences,
   getShopAddonShelf,
   getShopAvailability,
+  getShopServiceImages,
+  getShopStorefrontStyle,
   getStorefront,
   registerWithShopBySlug,
 } from '@/lib/api';
@@ -38,6 +40,7 @@ import { useNow } from '@/lib/use-now';
 import { NO_PREFERENCES, supportedPreferenceKeys } from '@/lib/domain/laundry-preferences';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { pickedServiceId, storefrontServiceRows } from '@/lib/domain/storefront-booking';
+import { withServiceImages } from '@/lib/domain/spotlight';
 import { storefrontTheme, type StorefrontTheme } from '@/lib/domain/web-theme';
 import type { Storefront } from '@/lib/types';
 
@@ -147,8 +150,24 @@ function BookingPage({ storefront, slug, serviceId, cart }: BookingPageProps) {
    * flow swap for a spinner — that would throw their booking away mid-tap.
    */
   const [waitsForUsual] = useState(() => Boolean(session));
-  const theme = storefrontTheme(ACCENTS[resolveAccent(shop, ACCENTS.length)]);
-  const services = storefrontServiceRows(shop.id, storefront.services);
+  const accent = ACCENTS[resolveAccent(shop, ACCENTS.length)];
+  const theme = storefrontTheme(accent);
+  // Which look the shop wears, read the way its page reads it (and from the
+  // same cache): a basket from the spotlight checks out in the shop's colour.
+  const style = useQuery({
+    queryKey: ['storefront-style', shop.id],
+    queryFn: () => getShopStorefrontStyle(shop.id),
+    retry: false,
+  });
+  const isSpotlight = style.data === 'spotlight';
+  // The shop's own service photos, for the spotlight checkout's thumbnails.
+  const images = useQuery({
+    queryKey: ['service-images', shop.id],
+    queryFn: () => getShopServiceImages(shop.id),
+    enabled: isSpotlight,
+    retry: false,
+  });
+  const services = withServiceImages(storefrontServiceRows(shop.id, storefront.services), images.data);
   const service = serviceId ? services.find((row) => row.id === serviceId) : undefined;
 
   // The customer's usual wash, once there is a customer. A guest starts blank;
@@ -281,7 +300,8 @@ function BookingPage({ storefront, slug, serviceId, cart }: BookingPageProps) {
         services={services}
         supported={supported}
         seed={opening}
-        look={fromCart ? 'market' : 'classic'}
+        look={fromCart ? (isSpotlight ? 'spotlight' : 'market') : 'classic'}
+        accent={accent}
         onEditBasket={
           fromCart
             ? (edited) =>

@@ -11,7 +11,7 @@ import { Pressable, StyleSheet } from 'react-native';
 
 import { BookingFlow, type BookingFrameProps } from '@/components/booking-flow';
 import { BookingProblem } from '@/components/booking-parts';
-import { Loading, Screen, colors, space } from '@/components/ui-kit';
+import { ACCENTS, Loading, Screen, colors, space } from '@/components/ui-kit';
 import {
   getMyLaundryPreferences,
   getOrder,
@@ -24,6 +24,8 @@ import { describeCatalogProblem, isConnectionError } from '@/lib/domain/booking-
 import { seedBooking } from '@/lib/domain/booking-seed';
 import { cartBooking, decodeCart, encodeCart, pruneCart } from '@/lib/domain/market-cart';
 import { readAvailability, shopStatus } from '@/lib/domain/shop-availability';
+import { resolveAccent } from '@/lib/domain/shop-branding';
+import { readStorefrontStyle } from '@/lib/domain/storefront-style';
 import { NO_PREFERENCES, supportedPreferenceKeys } from '@/lib/domain/laundry-preferences';
 import { rebookDraft, reconcileRebook } from '@/lib/domain/rebook';
 
@@ -205,6 +207,9 @@ export default function BookService() {
     fromCart && fromCart.serviceId === service.id
       ? { ...seed, weightKg: fromCart.weightKg, addOns: fromCart.addOns }
       : seed;
+  // A basket from the spotlight storefront checks out in that shop's clothes.
+  const isSpotlight = readStorefrontStyle(shop.data?.storefront_style) === 'spotlight';
+  const accent = ACCENTS[resolveAccent({ id: shopId, brand_accent: shop.data?.brand_accent ?? null }, ACCENTS.length)];
 
   return (
     <BookingFlow
@@ -214,7 +219,8 @@ export default function BookService() {
       services={catalog.data}
       supported={supported}
       seed={opening}
-      look={fromCart ? "market" : "classic"}
+      look={fromCart ? (isSpotlight ? "spotlight" : "market") : "classic"}
+      accent={accent}
       onEditBasket={
         fromCart
           ? (edited) =>

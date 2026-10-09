@@ -15,7 +15,7 @@ export const bookingStyles = StyleSheet.create({
   /** Sections breathe wider than the rows inside them: 20 against 12 and 8. */
   sections: { gap: space.section },
   sectionTitle: { ...type.section, color: colors.text },
-  sectionMeta: { ...type.label, color: colors.actionInk },
+  sectionMeta: { ...type.label },
 
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   /** Four quick sizes on one row, so none strands alone on a second line. */
@@ -31,14 +31,13 @@ export const bookingStyles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.card,
   },
-  chipSelected: { backgroundColor: colors.action, borderColor: colors.action },
   chipText: { ...type.label, color: colors.text },
   chipTextSelected: { color: colors.onAccent },
 
 
   /** A condition on the price, not an announcement: it sits at caption weight
       and takes its blue from the ink that carries text, not the identity. */
-  noticeText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk },
+  noticeText: { ...type.caption, fontFamily: type.label.fontFamily },
 
   // The review: the booking read back to you before the last tap.
   reviewLine: {
@@ -71,7 +70,7 @@ export const bookingStyles = StyleSheet.create({
   // Wide, like a food app's basket button: the one thing the bar is for.
   mainAction: { flex: 1.2 },
   priceLabel: { ...type.caption, color: colors.subtle },
-  priceValue: { ...type.value, color: colors.actionInk },
+  priceValue: { ...type.value },
   priceValueMuted: { color: colors.subtle },
   priceNote: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   /** The cart: what came off the shop's shelf, and what it adds. */
@@ -82,10 +81,9 @@ export const bookingStyles = StyleSheet.create({
     paddingHorizontal: space.snug,
     paddingVertical: 6,
     borderRadius: 10,
-    backgroundColor: colors.actionSurface,
   },
-  cartText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk, flex: 1 },
-  cartAmount: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.actionInk },
+  cartText: { ...type.caption, fontFamily: type.label.fontFamily, flex: 1 },
+  cartAmount: { ...type.caption, fontFamily: type.label.fontFamily },
   commitRow: { flexDirection: 'row', gap: space.snug },
   commitHalf: { flex: 1 },
   headerBack: { marginLeft: space.snug, padding: space.tight },
@@ -98,14 +96,13 @@ export const bookingStyles = StyleSheet.create({
     gap: space.snug,
   },
   editLink: { minHeight: 32, justifyContent: 'center' },
-  editLinkText: { ...type.label, color: colors.actionInk },
+  editLinkText: { ...type.label },
   /** "Book again" says so once, above the review it filled in. */
   rebookNote: {
     gap: space.tight,
     padding: space.room,
     borderRadius: 14,
-    backgroundColor: colors.actionSurface,
   },
-  rebookTitle: { ...type.section, color: colors.actionInk },
+  rebookTitle: { ...type.section },
   rebookBody: { ...type.body, color: colors.text },
 });

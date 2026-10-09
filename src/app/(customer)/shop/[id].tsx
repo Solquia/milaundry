@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AccessibilityInfo,
   Animated,
   Easing,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -14,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useClaim } from '@/components/claim';
 import { MarketBasketBar } from '@/components/market-basket-bar';
+import { SpotlightBasket } from '@/components/spotlight-basket';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useEntrance } from '@/components/entrance';
@@ -22,6 +24,7 @@ import { ShopMapCard } from '@/components/shop-map-card';
 import { ServiceShelf } from '@/components/service-shelf';
 import { ShopfrontHero } from '@/components/shopfront-hero';
 import { ShopStatusPill } from '@/components/shop-status-pill';
+import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import {
   ACCENTS,
   Button,
@@ -42,6 +45,7 @@ import {
   getShopReviews,
   joinShop,
 } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { resolveAccent } from '@/lib/domain/shop-branding';
 import { readAvailability, shopStatus } from '@/lib/domain/shop-availability';
 import { useNow } from '@/lib/use-now';
@@ -189,6 +193,7 @@ export default function CustomerShopHome() {
     cart?: string;
   }>();
   const router = useRouter();
+  const { profile } = useAuth();
   const haptic = useHaptic();
   const insets = useSafeAreaInsets();
   // One driver for the whole arrival. Skipped entirely under Reduce Motion.
@@ -319,8 +324,20 @@ export default function CustomerShopHome() {
 
   // The market look's basket. Held here, above the loading return, so the
   // hook runs on every render whichever look the shop has chosen.
-  const basket = useMarketCart(services ?? [], cart);
-  const isMarket = readStorefrontStyle(shop?.storefront_style) === 'market';
+  const serviceList = useMemo(() => services ?? [], [services]);
+  const basket = useMarketCart(serviceList, cart);
+  const style = readStorefrontStyle(shop?.storefront_style);
+  const isMarket = style === 'market';
+  // The spotlight's menu filter and sheet, held here for the same reason.
+  const scroller = useRef<ScrollView>(null);
+  const [isBasketOpen, setBasketOpen] = useState(false);
+  // Emptied from inside, the basket closes for good, so the next "+" stays on the grid.
+  if (isBasketOpen && basket.count === 0) setBasketOpen(false);
+  const spot = useSpotlight({
+    services: serviceList,
+    reputation,
+    scrollTo: (y) => scroller.current?.scrollTo({ y, animated: true }),
+  });
 
   const checkout = () => {
     if (!basket.booking) return;
@@ -344,19 +361,130 @@ export default function CustomerShopHome() {
     joinMutation.mutate();
   };
 
-  // The market: the same shop, drawn as an online store with a basket.
-  if (isMarket) {
-    const footer =
+  // The basket bar, the ratings and the store's map: the same for both basket looks.
+  const basketFooter =
+    basket.count > 0 && isRegistered ? (
+      <MarketBasketBar
+        count={basket.count}
+        estimate={basket.estimate}
+        isFromPrice={basket.isFromPrice}
+        accent={accent}
+        onCheckout={checkout}
+        blockedNote={sign && !sign.isTakingOrders ? 'Not taking online orders right now.' : null}
+      />
+    ) : undefined;
+  const ratings = reviews?.length ? (
+    <>
+      <Text style={styles.sectionTitle}>Ratings</Text>
+      <ReviewShowcase
+        reviews={reviews.map((review) => ({
+          id: review.id,
+          rating: review.rating,
+          comment: review.comment,
+          reviewerName: review.reviewer?.full_name ?? null,
+        }))}
+        reputation={reputation}
+        theme={theme}
+        showNames
+      />
+    </>
+  ) : null;
+  const storeInfo = shop ? (
+    <>
+      <Text style={styles.sectionTitle}>Store info</Text>
+      <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} theme={theme} />
+    </>
+  ) : null;
+  const connectButton = isRegistered ? null : (
+    <Button
+      title={joinMutation.isPending ? 'Connecting…' : 'Connect to order'}
+      disabled={joinMutation.isPending}
+      onPress={connect}
+    />
+  );
+
+  // The spotlight: the same shop and basket, drawn as a food app sells.
+  if (style === 'spotlight') {
+    const canCheckout = basket.count > 0 && isRegistered && (sign?.isTakingOrders ?? true);
+    const openBasket = () => setBasketOpen(true);
+    // The spotlight shows the basket first; its button goes on to checkout.
+    const spotlightFooter =
       basket.count > 0 && isRegistered ? (
         <MarketBasketBar
           count={basket.count}
           estimate={basket.estimate}
           isFromPrice={basket.isFromPrice}
           accent={accent}
-          onCheckout={checkout}
-          blockedNote={sign && !sign.isTakingOrders ? 'Not taking online orders right now.' : null}
+          onCheckout={openBasket}
         />
       ) : undefined;
+    return (
+      <Screen footer={spotlightFooter} scrollRef={scroller}>
+        <StatusBar style="dark" />
+        <SpotlightHeader
+          name={shopName}
+          logoUrl={shop ? shopLogoUri(shop) : null}
+          accent={accent}
+          reputation={reputation}
+          sign={sign}
+          cheapest={cheapest}
+          customerName={profile?.full_name}
+          basketCount={basket.count}
+          onBasket={basket.count > 0 && isRegistered ? openBasket : undefined}
+          query={spot.query}
+          onQuery={spot.setQuery}
+          insetTop={insets.top}
+          onBack={onBack}
+          action={connectButton}
+        />
+        <SpotlightBody
+          spot={spot}
+          accent={accent}
+          cart={basket.cart}
+          onAdd={basket.add}
+          onRemove={basket.remove}
+          isDisabled={!isRegistered}
+          notice={basket.notice}
+        >
+          {shopError ? <ErrorText>{(shopError as Error).message}</ErrorText> : null}
+          <ErrorText>{joinError}</ErrorText>
+          {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
+          {isRegistered && hereNow ? (
+            <CycleStrip
+              status={hereNow.status}
+              accent={accent}
+              extraCount={Math.max(activeHere.length - 1, 0)}
+              onPress={() => router.push(`/(customer)/order/${hereNow.id}` as never)}
+            />
+          ) : null}
+        </SpotlightBody>
+        {ratings}
+        {storeInfo}
+        <SpotlightBasket
+          isOpen={isBasketOpen}
+          lines={basket.lines}
+          frames={spot.frames}
+          accent={accent}
+          shopName={shopName}
+          reputation={reputation}
+          total={basket.estimate}
+          isFromPrice={basket.isFromPrice}
+          blockedNote={canCheckout ? null : 'Not taking online orders right now.'}
+          onAdd={basket.add}
+          onRemove={basket.remove}
+          onCheckout={() => {
+            setBasketOpen(false);
+            checkout();
+          }}
+          onClose={() => setBasketOpen(false)}
+        />
+      </Screen>
+    );
+  }
+
+  // The market: the same shop, drawn as an online store with a basket.
+  if (isMarket) {
+    const footer = basketFooter;
     return (
       <Screen footer={footer}>
         <StatusBar style="light" />
@@ -372,15 +500,7 @@ export default function CustomerShopHome() {
           coverUrl={shop?.cover_url || null}
           insetTop={insets.top}
           onBack={onBack}
-          action={
-            isRegistered ? null : (
-              <Button
-                title={joinMutation.isPending ? 'Connecting…' : 'Connect to order'}
-                disabled={joinMutation.isPending}
-                onPress={connect}
-              />
-            )
-          }
+          action={connectButton}
         />
         <ErrorText>{joinError}</ErrorText>
         {justConnected && <WelcomeCard note={note} shopName={shopName} accent={accent} />}
@@ -401,28 +521,8 @@ export default function CustomerShopHome() {
           isDisabled={!isRegistered}
           notice={basket.notice}
         />
-        {reviews?.length ? (
-          <>
-            <Text style={styles.sectionTitle}>Ratings</Text>
-            <ReviewShowcase
-              reviews={reviews.map((review) => ({
-                id: review.id,
-                rating: review.rating,
-                comment: review.comment,
-                reviewerName: review.reviewer?.full_name ?? null,
-              }))}
-              reputation={reputation}
-              theme={theme}
-              showNames
-            />
-          </>
-        ) : null}
-        {shop ? (
-          <>
-            <Text style={styles.sectionTitle}>Store info</Text>
-            <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} theme={theme} />
-          </>
-        ) : null}
+        {ratings}
+        {storeInfo}
       </Screen>
     );
   }

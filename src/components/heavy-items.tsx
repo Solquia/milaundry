@@ -32,7 +32,7 @@ import type { ServiceRow } from '@/lib/types';
 
 import { ExtraArt, hasExtraArt } from './extra-art';
 import { ServiceScene } from './service-scene';
-import { Card, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
+import { Card, RADII, colors, elevation, fontFor, space, type, useTint } from './ui-kit';
 
 /** Every extra is in `looks`; this only satisfies the map's lookup type. */
 const FALLBACK_LOOK: ServiceLook = { scene: 'bed', colorway: 'mixed', tag: null };
@@ -291,16 +291,18 @@ export function HeavyItems({
   quantities,
   onChange,
   isBare = false,
-  tint = colors.action,
+  tint,
 }: {
   extras: readonly ServiceRow[];
   quantities: Readonly<Record<string, number>>;
   onChange: (serviceId: string, next: number) => void;
   /** Just the tiles, for a surface that brings its own card and heading. */
   isBare?: boolean;
-  /** The colour an added tile lights up in. */
+  /** The colour an added tile lights up in; the shop's tint when not given. */
   tint?: string;
 }) {
+  const brand = useTint();
+  const litColor = tint ?? brand.fill;
   // Siblings on the same drawing get different dyes, exactly as on the shelf.
   const looks = React.useMemo(() => serviceLooks(extras), [extras]);
   // The first extra of each kind keeps the drawing's own colours; a second
@@ -317,7 +319,7 @@ export function HeavyItems({
           look={looks.get(extra.id) ?? FALLBACK_LOOK}
           cloth={cloths.get(extra.id) ?? null}
           quantity={quantities[extra.id] ?? 0}
-          tint={tint}
+          tint={litColor}
           onChange={(next) => onChange(extra.id, next)}
         />
       ))}

@@ -14,6 +14,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
+import { useBrandTint, type BrandTint } from './brand-tint';
 import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
 import { CROWN, RADII, TYPE_ROLES, fontFor } from '@/lib/domain/design-scale';
 import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
@@ -230,6 +231,19 @@ export const mono = Platform.select({
   default: 'monospace',
 });
 
+/** The app's own blue as a tint: what every screen wears unless a shop's look says otherwise. */
+export const APP_TINT: BrandTint = {
+  fill: colors.action,
+  ink: colors.actionInk,
+  surface: colors.actionSurface,
+  muted: colors.actionMuted,
+};
+
+/** The tint this screen acts in: a shop's colour inside `BrandTintProvider`, else the app's blue. */
+export function useTint(): BrandTint {
+  return useBrandTint() ?? APP_TINT;
+}
+
 export const ACCENTS = [
   { surface: '#E8F1FC', ink: '#1263AF' },
   { surface: '#DCF2EE', ink: '#0F6B5F' },
@@ -291,6 +305,8 @@ export { formatMoney } from '@/lib/domain/money';
 export { formatWhen } from '@/lib/domain/order-time';
 
 type ScreenProps = {
+  /** The scroll view, for a screen that jumps to a section of itself. */
+  scrollRef?: React.Ref<ScrollView>;
   children: React.ReactNode;
   scroll?: boolean;
   /**
@@ -320,6 +336,7 @@ type ScreenProps = {
 };
 
 export function Screen({
+  scrollRef,
   children,
   scroll = true,
   header,
@@ -333,6 +350,7 @@ export function Screen({
     // tap on a stepper used to be swallowed dismissing the keyboard, and the
     // owner had no way to tell the tap had not registered.
     <ScrollView
+      ref={scrollRef}
       contentContainerStyle={[styles.screenContent, center && styles.screenCentered]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
@@ -513,9 +531,11 @@ export function Button({
   accessibilityLabel,
 }: ButtonProps) {
   // `action`, not the identity blue: white 16px on #208AEF is 3.5:1 and fails
-  // AA. One step deeper keeps the same blue family at 5.9:1.
+  // AA. One step deeper keeps the same blue family at 5.9:1. Inside a shop's
+  // tint it is the shop's ink, which clears AA the same way.
+  const tint = useTint();
   const backgroundColor =
-    variant === 'primary' ? colors.action : variant === 'danger' ? colors.danger : 'transparent';
+    variant === 'primary' ? tint.fill : variant === 'danger' ? colors.danger : 'transparent';
   return (
     <Pressable
       accessibilityRole="button"

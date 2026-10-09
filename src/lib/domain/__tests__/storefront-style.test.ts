@@ -9,6 +9,7 @@ describe('readStorefrontStyle', () => {
   it('reads each style the shop can pick', () => {
     expect(readStorefrontStyle('classic')).toBe('classic');
     expect(readStorefrontStyle('market')).toBe('market');
+    expect(readStorefrontStyle('spotlight')).toBe('spotlight');
   });
 
   it('falls back to the classic shopfront for a shop that never chose', () => {
@@ -32,7 +33,7 @@ describe('isStorefrontStyle', () => {
 
 describe('STOREFRONT_STYLE_OPTIONS', () => {
   it('offers every style once, classic first', () => {
-    expect(STOREFRONT_STYLE_OPTIONS.map((option) => option.key)).toEqual(['classic', 'market']);
+    expect(STOREFRONT_STYLE_OPTIONS.map((option) => option.key)).toEqual(['classic', 'market', 'spotlight']);
   });
 
   it('describes each one in words an owner can choose by', () => {

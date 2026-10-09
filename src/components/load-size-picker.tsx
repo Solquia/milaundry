@@ -12,7 +12,7 @@ import type { ServiceRow } from '@/lib/types';
 
 import { WeightScale } from './quantity-picker';
 import { ServicePorthole } from './service-porthole';
-import { RADII, colors, space, type } from './ui-kit';
+import { RADII, colors, space, type, useTint } from './ui-kit';
 
 const DOOR_SIZE = 116;
 
@@ -25,6 +25,7 @@ export interface LoadSizePickerProps {
 }
 
 export function LoadSizePicker({ service, valueKg, onChange, priceFor }: LoadSizePickerProps) {
+  const tint = useTint();
   const sizes = loadSizes(service);
   const current = loadSizeFor(sizes, valueKg);
 
@@ -50,10 +51,10 @@ export function LoadSizePicker({ service, valueKg, onChange, priceFor }: LoadSiz
           <Text style={styles.sizeHint}>
             {current ? current.hint : 'Your estimate — the shop weighs it'}
           </Text>
-          {price ? <Text style={styles.sizePrice}>{price}</Text> : null}
+          {price ? <Text style={[styles.sizePrice, { color: tint.ink }]}>{price}</Text> : null}
           {current?.isMinimum ? (
-            <View style={styles.minimumTag}>
-              <Text style={styles.minimumText}>Minimum charge · fits up to {current.kg} kg</Text>
+            <View style={[styles.minimumTag, { backgroundColor: tint.surface }]}>
+              <Text style={[styles.minimumText, { color: tint.ink }]}>Minimum charge · fits up to {current.kg} kg</Text>
             </View>
           ) : null}
         </View>
@@ -88,6 +89,7 @@ function SizeCard({
   isSelected: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   return (
     <Pressable
       accessibilityRole="radio"
@@ -96,7 +98,7 @@ function SizeCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        isSelected && styles.cardSelected,
+        isSelected && { backgroundColor: tint.fill, borderColor: tint.fill },
         pressed && styles.cardPressed,
       ]}
     >
@@ -116,16 +118,15 @@ const styles = StyleSheet.create({
   stageText: { flex: 1, minWidth: 0, gap: 2 },
   sizeName: { ...type.value, color: colors.text },
   sizeHint: { ...type.caption, color: colors.subtle },
-  sizePrice: { ...type.section, color: colors.actionInk, marginTop: space.tight },
+  sizePrice: { ...type.section, marginTop: space.tight },
   minimumTag: {
     alignSelf: 'flex-start',
     marginTop: space.tight,
     paddingHorizontal: space.snug,
     paddingVertical: 3,
     borderRadius: RADII.pill,
-    backgroundColor: colors.actionSurface,
   },
-  minimumText: { ...type.caption, fontSize: 11, color: colors.actionInk },
+  minimumText: { ...type.caption, fontSize: 11 },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   card: {
@@ -142,7 +143,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  cardSelected: { backgroundColor: colors.action, borderColor: colors.action },
   cardPressed: { transform: [{ scale: 0.97 }] },
   cardLabel: { ...type.caption, fontSize: 13, fontWeight: '600', color: colors.text, flexShrink: 1 },
   cardMeta: { ...type.caption, fontSize: 11, color: colors.subtle },

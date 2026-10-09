@@ -109,6 +109,11 @@ export interface ServiceRow {
   sort_order: number;
   is_active: boolean;
   created_at: string;
+  /**
+   * The shop's own photo of this service, for the spotlight storefront (0042);
+   * '' or absent means the app's stock cut-out. Optional until 0042 is live.
+   */
+  image_url?: string;
 }
 
 export interface OrderRow {
@@ -234,6 +239,8 @@ export type StorefrontService = Pick<
 > & {
   /** Optional: absent until get_storefront carries it (migration 0032). */
   max_quantity?: number;
+  /** The shop's own photo, merged in from get_shop_service_images (0042). */
+  image_url?: string;
 };
 
 export interface StorefrontReview {

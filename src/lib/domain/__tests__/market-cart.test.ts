@@ -6,6 +6,7 @@ import {
   cartCount,
   cartEstimate,
   cartLines,
+  lineEstimate,
   decodeCart,
   encodeCart,
   pruneCart,
@@ -190,5 +191,19 @@ describe('bookingToCart', () => {
 describe('pruneCart', () => {
   it('keeps only what the shop still offers', () => {
     expect(pruneCart({ 's-shirt': 1, gone: 2 }, catalog)).toEqual({ 's-shirt': 1 });
+  });
+});
+
+describe('lineEstimate', () => {
+  it('prices pieces by the piece', () => {
+    expect(lineEstimate({ service: shirt, quantity: 3 })).toBe(180);
+  });
+
+  it('bills each flat piece once', () => {
+    expect(lineEstimate({ service: comforter, quantity: 2 })).toBe(400);
+  });
+
+  it('prices a load at its smallest size, never below the shop minimum', () => {
+    expect(lineEstimate({ service: washFold, quantity: 1 })).toBe(175);
   });
 });

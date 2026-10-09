@@ -21,7 +21,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Reveal } from '@/components/reveal';
 import { SlotPicker } from '@/components/slot-picker';
-import { colors, space, type } from '@/components/ui-kit';
+import { colors, space, type, useTint } from '@/components/ui-kit';
 import { RADII } from '@/lib/domain/design-scale';
 import {
   addDays,
@@ -187,6 +187,7 @@ function Stop({
   hasTrailingLine?: boolean;
   children: React.ReactNode;
 }) {
+  const tint = useTint();
   const window = windowLabel(slot.hour, hours);
   const day = dayTitle(slot.day, today);
 
@@ -195,10 +196,16 @@ function Stop({
       {/* The rail: a node, then the line on to whatever comes next. It
           stretches with the stop, so an open picker keeps the thread. */}
       <View style={styles.rail}>
-        <View style={[styles.node, problem ? styles.nodeProblem : null]}>
+        <View
+          style={[
+            styles.node,
+            { backgroundColor: tint.fill, borderColor: tint.surface },
+            problem ? styles.nodeProblem : null,
+          ]}
+        >
           <Ionicons name={icon as never} size={18} color={colors.onAccent} />
         </View>
-        {hasTrailingLine ? <View style={styles.railLine} /> : null}
+        {hasTrailingLine ? <View style={[styles.railLine, { backgroundColor: tint.muted }]} /> : null}
       </View>
 
       <View style={styles.stopBody}>
@@ -213,24 +220,32 @@ function Stop({
           <View style={styles.stopText}>
             <Text style={styles.stopTitle} numberOfLines={1}>
               {title.toUpperCase()}
-              {aside ? <Text style={styles.stopAside}>{`  ·  ${aside}`}</Text> : null}
+              {aside ? <Text style={[styles.stopAside, { color: tint.ink }]}>{`  ·  ${aside}`}</Text> : null}
             </Text>
             <Text style={styles.stopDay} numberOfLines={1}>
               {day}
             </Text>
-            <View style={styles.windowPill}>
-              <Ionicons name="time-outline" size={13} color={colors.actionInk} />
-              <Text style={styles.windowPillText}>{window}</Text>
+            <View style={[styles.windowPill, { backgroundColor: tint.surface }]}>
+              <Ionicons name="time-outline" size={13} color={tint.ink} />
+              <Text style={[styles.windowPillText, { color: tint.ink }]}>{window}</Text>
             </View>
           </View>
-          <View style={[styles.change, isOpen && styles.changeOpen]}>
-            <Text style={[styles.changeText, isOpen && styles.changeTextOpen]}>
+          <View
+            style={[
+              styles.change,
+              { borderColor: tint.muted },
+              isOpen && { backgroundColor: tint.fill, borderColor: tint.fill },
+            ]}
+          >
+            <Text
+              style={[styles.changeText, { color: tint.ink }, isOpen && styles.changeTextOpen]}
+            >
               {isOpen ? 'Done' : 'Change'}
             </Text>
             <Ionicons
               name={isOpen ? 'chevron-up' : 'chevron-down'}
               size={14}
-              color={isOpen ? colors.onAccent : colors.actionInk}
+              color={isOpen ? colors.onAccent : tint.ink}
             />
           </View>
         </Pressable>
@@ -267,17 +282,14 @@ const styles = StyleSheet.create({
     borderRadius: NODE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.action,
-    // A ring of soft blue lifts the node off the line it sits on.
+    // A ring of the tint's soft shade lifts the node off the line it sits on.
     borderWidth: 3,
-    borderColor: colors.actionSurface,
   },
   nodeProblem: { backgroundColor: colors.dangerInk, borderColor: PROBLEM_RING },
   railLine: {
     flex: 1,
     width: RAIL_WIDTH,
     minHeight: space.cosy,
-    backgroundColor: colors.actionMuted,
   },
 
   stopBody: { flex: 1, minWidth: 0, gap: space.snug, paddingBottom: space.room },
@@ -286,7 +298,7 @@ const styles = StyleSheet.create({
   stopText: { flex: 1, minWidth: 0, gap: 3 },
   stopTitle: { ...type.caption, fontSize: 11, letterSpacing: 1, color: colors.subtle },
   /** Not shouted like the title: it is a note, in the ink of the time pill. */
-  stopAside: { letterSpacing: 0.2, color: colors.actionInk },
+  stopAside: { letterSpacing: 0.2 },
   stopDay: { ...type.section, color: colors.text },
   windowPill: {
     alignSelf: 'flex-start',
@@ -296,9 +308,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.snug,
     paddingVertical: 3,
     borderRadius: RADII.pill,
-    backgroundColor: colors.actionSurface,
   },
-  windowPillText: { ...type.label, color: colors.actionInk },
+  windowPillText: { ...type.label },
 
   /** A real button shape, not a bare chevron: it is how the stop opens. */
   change: {
@@ -309,11 +320,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.cosy,
     borderRadius: RADII.pill,
     borderWidth: 1,
-    borderColor: colors.actionMuted,
     backgroundColor: colors.card,
   },
-  changeOpen: { backgroundColor: colors.action, borderColor: colors.action },
-  changeText: { ...type.label, color: colors.actionInk },
+  changeText: { ...type.label },
   changeTextOpen: { color: colors.onAccent },
 
   hint: { ...type.caption, color: colors.subtle },

@@ -13,6 +13,10 @@
  * It only draws. The state, the checks and placing the order stay in
  * `booking-flow`, which hands this page what it needs, so the market and the
  * classic ticket cannot book differently.
+ *
+ * The spotlight storefront books through this page too: it shows each
+ * service's product photo in place of the drawing, and every blue here is the
+ * tint (`useTint`), which inside the spotlight is the shop's own colour.
  */
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
@@ -20,14 +24,18 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { AddonPicture } from './addon-shelf';
 import { HeavyItemArt, extraCloths } from './heavy-items';
+import { ServicePhoto } from './service-photo';
 import { ServiceScene } from './service-scene';
-import { RADII, colors, elevation, formatMoney, space, type } from './ui-kit';
+import { SpotlightLoadSizes } from './spotlight-load-sizes';
+import { RADII, colors, elevation, formatMoney, space, type, useTint } from './ui-kit';
 import { clampWeight } from '@/lib/domain/booking-estimate';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import { loadFloor, loadSizeFor, loadSizes } from '@/lib/domain/load-size';
 import { unitSuffix } from '@/lib/domain/price-label';
 import { MAX_PIECES } from '@/lib/domain/quantity-input';
 import { serviceLook, serviceLooks } from '@/lib/domain/service-look';
+import { sceneFor } from '@/lib/domain/service-scene';
+import { ownImage } from '@/lib/domain/spotlight';
 import { showcaseTone } from '@/lib/domain/service-showcase';
 import {
   allowsMultiple,
@@ -38,12 +46,16 @@ import {
 } from '@/lib/domain/shop-addons';
 import type { ServiceRow } from '@/lib/types';
 
-const INK = colors.actionInk;
-
 /** One word per shelf. */
-const RAIL_TITLES: Record<AddonKind, string> = { detergent: 'Soap', fabcon: 'Fabcon', extra: 'Extras' };
+const RAIL_TITLES: Record<AddonKind, string> = {
+  detergent: 'Soap',
+  fabcon: 'Fabcon',
+  extra: 'Extras',
+};
 
 export interface MarketBasketPageProps {
+  /** Product photos instead of drawings: the spotlight storefront's checkout. */
+  hasPhotos?: boolean;
   service: ServiceRow;
   isByWeight: boolean;
   /** Kilos for a load, a count for pieces. */
@@ -83,6 +95,7 @@ export function MarketBasketPage(props: MarketBasketPageProps) {
         {basketLines.map((row) => (
           <LineRow
             key={row.id}
+            hasPhotos={props.hasPhotos}
             service={row}
             title={row.id === service.id ? `${row.name} (more)` : row.name}
             count={counts[row.id] ?? 0}
@@ -113,6 +126,7 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 // ── the load ──────────────────────────────────────────────────────────────
 
 function MainLine({
+  hasPhotos,
   service,
   isByWeight,
   quantity,
@@ -122,11 +136,20 @@ function MainLine({
   notices,
   problem,
 }: MarketBasketPageProps) {
+  const tint = useTint();
   const [isExactOpen, setIsExactOpen] = useState(false);
   if (!isByWeight) {
     return (
       <>
-        <LineRow service={service} title={service.name} count={quantity} min={1} amount={mainAmount} onCount={onQuantity} />
+        <LineRow
+          hasPhotos={hasPhotos}
+          service={service}
+          title={service.name}
+          count={quantity}
+          min={1}
+          amount={mainAmount}
+          onCount={onQuantity}
+        />
         {problem ? <Text style={styles.problem}>{problem}</Text> : null}
       </>
     );
@@ -140,7 +163,7 @@ function MainLine({
   return (
     <View style={styles.main}>
       <View style={styles.row}>
-        <Thumb service={service} />
+        <Thumb service={service} hasPhotos={hasPhotos} />
         <View style={styles.words}>
           <Text style={styles.name} numberOfLines={2}>
             {service.name}
@@ -156,50 +179,72 @@ function MainLine({
       {/* One question, answered from a short list — the way a ride app offers
           its car sizes: what it is in everyday words, how big, what it costs. */}
       <Text style={styles.ask}>How much laundry?</Text>
-      <View style={styles.sizeList} accessibilityRole="radiogroup" accessibilityLabel="How much laundry">
-        {sizes.map((size, rank) => {
-          const isOn = chosen?.kg === size.kg;
-          const price = priceFor(size.kg);
-          return (
-            <Pressable
-              key={size.kg}
-              accessibilityRole="radio"
-              accessibilityState={{ checked: isOn }}
-              accessibilityLabel={`${size.label}, ${size.hint}, up to ${size.kg} kilograms${price ? `, ${price}` : ''}`}
-              onPress={() => {
-                setIsExactOpen(false);
-                onQuantity(size.kg);
-              }}
-              style={({ pressed }) => [styles.sizeRow, isOn && styles.sizeRowOn, pressed && styles.pressed]}
-            >
-              {/* One more basket per step, so the list reads small → big at a glance. */}
-              <View style={[styles.sizeIcon, isOn && styles.sizeIconOn]}>
-                {Array.from({ length: rank + 1 }, (_, index) => (
-                  <Ionicons key={index} name="basket" size={12} color={isOn ? colors.onAccent : INK} />
-                ))}
-              </View>
-              <View style={styles.words}>
-                <Text style={styles.name}>
-                  {size.label}
-                  <Text style={styles.meta}>{`  up to ${size.kg} kg`}</Text>
-                </Text>
-                <Text style={styles.meta}>{size.hint}</Text>
-              </View>
-              {price ? <Text style={[styles.sizePrice, isOn && styles.inkOn]}>{price}</Text> : null}
-              <Ionicons
-                name={isOn ? 'checkmark-circle' : 'ellipse-outline'}
-                size={22}
-                color={isOn ? INK : colors.borderStrong}
-              />
-            </Pressable>
-          );
-        })}
-      </View>
+      {hasPhotos ? (
+        <SpotlightLoadSizes
+          sizes={sizes}
+          chosen={chosen}
+          priceFor={priceFor}
+          onPick={(kg) => {
+            setIsExactOpen(false);
+            onQuantity(kg);
+          }}
+        />
+      ) : (
+        <View style={styles.sizeList} accessibilityRole="radiogroup" accessibilityLabel="How much laundry">
+          {sizes.map((size, rank) => {
+            const isOn = chosen?.kg === size.kg;
+            const price = priceFor(size.kg);
+            return (
+              <Pressable
+                key={size.kg}
+                accessibilityRole="radio"
+                accessibilityState={{ checked: isOn }}
+                accessibilityLabel={`${size.label}, ${size.hint}, up to ${size.kg} kilograms${price ? `, ${price}` : ''}`}
+                onPress={() => {
+                  setIsExactOpen(false);
+                  onQuantity(size.kg);
+                }}
+                style={({ pressed }) => [
+                  styles.sizeRow,
+                  isOn && {
+                    borderColor: tint.ink,
+                    backgroundColor: tint.surface,
+                  },
+                  pressed && styles.pressed,
+                ]}
+              >
+                {/* One more basket per step, so the list reads small → big at a glance. */}
+                <View style={[styles.sizeIcon, { backgroundColor: isOn ? tint.fill : tint.surface }]}>
+                  {Array.from({ length: rank + 1 }, (_, index) => (
+                    <Ionicons key={index} name="basket" size={12} color={isOn ? colors.onAccent : tint.ink} />
+                  ))}
+                </View>
+                <View style={styles.words}>
+                  <Text style={styles.name}>
+                    {size.label}
+                    <Text style={styles.meta}>{`  up to ${size.kg} kg`}</Text>
+                  </Text>
+                  <Text style={styles.meta}>{size.hint}</Text>
+                </View>
+                {price ? <Text style={[styles.sizePrice, isOn && { color: tint.ink }]}>{price}</Text> : null}
+                <Ionicons
+                  name={isOn ? 'checkmark-circle' : 'ellipse-outline'}
+                  size={22}
+                  color={isOn ? tint.ink : colors.borderStrong}
+                />
+              </Pressable>
+            );
+          })}
+        </View>
+      )}
 
-      <View style={styles.reassure}>
-        <Ionicons name="scale-outline" size={16} color={colors.subtle} />
-        <Text style={styles.reassureText}>Best guess is fine — final price after weighing.</Text>
-      </View>
+      {/* The spotlight's summary line already says the shop weighs it. */}
+      {hasPhotos && chosen ? null : (
+        <View style={styles.reassure}>
+          <Ionicons name="scale-outline" size={16} color={colors.subtle} />
+          <Text style={styles.reassureText}>Best guess is fine — final price after weighing.</Text>
+        </View>
+      )}
 
       {/* For the few who did weigh it; out of the way for everyone else. */}
       {showExact ? (
@@ -216,7 +261,7 @@ function MainLine({
         </View>
       ) : (
         <Pressable accessibilityRole="button" onPress={() => setIsExactOpen(true)} hitSlop={8}>
-          <Text style={styles.link}>Know the exact weight?</Text>
+          <Text style={[styles.link, { color: tint.ink }]}>Know the exact weight?</Text>
         </Pressable>
       )}
       {notices.map((note) => (
@@ -232,6 +277,7 @@ function MainLine({
 // ── a counted line in the basket ──────────────────────────────────────────
 
 function LineRow({
+  hasPhotos,
   service,
   title,
   count,
@@ -245,10 +291,11 @@ function LineRow({
   amount: number | undefined;
   onCount: (next: number) => void;
   min?: number;
+  hasPhotos?: boolean;
 }) {
   return (
     <View style={[styles.row, styles.divided]}>
-      <Thumb service={service} />
+      <Thumb service={service} hasPhotos={hasPhotos} />
       <View style={styles.words}>
         <Text style={styles.name} numberOfLines={2}>
           {title}
@@ -269,7 +316,17 @@ function LineRow({
   );
 }
 
-function Thumb({ service }: { service: ServiceRow }) {
+function Thumb({ service, hasPhotos = false }: { service: ServiceRow; hasPhotos?: boolean }) {
+  const tint = useTint();
+  if (hasPhotos) {
+    return (
+      <ServicePhoto
+        photo={sceneFor(service.name, service.category)}
+        uri={ownImage(service)}
+        style={[styles.thumb, styles.thumbPhoto, { backgroundColor: tint.surface }]}
+      />
+    );
+  }
   const tone = showcaseTone(service.category);
   const look = serviceLook(service.name, service.category);
   return (
@@ -316,6 +373,7 @@ function Round({
   isFilled?: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   return (
     <Pressable
       accessibilityRole="button"
@@ -326,19 +384,29 @@ function Round({
       hitSlop={6}
       style={({ pressed }) => [
         styles.round,
-        isFilled ? styles.roundFilled : styles.roundOutline,
+        isFilled ? { backgroundColor: tint.fill } : styles.roundOutline,
         !isEnabled && styles.off,
         pressed && styles.pressed,
       ]}
     >
-      <Ionicons name={icon} size={16} color={isFilled ? colors.onAccent : INK} />
+      <Ionicons name={icon} size={16} color={isFilled ? colors.onAccent : tint.ink} />
     </Pressable>
   );
 }
 
 // ── add more: one kind of tile for everything optional ────────────────────
 
-function AddMore({ heavyExtras, counts, onCount, addons, picks, rules, onToggleAddon }: MarketBasketPageProps) {
+function AddMore({
+  hasPhotos,
+  heavyExtras,
+  counts,
+  onCount,
+  addons,
+  picks,
+  rules,
+  onToggleAddon,
+}: MarketBasketPageProps) {
+  const tint = useTint();
   // The classic checkout's own drawings and dyes, so a piece looks the same in both.
   const looks = serviceLooks(heavyExtras);
   const cloths = extraCloths(heavyExtras, looks);
@@ -357,9 +425,17 @@ function AddMore({ heavyExtras, counts, onCount, addons, picks, rules, onToggleA
                 price={`${formatMoneyCompact(row.price)}${row.unit === 'per_kg' ? '/kg' : ''}`}
                 count={count}
                 picture={
-                  <View style={[styles.tileArt, { backgroundColor: tone.field }]}>
-                    <HeavyItemArt extra={row} look={look} cloth={cloths.get(row.id) ?? null} />
-                  </View>
+                  hasPhotos ? (
+                    <ServicePhoto
+                      photo={sceneFor(row.name, row.category)}
+                      uri={ownImage(row)}
+                      style={[styles.tileArt, { backgroundColor: tint.surface }]}
+                    />
+                  ) : (
+                    <View style={[styles.tileArt, { backgroundColor: tone.field }]}>
+                      <HeavyItemArt extra={row} look={look} cloth={cloths.get(row.id) ?? null} />
+                    </View>
+                  )
                 }
                 onAdd={() => onCount(row.id, Math.min(MAX_PIECES, count + 1))}
                 onRemove={() => onCount(row.id, count - 1)}
@@ -369,7 +445,11 @@ function AddMore({ heavyExtras, counts, onCount, addons, picks, rules, onToggleA
         </Rail>
       ) : null}
       {groupAddons(addons).map((group) => (
-        <Rail key={group.kind} title={RAIL_TITLES[group.kind]} note={allowsMultiple(group.kind, rules) ? null : 'pick one'}>
+        <Rail
+          key={group.kind}
+          title={RAIL_TITLES[group.kind]}
+          note={allowsMultiple(group.kind, rules) ? null : 'pick one'}
+        >
           {group.addons.map((addon) => {
             const isOn = (picks[addon.id] ?? 0) > 0;
             return (
@@ -432,9 +512,10 @@ function Tile({
   /** Soap and fabcon: in or out, one each. */
   isToggle?: boolean;
 }) {
+  const tint = useTint();
   const isIn = count > 0;
   return (
-    <View style={[styles.tile, isIn && styles.tileIn]}>
+    <View style={[styles.tile, isIn && { borderColor: tint.ink, backgroundColor: tint.surface }]}>
       <Pressable
         accessibilityRole={isToggle ? 'checkbox' : 'button'}
         accessibilityState={isToggle ? { checked: isIn } : undefined}
@@ -446,7 +527,7 @@ function Tile({
         <Text style={styles.tileName} numberOfLines={2}>
           {name}
         </Text>
-        <Text style={styles.tilePrice}>{price}</Text>
+        <Text style={[styles.tilePrice, { color: tint.ink }]}>{price}</Text>
       </Pressable>
       <View style={styles.tileCorner}>
         {isIn && !isToggle ? (
@@ -509,8 +590,19 @@ const styles = StyleSheet.create({
 
   main: { gap: space.cosy },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  divided: { paddingTop: space.cosy, borderTopWidth: 1, borderTopColor: colors.border },
-  thumb: { width: 52, height: 52, borderRadius: RADII.control, padding: 4, overflow: 'hidden' },
+  divided: {
+    paddingTop: space.cosy,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+  },
+  thumb: {
+    width: 52,
+    height: 52,
+    borderRadius: RADII.control,
+    padding: 4,
+    overflow: 'hidden',
+  },
+  thumbPhoto: { padding: 0, width: 60, height: 60 },
   words: { flex: 1, gap: 2 },
   name: { ...type.label, color: colors.text },
   meta: { ...type.caption, color: colors.subtle },
@@ -527,12 +619,10 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: colors.border,
   },
-  sizeRowOn: { borderColor: INK, backgroundColor: colors.actionSurface },
   sizeIcon: {
     width: 40,
     height: 40,
     borderRadius: RADII.chip,
-    backgroundColor: colors.actionSurface,
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
@@ -540,21 +630,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 4,
   },
-  sizeIconOn: { backgroundColor: INK },
   sizePrice: { ...type.label, color: colors.text },
-  inkOn: { color: INK },
   reassure: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   reassureText: { ...type.caption, color: colors.subtle, flex: 1 },
-  link: { ...type.label, color: INK },
+  link: { ...type.label },
 
   pick: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   pickLabel: { ...type.label, color: colors.text },
 
   stepper: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  stepValue: { ...type.label, color: colors.text, minWidth: 40, textAlign: 'center' },
-  round: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center' },
-  roundFilled: { backgroundColor: INK },
-  roundOutline: { borderWidth: 1.5, borderColor: colors.borderStrong, backgroundColor: colors.card },
+  stepValue: {
+    ...type.label,
+    color: colors.text,
+    minWidth: 40,
+    textAlign: 'center',
+  },
+  round: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  roundOutline: {
+    borderWidth: 1.5,
+    borderColor: colors.borderStrong,
+    backgroundColor: colors.card,
+  },
 
   rail: { gap: space.snug },
   railTitle: { ...type.label, color: colors.text },
@@ -569,10 +671,21 @@ const styles = StyleSheet.create({
     paddingBottom: 44,
     backgroundColor: colors.card,
   },
-  tileIn: { borderColor: INK, backgroundColor: colors.actionSurface },
-  tileArt: { width: '100%', height: 84, borderRadius: RADII.chip, overflow: 'hidden', padding: 2 },
-  tileName: { ...type.caption, color: colors.text, fontWeight: '600', marginTop: space.snug, minHeight: 32 },
-  tilePrice: { ...type.caption, color: INK, fontWeight: '700' },
+  tileArt: {
+    width: '100%',
+    height: 84,
+    borderRadius: RADII.chip,
+    overflow: 'hidden',
+    padding: 2,
+  },
+  tileName: {
+    ...type.caption,
+    color: colors.text,
+    fontWeight: '600',
+    marginTop: space.snug,
+    minHeight: 32,
+  },
+  tilePrice: { ...type.caption, fontWeight: '700' },
   tileCorner: {
     position: 'absolute',
     left: 6,
@@ -582,6 +695,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
-  tileStepper: { flexDirection: 'row', alignItems: 'center', gap: 4, marginRight: 'auto' },
-  tileCount: { ...type.label, color: colors.text, minWidth: 18, textAlign: 'center' },
+  tileStepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginRight: 'auto',
+  },
+  tileCount: {
+    ...type.label,
+    color: colors.text,
+    minWidth: 18,
+    textAlign: 'center',
+  },
 });

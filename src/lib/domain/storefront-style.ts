@@ -4,12 +4,14 @@
  * Every shop used to wear one shopfront: a cover photo, a menu of services,
  * and one service booked at a time. That suits a counter people already know.
  * A shop that sells online the way customers already shop online — a grid of
- * products, a basket, one checkout — can switch to the market instead. The
- * choice lives on the shop row (migration 0036); nothing here decides which is
- * better, only how to read the choice safely.
+ * products, a basket, one checkout — can switch to the market instead, or to
+ * the spotlight: the same basket under a food app's product cards, with
+ * deal cards of the shop's best prices up top. The choice lives on the shop row
+ * (migrations 0036, 0041); nothing here decides which is better, only how to
+ * read the choice safely.
  */
 
-export const STOREFRONT_STYLES = ['classic', 'market'] as const;
+export const STOREFRONT_STYLES = ['classic', 'market', 'spotlight'] as const;
 export type StorefrontStyle = (typeof STOREFRONT_STYLES)[number];
 
 /** A shop that never chose keeps the page it always had. */
@@ -50,5 +52,11 @@ export const STOREFRONT_STYLE_OPTIONS: readonly StorefrontStyleOption[] = [
     title: 'Market',
     detail: 'Browse, add to basket, check out once.',
     points: ['Product grid with + buttons', 'Category chips and search', 'Basket bar and one checkout'],
+  },
+  {
+    key: 'spotlight',
+    title: 'Spotlight',
+    detail: 'Product photos and deals up top, like a food app.',
+    points: ['A real photo on every service', 'Deal cards and category circles', 'Search, basket, one checkout'],
   },
 ];

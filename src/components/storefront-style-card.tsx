@@ -1,13 +1,15 @@
 /**
  * How the shop's page looks and books, from the owner's side.
  *
- * Two looks over one price list: the classic shopfront, and the market — a
+ * Three looks over one price list: the classic shopfront; the market — a
  * product grid with a basket, the way customers already shop on delivery
- * apps. Each option carries a small drawing of the page it makes, because an
+ * apps; and the spotlight — the same basket under product cards with
+ * deal cards of the shop's best prices, the way a food app opens. Each option carries a small drawing of the page it makes, because an
  * owner choosing a look should see the look, not read about it. A tap switches
  * it at once, for the app and the web page together.
  */
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -22,6 +24,7 @@ import {
   type StorefrontStyle,
 } from '@/lib/domain/storefront-style';
 import { invalidateShopSurfaces } from '@/lib/query-keys';
+import { SpotlightPhotosPanel } from './spotlight-photos-panel';
 import type { Shop } from '@/lib/types';
 
 type Accent = (typeof ACCENTS)[number];
@@ -80,34 +83,40 @@ export function StorefrontStyleCard({ shop }: { shop: Shop }) {
               ]}
             >
               <View style={styles.preview}>
-                {option.key === 'market' ? (
-                  <MarketSketch accent={accent} />
-                ) : (
-                  <ClassicSketch accent={accent} />
-                )}
+                <Sketch style={option.key} accent={accent} />
               </View>
-              <View style={styles.optionHead}>
-                <Text style={styles.optionTitle}>{option.title}</Text>
-                <Ionicons
-                  name={isOn ? 'checkmark-circle' : 'ellipse-outline'}
-                  size={20}
-                  color={isOn ? accent.ink : colors.borderStrong}
-                />
+              <View style={styles.optionWords}>
+                <View style={styles.optionHead}>
+                  <Text style={styles.optionTitle}>{option.title}</Text>
+                  <Ionicons
+                    name={isOn ? 'checkmark-circle' : 'ellipse-outline'}
+                    size={20}
+                    color={isOn ? accent.ink : colors.borderStrong}
+                  />
+                </View>
+                <Text style={styles.optionDetail}>{option.detail}</Text>
+                {option.points.map((point) => (
+                  <Text key={point} style={styles.point}>
+                    · {point}
+                  </Text>
+                ))}
               </View>
-              <Text style={styles.optionDetail}>{option.detail}</Text>
-              {option.points.map((point) => (
-                <Text key={point} style={styles.point}>
-                  · {point}
-                </Text>
-              ))}
             </Pressable>
           );
         })}
       </View>
       {save.isPending ? <Text style={styles.saving}>Switching…</Text> : null}
+      {/* The spotlight's own choice: our photo set, or the shop's own photos. */}
+      {shown === 'spotlight' ? <SpotlightPhotosPanel shopId={shop.id} accent={accent} /> : null}
       <ErrorText>{error}</ErrorText>
     </View>
   );
+}
+
+function Sketch({ style, accent }: { style: StorefrontStyle; accent: Accent }) {
+  if (style === 'market') return <MarketSketch accent={accent} />;
+  if (style === 'spotlight') return <SpotlightSketch accent={accent} />;
+  return <ClassicSketch accent={accent} />;
 }
 
 /** The classic page in miniature: a cover band, a round logo, a column of rows. */
@@ -148,6 +157,29 @@ function MarketSketch({ accent }: { accent: Accent }) {
   );
 }
 
+/** The spotlight in miniature: a deal card, round category photos, product cards. */
+function SpotlightSketch({ accent }: { accent: Accent }) {
+  return (
+    <View style={sketch.frame}>
+      <Image source={SKETCH_PHOTO} style={sketch.photoBanner} contentFit="cover" />
+      <View style={sketch.dots}>
+        {[0, 1, 2].map((dot) => (
+          <View key={dot} style={[sketch.dotTile, dot === 0 && { borderColor: accent.ink }]} />
+        ))}
+      </View>
+      {[0, 1].map((row) => (
+        <View key={row} style={sketch.row}>
+          <View style={sketch.photoRow} />
+          <View style={sketch.rowText} />
+          <View style={[sketch.plus, { backgroundColor: accent.ink }]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
+const SKETCH_PHOTO = require('../../assets/images/services/stack.webp');
+
 const styles = StyleSheet.create({
   card: {
     borderRadius: 14,
@@ -162,17 +194,19 @@ const styles = StyleSheet.create({
   words: { flex: 1, gap: 2 },
   title: { ...type.body, fontWeight: '600', color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
-  options: { flexDirection: 'row', gap: space.snug },
+  options: { gap: space.snug },
   option: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.cosy,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: colors.border,
     padding: space.snug,
-    gap: space.tight,
   },
   pressed: { opacity: 0.85 },
-  preview: { alignItems: 'center', marginBottom: space.tight },
+  preview: { width: 92 },
+  optionWords: { flex: 1, gap: space.tight },
   optionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   optionTitle: { ...type.label, color: colors.text },
   optionDetail: { ...type.caption, color: colors.subtle },
@@ -220,4 +254,8 @@ const sketch = StyleSheet.create({
   },
   plus: { width: 7, height: 7, borderRadius: 4 },
   basket: { height: 10, borderRadius: 5, marginTop: 'auto' },
+  photoBanner: { height: 34, borderRadius: 4, marginHorizontal: -6, marginTop: -6 },
+  dots: { flexDirection: 'row', gap: 4 },
+  dotTile: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.borderStrong, borderWidth: 1.5, borderColor: 'transparent' },
+  photoRow: { width: 16, height: 16, borderRadius: 3, backgroundColor: '#B8C7D9' },
 });

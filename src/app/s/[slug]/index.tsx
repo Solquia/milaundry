@@ -14,11 +14,13 @@
 import { useQuery } from '@tanstack/react-query';
 import Head from 'expo-router/head';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MarketBasketBar } from '@/components/market-basket-bar';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
+import { SpotlightBasket } from '@/components/spotlight-basket';
+import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
 import { PriceList } from '@/components/web/price-list';
@@ -26,7 +28,8 @@ import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
 import { StorefrontHero } from '@/components/web/storefront-hero';
 import { WebShell, useWebLayout } from '@/components/web/web-shell';
-import { getMyOrders, getShopStorefrontStyle, getStorefront } from '@/lib/api';
+import { getMyOrders, getShopServiceImages, getShopStorefrontStyle, getStorefront } from '@/lib/api';
+import { withServiceImages } from '@/lib/domain/spotlight';
 import { useAuth } from '@/lib/auth';
 import { storefrontGreeting } from '@/lib/domain/home-greeting';
 import { resolveAccent } from '@/lib/domain/shop-branding';
@@ -70,6 +73,7 @@ function StorefrontBody({ storefront }: { storefront: Storefront }) {
     retry: false,
   });
   if (style.isLoading) return <Loading />;
+  if (style.data === 'spotlight') return <SpotlightPage storefront={storefront} />;
   return style.data === 'market' ? (
     <MarketBody storefront={storefront} />
   ) : (
@@ -186,6 +190,151 @@ function MarketBody({ storefront }: { storefront: Storefront }) {
           ) : null}
         </View>
       </WebShell>
+    </>
+  );
+}
+
+/** The spotlight look: a greeting header, deal cards, product cards on a grid, the market's basket. */
+function SpotlightPage({ storefront }: { storefront: Storefront }) {
+  const { shop, reviews } = storefront;
+  const router = useRouter();
+  const { cart } = useLocalSearchParams<{ cart?: string }>();
+  const { session, profile } = useAuth();
+  const layout = useWebLayout();
+  // The shop's own service photos, read on their own: a failure only costs
+  // them, and every card falls back to the app's cut-out.
+  const images = useQuery({
+    queryKey: ['service-images', shop.id],
+    queryFn: () => getShopServiceImages(shop.id),
+    retry: false,
+  });
+  const services = useMemo(
+    () => withServiceImages(storefrontServiceRows(shop.id, storefront.services), images.data),
+    [shop.id, storefront.services, images.data]
+  );
+  const basket = useMarketCart(services, cart);
+  const reputation = useMemo(() => shopReputation(reviews), [reviews]);
+  const spot = useSpotlight({ services, reputation });
+  const [isBasketOpen, setBasketOpen] = useState(false);
+  // Emptied from inside, the basket closes for good, so the next "+" stays on the grid.
+  if (isBasketOpen && basket.count === 0) setBasketOpen(false);
+  const myOrders = useQuery({
+    queryKey: ['my-orders'],
+    queryFn: getMyOrders,
+    enabled: Boolean(session),
+  });
+  const tracked = orderOnShow(myOrders.data ?? [], shop.id);
+  const accent = ACCENTS[resolveAccent(shop, ACCENTS.length)];
+  const theme = storefrontTheme(accent);
+  const phone = shop.phone.trim();
+
+  const checkout = () => {
+    if (!basket.booking) return;
+    router.push({
+      pathname: `/s/${shop.slug}/book`,
+      params: { service: basket.booking.serviceId, cart: basket.encoded },
+    } as never);
+  };
+
+  const footer =
+    basket.count > 0 ? (
+      <MarketBasketBar
+        count={basket.count}
+        estimate={basket.estimate}
+        isFromPrice={basket.isFromPrice}
+        accent={accent}
+        onCheckout={() => setBasketOpen(true)}
+      />
+    ) : phone ? (
+      <ActionButton
+        title="Call the shop"
+        onPress={() => Linking.openURL(`tel:${phone}`)}
+        fill={theme.brandSoft}
+        ink={theme.brandInk}
+      />
+    ) : null;
+
+  return (
+    <>
+      <Head>
+        <title>{shop.name}</title>
+        <meta name="description" content={shop.tagline || `Book laundry online with ${shop.name}.`} />
+      </Head>
+      <WebShell
+        footer={footer}
+        // "View basket" stays across the foot at every width, under the "+".
+        isFooterPinned={basket.count > 0}
+        hero={
+          <SpotlightHeader
+            name={shop.name}
+            logoUrl={shop.logo_url || null}
+            accent={accent}
+            reputation={reputation}
+            sign={null}
+            cheapest={startingPrice(storefront.services)}
+            customerName={profile?.full_name}
+            basketCount={basket.count}
+            onBasket={basket.count > 0 ? () => setBasketOpen(true) : undefined}
+            query={spot.query}
+            onQuery={spot.setQuery}
+            isInset
+            contentWidth={layout.contentWidth}
+          />
+        }
+        aside={
+          <View
+            style={[
+              styles.aside,
+              { paddingTop: layout.gutter, paddingHorizontal: layout.hasAside ? 0 : layout.gutter },
+            ]}
+          >
+            <Text style={styles.sectionTitle}>Store info</Text>
+            <ShopDetails shop={shop} theme={theme} />
+          </View>
+        }
+      >
+        <View style={[styles.body, { padding: layout.gutter }]}>
+          <SpotlightBody
+            spot={spot}
+            accent={accent}
+            cart={basket.cart}
+            onAdd={basket.add}
+            onRemove={basket.remove}
+            notice={basket.notice}
+          >
+            <OrderStatusBand
+              theme={theme}
+              order={tracked}
+              isLoading={Boolean(session) && myOrders.isLoading}
+              isSignedIn={Boolean(session)}
+              onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
+            />
+          </SpotlightBody>
+          {reputation && reviews.length > 0 ? (
+            <>
+              <Text style={styles.sectionTitle}>Ratings</Text>
+              <ReviewList reviews={reviews} reputation={reputation} theme={theme} />
+            </>
+          ) : null}
+        </View>
+      </WebShell>
+      <SpotlightBasket
+        isOpen={isBasketOpen}
+        lines={basket.lines}
+        frames={spot.frames}
+        accent={accent}
+        shopName={shop.name}
+        reputation={reputation}
+        total={basket.estimate}
+        isFromPrice={basket.isFromPrice}
+        onAdd={basket.add}
+        onRemove={basket.remove}
+        onCheckout={() => {
+          setBasketOpen(false);
+          checkout();
+        }}
+        onClose={() => setBasketOpen(false)}
+      />
     </>
   );
 }

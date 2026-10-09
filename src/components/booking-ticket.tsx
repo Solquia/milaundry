@@ -23,7 +23,7 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { ServicePorthole } from './service-porthole';
 import { ShopLogo } from './shop-logo';
-import { RADII, colors, space, type } from './ui-kit';
+import { RADII, colors, space, type, useTint } from './ui-kit';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -84,6 +84,7 @@ export function TicketHeader({
   shop?: TicketShop;
   isCompact?: boolean;
 }) {
+  const tint = useTint();
   const tone = showcaseTone(service.category);
   const minimum = minimumLabel(service);
   if (isCompact) {
@@ -99,7 +100,7 @@ export function TicketHeader({
           <Text style={styles.slimName} numberOfLines={2}>
             {service.name}
           </Text>
-          <Text style={styles.slimPrice} numberOfLines={1}>
+          <Text style={[styles.slimPrice, { color: tint.ink }]} numberOfLines={1}>
             {priceSubtitle(service)}
           </Text>
         </View>
@@ -125,13 +126,13 @@ export function TicketHeader({
       </View>
       <View style={styles.heroInfo}>
         <View style={styles.heroPriceRow}>
-          <Text style={styles.heroPrice} numberOfLines={1}>
+          <Text style={[styles.heroPrice, { color: tint.ink }]} numberOfLines={1}>
             {formatMoneyCompact(service.price)}
             <Text style={styles.heroUnit}>{UNIT_SUFFIX[service.unit] ?? ''}</Text>
           </Text>
           {minimum ? (
-            <View style={styles.heroTag}>
-              <Text style={styles.heroTagText}>{minimum}</Text>
+            <View style={[styles.heroTag, { backgroundColor: tint.surface }]}>
+              <Text style={[styles.heroTagText, { color: tint.ink }]}>{minimum}</Text>
             </View>
           ) : null}
         </View>
@@ -159,6 +160,7 @@ export function BookingSteps({
   /** Other words for the steps; the market calls the first one "Basket". */
   labels?: Partial<Record<BookingPage, string>>;
 }) {
+  const tint = useTint();
   const steps = STEPS.map((step) => ({ ...step, label: labels?.[step.page] ?? step.label }));
   const current = steps.findIndex((step) => step.page === page);
   return (
@@ -168,13 +170,15 @@ export function BookingSteps({
         const isDone = index < current;
         return (
           <React.Fragment key={step.page}>
-            {index > 0 ? <View style={[styles.stepLine, index <= current && styles.stepLineOn]} /> : null}
+            {index > 0 ? <View
+                style={[styles.stepLine, index <= current && { backgroundColor: tint.fill }]}
+              /> : null}
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={isDone ? `Back to ${step.label}` : step.label}
               disabled={!isDone}
               onPress={() => onGoTo(step.page)}
-              style={[styles.step, (isCurrent || isDone) && styles.stepOn]}
+              style={[styles.step, (isCurrent || isDone) && { backgroundColor: tint.fill }]}
             >
               <Ionicons
                 name={isDone ? 'checkmark' : step.icon}
@@ -194,11 +198,12 @@ export function BookingSteps({
 
 /** A book-again ticket, filled from last time. */
 export function RebookBanner({ dropped }: { dropped: readonly string[] }) {
+  const tint = useTint();
   return (
-    <View style={styles.rebook}>
-      <Ionicons name="refresh-circle" size={22} color={colors.actionInk} />
+    <View style={[styles.rebook, { backgroundColor: tint.surface }]}>
+      <Ionicons name="refresh-circle" size={22} color={tint.ink} />
       <View style={styles.rebookText}>
-        <Text style={styles.rebookTitle}>Same as last time</Text>
+        <Text style={[styles.rebookTitle, { color: tint.ink }]}>Same as last time</Text>
         {dropped.length > 0 ? (
           <Text style={styles.rebookDropped}>No longer offered: {dropped.join(', ')}</Text>
         ) : null}
@@ -228,6 +233,7 @@ export function Section({
   problem?: string | null;
   children: React.ReactNode;
 }) {
+  const brand = useTint();
   return (
     <View style={[styles.card, problem ? styles.cardProblem : null]}>
       <View style={styles.head}>
@@ -237,7 +243,7 @@ export function Section({
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
         </View>
         {amount ? (
-          <Text style={styles.amount}>{amount}</Text>
+          <Text style={[styles.amount, { color: brand.ink }]}>{amount}</Text>
         ) : isOptional ? (
           <View style={styles.optional}>
             <Text style={styles.optionalText}>Optional</Text>
@@ -319,6 +325,7 @@ function StepButton({
   isEnabled: boolean;
   onPress: () => void;
 }) {
+  const tint = useTint();
   const isAdd = icon === 'add';
   return (
     <Pressable
@@ -329,12 +336,13 @@ function StepButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.stepButton,
-        isAdd && isEnabled && styles.stepButtonAdd,
+        { borderColor: tint.muted },
+        isAdd && isEnabled && { backgroundColor: tint.fill, borderColor: tint.fill },
         !isEnabled && styles.stepButtonOff,
         pressed && styles.pressed,
       ]}
     >
-      <Ionicons name={icon} size={18} color={isAdd && isEnabled ? colors.onAccent : colors.actionInk} />
+      <Ionicons name={icon} size={18} color={isAdd && isEnabled ? colors.onAccent : tint.ink} />
     </Pressable>
   );
 }
@@ -356,6 +364,7 @@ export function ChoiceTiles<K extends string>({
   value: K;
   onChange: (next: K) => void;
 }) {
+  const tint = useTint();
   return (
     <View style={styles.tiles} accessibilityRole="radiogroup">
       {options.map((option) => {
@@ -367,15 +376,24 @@ export function ChoiceTiles<K extends string>({
             accessibilityState={{ checked: isOn }}
             accessibilityLabel={`${option.title}. ${option.detail}`}
             onPress={() => onChange(option.key)}
-            style={({ pressed }) => [styles.tile, isOn && styles.tileOn, pressed && styles.pressed]}
+            style={({ pressed }) => [
+              styles.tile,
+              isOn && { borderColor: tint.fill, backgroundColor: tint.surface },
+              pressed && styles.pressed,
+            ]}
           >
-            <View style={[styles.tileIcon, isOn && styles.tileIconOn]}>
-              <Ionicons name={option.icon} size={26} color={isOn ? colors.onAccent : colors.actionInk} />
+            <View
+              style={[
+                styles.tileIcon,
+                { backgroundColor: isOn ? tint.fill : tint.surface },
+              ]}
+            >
+              <Ionicons name={option.icon} size={26} color={isOn ? colors.onAccent : tint.ink} />
             </View>
             <Text style={styles.tileTitle}>{option.title}</Text>
             <Text style={styles.tileDetail}>{option.detail}</Text>
             {isOn ? (
-              <View style={styles.tileCheck}>
+              <View style={[styles.tileCheck, { backgroundColor: tint.fill }]}>
                 <Ionicons name="checkmark" size={14} color={colors.onAccent} />
               </View>
             ) : null}
@@ -396,6 +414,7 @@ export function BasketRecap({
   detail: string;
   onEdit: () => void;
 }) {
+  const tint = useTint();
   return (
     <Pressable
       accessibilityRole="button"
@@ -403,7 +422,9 @@ export function BasketRecap({
       onPress={onEdit}
       style={({ pressed }) => [styles.recap, pressed && styles.pressed]}
     >
-      <Badge icon="basket" tint={SECTION_TINTS.load} />
+      {/* The load's blue is the app's action blue, so the tint is the same
+          colour by default and the shop's own inside its checkout. */}
+      <Badge icon="basket" tint={tint.fill} />
       <View style={styles.headText}>
         <Text style={styles.title} numberOfLines={1}>
           {title}
@@ -412,7 +433,7 @@ export function BasketRecap({
           {detail}
         </Text>
       </View>
-      <Text style={styles.edit}>Edit</Text>
+      <Text style={[styles.edit, { color: tint.ink }]}>Edit</Text>
     </Pressable>
   );
 }
@@ -437,7 +458,7 @@ const styles = StyleSheet.create({
   },
   categoryText: { ...type.caption, fontSize: 11, fontWeight: '700' },
   slimName: { ...type.label, fontSize: 17, lineHeight: 22, color: colors.text },
-  slimPrice: { ...type.caption, color: colors.actionInk },
+  slimPrice: { ...type.caption },
 
   hero: { borderRadius: RADII.card, overflow: 'hidden', backgroundColor: colors.card },
   heroArt: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
@@ -447,15 +468,14 @@ const styles = StyleSheet.create({
   bubbleC: { width: 64, height: 64, top: 40, right: 24, backgroundColor: 'rgba(255,255,255,0.3)' },
   heroInfo: { gap: 2, padding: space.room },
   heroPriceRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  heroPrice: { ...type.hero, fontSize: 30, lineHeight: 36, color: colors.actionInk },
+  heroPrice: { ...type.hero, fontSize: 30, lineHeight: 36 },
   heroUnit: { ...type.label, color: colors.subtle },
   heroTag: {
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
-    backgroundColor: colors.actionSurface,
   },
-  heroTagText: { ...type.caption, color: colors.actionInk },
+  heroTagText: { ...type.caption },
   heroName: { ...type.section, color: colors.text },
 
   steps: { flexDirection: 'row', alignItems: 'center' },
@@ -468,11 +488,9 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     backgroundColor: colors.card,
   },
-  stepOn: { backgroundColor: colors.action },
   stepText: { ...type.label, color: colors.subtle },
   stepTextOn: { color: colors.onAccent },
   stepLine: { flex: 1, height: 2, marginHorizontal: space.snug, backgroundColor: colors.border },
-  stepLineOn: { backgroundColor: colors.action },
 
   rebook: {
     flexDirection: 'row',
@@ -481,10 +499,9 @@ const styles = StyleSheet.create({
     paddingVertical: space.snug,
     paddingHorizontal: space.cosy,
     borderRadius: RADII.control,
-    backgroundColor: colors.actionSurface,
   },
   rebookText: { flex: 1, gap: 2 },
-  rebookTitle: { ...type.label, color: colors.actionInk },
+  rebookTitle: { ...type.label },
   rebookDropped: { ...type.caption, color: colors.moneyOut },
 
   card: {
@@ -502,7 +519,7 @@ const styles = StyleSheet.create({
   badge: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   title: { ...type.label, fontSize: 16, lineHeight: 21, color: colors.text },
   subtitle: { ...type.caption, color: colors.subtle },
-  amount: { ...type.label, color: colors.actionInk },
+  amount: { ...type.label },
   optional: {
     paddingHorizontal: space.snug,
     paddingVertical: 2,
@@ -523,10 +540,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: colors.actionMuted,
     backgroundColor: colors.card,
   },
-  stepButtonAdd: { backgroundColor: colors.action, borderColor: colors.action },
   stepButtonOff: { opacity: 0.35 },
   count: { ...type.value, fontSize: 20, minWidth: 26, textAlign: 'center', color: colors.text },
 
@@ -540,7 +555,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  tileOn: { borderColor: colors.action, backgroundColor: colors.actionSurface },
   tileIcon: {
     width: 46,
     height: 46,
@@ -548,9 +562,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
-    backgroundColor: colors.actionSurface,
   },
-  tileIconOn: { backgroundColor: colors.action },
   tileTitle: { ...type.label, color: colors.text },
   tileDetail: { ...type.caption, color: colors.subtle },
   tileCheck: {
@@ -562,7 +574,6 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.action,
   },
 
   recap: {
@@ -573,5 +584,5 @@ const styles = StyleSheet.create({
     borderRadius: RADII.card,
     backgroundColor: colors.card,
   },
-  edit: { ...type.label, color: colors.actionInk },
+  edit: { ...type.label },
 });

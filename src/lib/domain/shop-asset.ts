@@ -23,8 +23,11 @@
 /** The public bucket a shopfront is served from. */
 export const SHOP_ASSET_BUCKET = 'shop-logos';
 
-/** The pictures a shop has of itself, and of the products it sells as add-ons. */
-export type ShopAssetKind = 'logo' | 'cover' | 'addon';
+/**
+ * The pictures a shop has of itself, of the products it sells as add-ons, and
+ * of its own services (the spotlight storefront's product cards, 0042).
+ */
+export type ShopAssetKind = 'logo' | 'cover' | 'addon' | 'service';
 
 /**
  * `<shop_id>/<kind>-<timestamp>.<ext>`.

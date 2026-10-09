@@ -47,12 +47,19 @@ interface WebShellProps {
    * of the side column and follows the scroll from there.
    */
   footer?: React.ReactNode;
+  /**
+   * Keep the footer across the foot of the window at every width. For a
+   * basket: the "View basket" bar has to be where the thumb that just tapped
+   * "+" can find it, not at the top of a side column scrolled out of view.
+   */
+  isFooterPinned?: boolean;
 }
 
-export function WebShell({ children, hero, aside, footer }: WebShellProps) {
+export function WebShell({ children, hero, aside, footer, isFooterPinned = false }: WebShellProps) {
   const layout = useWebLayout();
   const column = { maxWidth: layout.contentWidth };
-  const hasFootBar = Boolean(footer) && !layout.hasAside;
+  const hasFootBar = Boolean(footer) && (!layout.hasAside || isFooterPinned);
+  const hasSideFooter = Boolean(footer) && !hasFootBar;
 
   return (
     <View style={styles.page}>
@@ -70,7 +77,7 @@ export function WebShell({ children, hero, aside, footer }: WebShellProps) {
             <View style={[styles.columns, { gap: layout.gutter }]}>
               <View style={styles.main}>{children}</View>
               <View style={[styles.side, { width: layout.asideWidth, gap: layout.gutter }]}>
-                {footer ? (
+                {hasSideFooter ? (
                   <View style={[styles.sideFooter, { padding: layout.gutter, top: layout.gutter }]}>
                     {footer}
                   </View>
