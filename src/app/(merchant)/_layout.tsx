@@ -135,6 +135,7 @@ export default function MerchantLayout() {
         <Tabs.Screen name="customer/[key]" options={{ href: null, title: 'Customer' }} />
         <Tabs.Screen name="scan" options={{ href: null, title: 'Scan a tag' }} />
         <Tabs.Screen name="expenses" options={{ href: null, title: 'Expenses' }} />
+        <Tabs.Screen name="sales-analytics" options={{ href: null, title: 'Full analytics' }} />
         <Tabs.Screen
           name="settings"
           options={{ href: null, title: 'Settings', headerRight: undefined }}

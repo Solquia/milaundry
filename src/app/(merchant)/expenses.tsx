@@ -29,7 +29,7 @@ import { dayLabel, toDateKey, type Expense } from '@/lib/domain/expense-metrics'
 import { dueBills, type DueBill, type RecurringExpense } from '@/lib/domain/expense-recurring';
 import { canOpenMerchantRoute } from '@/lib/domain/merchant-access';
 import { formatMoney } from '@/lib/domain/money';
-import { frameFor, stepPeriod, type PeriodKind, type SalesPeriod } from '@/lib/domain/sales-period';
+import { frameFor, periodFromParams, stepPeriod, type SalesPeriod } from '@/lib/domain/sales-period';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { useHaptic } from '@/lib/use-app-settings';
 import { useNow } from '@/lib/use-now';
@@ -40,15 +40,8 @@ import {
   useShopExpenses,
 } from '@/lib/use-shop-expenses';
 
-const KINDS: readonly PeriodKind[] = ['day', 'week', 'month', 'year'];
+// The period the Sales screen was showing, or this month when opened cold.
 const THIS_MONTH: SalesPeriod = { kind: 'month', offset: 0 };
-
-/** The period the Sales screen was showing, or this month when opened cold. */
-function periodFromParams(kind?: string, offset?: string): SalesPeriod {
-  const parsed = Number(offset);
-  if (!KINDS.includes(kind as PeriodKind) || !Number.isInteger(parsed) || parsed > 0) return THIS_MONTH;
-  return { kind: kind as PeriodKind, offset: parsed };
-}
 
 type Editing = { expense: Expense | null } | null;
 type BillEditing = { bill: RecurringExpense | null } | null;
@@ -64,7 +57,7 @@ export default function MerchantExpenses() {
   const params = useLocalSearchParams<{ kind?: string; offset?: string }>();
   const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
   const now = useNow();
-  const [period, setPeriod] = useState<SalesPeriod>(() => periodFromParams(params.kind, params.offset));
+  const [period, setPeriod] = useState<SalesPeriod>(() => periodFromParams(params.kind, params.offset, THIS_MONTH));
   const [isPicking, setIsPicking] = useState(false);
   const [editing, setEditing] = useState<Editing>(null);
   const [notice, setNotice] = useState('');

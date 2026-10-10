@@ -2,6 +2,7 @@ import {
   PERIOD_PRESETS,
   frameFor,
   isSamePeriod,
+  periodFromParams,
   stepPeriod,
   type SalesPeriod,
 } from '../sales-period';
@@ -135,5 +136,22 @@ describe('stepping through periods', () => {
   it('knows when two periods are the same', () => {
     expect(isSamePeriod({ kind: 'day', offset: 0 }, { kind: 'day', offset: 0 })).toBe(true);
     expect(isSamePeriod({ kind: 'day', offset: 0 }, { kind: 'week', offset: 0 })).toBe(false);
+  });
+});
+
+describe('a period carried in a link', () => {
+  const FALLBACK: SalesPeriod = { kind: 'day', offset: 0 };
+
+  it('reads a kind and an offset back out of the address', () => {
+    expect(periodFromParams('week', '-2', FALLBACK)).toEqual({ kind: 'week', offset: -2 });
+    expect(periodFromParams('month', '0', FALLBACK)).toEqual({ kind: 'month', offset: 0 });
+  });
+
+  it('falls back on anything it cannot trust', () => {
+    expect(periodFromParams(undefined, undefined, FALLBACK)).toEqual(FALLBACK);
+    expect(periodFromParams('decade', '0', FALLBACK)).toEqual(FALLBACK);
+    expect(periodFromParams('day', '3', FALLBACK)).toEqual(FALLBACK);
+    expect(periodFromParams('day', '1.5', FALLBACK)).toEqual(FALLBACK);
+    expect(periodFromParams('day', 'abc', FALLBACK)).toEqual(FALLBACK);
   });
 });

@@ -1,50 +1,43 @@
-import { Ionicons } from "@expo/vector-icons";
 import { useQuery } from "@tanstack/react-query";
 import { Redirect, useRouter } from "expo-router";
 import React, { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
-import { BestsellerRail } from "@/components/bestseller-rail";
 import { CloseDaySheet } from "@/components/close-day-sheet";
-import { CollectLanes } from "@/components/collect-lanes";
-import { DrawerCard } from "@/components/drawer-card";
 import { ExpenseSheet } from "@/components/expense-sheet";
+import { GoalBar } from "@/components/goal-bar";
 import { GoalBurst } from "@/components/goal-burst";
 import { GoalSheet } from "@/components/goal-sheet";
 import { LiveToast } from "@/components/live-toast";
-import { NudgeSheet } from "@/components/nudge-sheet";
 import { PaymentsSheet } from "@/components/payments-sheet";
-import { PeriodSheet } from "@/components/period-sheet";
-import { ProfitCard } from "@/components/profit-card";
-import { RushHeatmap } from "@/components/rush-heatmap";
-import { SalesHero } from "@/components/sales-hero";
+import {
+  AnalyticsLink,
+  GlanceActions,
+  KeptHero,
+  MoneyTiles,
+  PeriodTabs,
+} from "@/components/sales-glance";
 import { SalesSkeleton } from "@/components/sales-skeleton";
-import { SectionHeading } from "@/components/section-heading";
 import {
   EmptyState,
   ErrorState,
-  ErrorText,
   RADII,
   Screen,
   colors,
   elevation,
   space,
-  type,
 } from "@/components/ui-kit";
-import { getShopCustomers, getShopOrders } from "@/lib/api";
+import { getShopOrders } from "@/lib/api";
 import { splitCollect } from "@/lib/domain/collect-queue";
-import { buildCustomerBook } from "@/lib/domain/customer-insights";
 import type { DaySummary } from "@/lib/domain/day-close";
 import { profitOf, toDateKey } from "@/lib/domain/expense-metrics";
 import { friendlyMerchantError } from "@/lib/domain/merchant-error";
 import { canOpenMerchantRoute } from "@/lib/domain/merchant-access";
-import { rushGrid } from "@/lib/domain/rush-hours";
 import { dailyTotals, suggestGoals } from "@/lib/domain/sales-goal";
-import { computeSales, type MetricKey } from "@/lib/domain/sales-metrics";
+import { computeSales } from "@/lib/domain/sales-metrics";
 import {
   frameFor,
-  isSamePeriod,
-  stepPeriod,
+  type PeriodKind,
   type SalesPeriod,
 } from "@/lib/domain/sales-period";
 import { useActiveShop } from "@/lib/use-active-shop";
@@ -60,13 +53,14 @@ import {
 const TODAY: SalesPeriod = { kind: "day", offset: 0 };
 const GOAL_HISTORY_DAYS = 14;
 
-type Sheet = "period" | "payments" | "nudge" | "close" | "goal" | "expense" | null;
+type Sheet = "payments" | "close" | "goal" | "expense" | null;
 
 /**
- * Sales: the owner's counter, not a report. Every figure opens something —
- * the big number lists its payments, the owed lanes open the orders or a
- * reminder, the drawer closes the day — and the comparison is always with the
- * same point in the period before, so a normal morning reads as normal.
+ * Sales: "how am I doing?" in five seconds. What the shop kept is the
+ * headline; money in, spent and still unpaid are the only other numbers, and
+ * each opens the list behind it. Everything else — the chart, wallets,
+ * bestsellers, rush hours, older periods — is one tap away on full analytics,
+ * so the owner is never asked to read a report to learn whether today is good.
  */
 export default function MerchantSales() {
   const router = useRouter();
@@ -74,10 +68,8 @@ export default function MerchantSales() {
   const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
   // Ticks, so a counter tablet left open overnight turns over to the new day.
   const now = useNow();
-  const [period, setPeriod] = useState<SalesPeriod>(TODAY);
-  const [metric, setMetric] = useState<MetricKey>("sales");
+  const [kind, setKind] = useState<PeriodKind>("day");
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [notice, setNotice] = useState("");
 
   // The merchant shell already polls this query (the doorbell) and listens
   // for new orders, so this screen reads the shared cache and adds no traffic.
@@ -91,26 +83,17 @@ export default function MerchantSales() {
     queryFn: () => getShopOrders(shop!.id),
     enabled: Boolean(shop),
   });
-  const { data: registered } = useQuery({
-    queryKey: ["shop-customers", shop?.id],
-    queryFn: () => getShopCustomers(shop!.id),
-    enabled: Boolean(shop),
-  });
 
+  const period = useMemo<SalesPeriod>(() => ({ kind, offset: 0 }), [kind]);
   const all = useMemo(() => orders ?? [], [orders]);
   const todayFrame = useMemo(() => frameFor(TODAY, now), [now]);
   const frame = useMemo(() => frameFor(period, now), [period, now]);
   const today = useMemo(() => computeSales(all, todayFrame), [all, todayFrame]);
   const sales = useMemo(
-    () => (isSamePeriod(period, TODAY) ? today : computeSales(all, frame)),
-    [all, frame, period, today],
+    () => (kind === "day" ? today : computeSales(all, frame)),
+    [all, frame, kind, today],
   );
   const split = useMemo(() => splitCollect(all, now), [all, now]);
-  const rush = useMemo(() => rushGrid(all, now), [all, now]);
-  const book = useMemo(
-    () => buildCustomerBook(all, registered ?? [], now),
-    [all, registered, now],
-  );
   const goalIdeas = useMemo(
     () => suggestGoals(dailyTotals(all, now, GOAL_HISTORY_DAYS)),
     [all, now],
@@ -133,9 +116,14 @@ export default function MerchantSales() {
     );
   }
 
-  const isToday = isSamePeriod(period, TODAY);
+  const isToday = kind === "day";
   const owedTotal =
     split.ready.amount + split.overdue.amount + split.washing.amount;
+  // The tile matches the Orders screen's "To collect": laundry that is ready
+  // or handed over. Loads still in the machines are paid at pickup, not chased.
+  const chaseable = [split.ready, split.overdue];
+  const unpaidTotal = chaseable.reduce((sum, lane) => sum + lane.amount, 0);
+  const unpaidCount = chaseable.reduce((sum, lane) => sum + lane.count, 0);
   const daySummary: DaySummary = {
     caption: todayFrame.caption,
     sales: today.metrics.sales.total,
@@ -144,18 +132,10 @@ export default function MerchantSales() {
     methods: today.methods,
     toCollect: owedTotal,
   };
-  const collected = sales.metrics.sales.total;
-  const { profit, marginPct } = profitOf(collected, expenses.summary.total);
-  const later = stepPeriod(period, 1);
-  const choosePeriod = (next: SalesPeriod) => {
-    haptic("select");
-    setPeriod(next);
-    setSheet(null);
-  };
-  const openOrder = (orderId: string) => {
-    setSheet(null);
-    router.push(`/(merchant)/order/${orderId}`);
-  };
+  const moneyIn = sales.metrics.sales.total;
+  const spent = expenses.summary.total;
+  const { profit } = profitOf(moneyIn, spent);
+  const periodQuery = `kind=${period.kind}&offset=${period.offset}`;
 
   return (
     <View style={styles.shell}>
@@ -166,119 +146,78 @@ export default function MerchantSales() {
             onRetry={() => refetch()}
           />
         ) : null}
-        <ErrorText>{notice}</ErrorText>
 
-        <SalesHero
-          frame={frame}
-          sales={sales}
-          metric={metric}
-          onMetric={(next) => {
+        <PeriodTabs
+          value={kind}
+          isLive={frame.isLive}
+          onChange={(next) => {
             haptic("select");
-            setMetric(next);
+            setKind(next);
           }}
-          onOpenPeriods={() => setSheet("period")}
-          onStepBack={() => choosePeriod(stepPeriod(period, -1) ?? period)}
-          onStepForward={later ? () => choosePeriod(later) : null}
-          goal={goal.goal}
-          onEditGoal={() => setSheet("goal")}
-          onOpenPayments={() => setSheet("payments")}
         />
 
-        <SectionHeading
-          title="Profit"
-          caption={`Money in less expenses · ${frame.caption}`}
-        />
-        <ProfitCard
-          collected={collected}
-          spent={expenses.summary.total}
+        <KeptHero
+          kind={kind}
           profit={profit}
-          marginPct={marginPct}
-          expenseCount={expenses.summary.count}
+          spent={spent}
+          salesDelta={sales.metrics.sales.delta}
+          compareLabel={frame.compareLabel}
           isLoading={expenses.isLoading}
-          onAddExpense={() => setSheet("expense")}
-          onOpenExpenses={() =>
-            router.push(
-              `/(merchant)/expenses?kind=${period.kind}&offset=${period.offset}` as never,
-            )
-          }
         />
 
-        <SectionHeading title="To collect" caption="Unpaid orders, any date" />
-        <CollectLanes
-          split={split}
-          onOpenReady={() =>
+        <MoneyTiles
+          moneyIn={moneyIn}
+          payments={sales.payments.length}
+          spent={spent}
+          expenses={expenses.summary.count}
+          unpaid={unpaidTotal}
+          unpaidOrders={unpaidCount}
+          onOpenPayments={() => setSheet("payments")}
+          onOpenExpenses={() =>
+            router.push(`/(merchant)/expenses?${periodQuery}` as never)
+          }
+          onOpenUnpaid={() =>
             router.push("/(merchant)/orders?view=collect" as never)
           }
-          onNudge={() => setSheet("nudge")}
         />
 
-        <SectionHeading
-          title="Drawer & wallets"
-          caption={`Money in · ${frame.caption}`}
-        />
-        <DrawerCard
-          methods={sales.methods}
-          canClose={isToday}
-          savedClose={isToday ? dayClose.saved : null}
+        {isToday ? (
+          <View style={styles.goal}>
+            <GoalBar
+              collected={today.metrics.sales.total}
+              goal={goal.goal}
+              onEdit={() => setSheet("goal")}
+            />
+          </View>
+        ) : null}
+
+        <GlanceActions
+          canCloseDay={isToday}
+          closeLabel={dayClose.saved ? "Count again" : "Close the day"}
+          onAddExpense={() => setSheet("expense")}
           onCloseDay={() => setSheet("close")}
         />
 
-        <SectionHeading
-          title="Bestsellers"
-          caption={`Orders taken · ${frame.caption}`}
+        <AnalyticsLink
+          onPress={() =>
+            router.push(`/(merchant)/sales-analytics?${periodQuery}` as never)
+          }
         />
-        <BestsellerRail items={sales.bestsellers} />
-
-        <SectionHeading
-          title="Rush hours"
-          caption="Orders taken, last 8 weeks"
-        />
-        <RushHeatmap grid={rush} />
-
-        <Pressable
-          onPress={() => router.push("/(merchant)/customers")}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.customers,
-            pressed && { opacity: 0.7 },
-          ]}
-        >
-          <Ionicons name="people-outline" size={20} color={colors.actionInk} />
-          <View style={styles.customersWords}>
-            <Text style={styles.customersTitle}>Customer book</Text>
-            <Text style={styles.customersHint}>
-              {book.summary.repeatRate}% come back · {book.summary.newThisMonth}{" "}
-              new this month
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
-        </Pressable>
       </Screen>
 
       <LiveToast payment={live.toast} onDone={live.clearToast} />
       <GoalBurst goal={goal.burst} onDone={goal.clearBurst} />
 
-      <PeriodSheet
-        visible={sheet === "period"}
-        value={period}
-        onChoose={choosePeriod}
-        onClose={() => setSheet(null)}
-      />
       <PaymentsSheet
         visible={sheet === "payments"}
         title={frame.title}
         payments={sales.payments}
-        total={sales.metrics.sales.total}
+        total={moneyIn}
         unit={frame.unit}
-        onOpenOrder={openOrder}
-        onClose={() => setSheet(null)}
-      />
-      <NudgeSheet
-        visible={sheet === "nudge"}
-        orders={[...split.overdue.orders, ...split.ready.orders]}
-        shop={shop}
-        now={now}
-        onError={setNotice}
+        onOpenOrder={(orderId) => {
+          setSheet(null);
+          router.push(`/(merchant)/order/${orderId}`);
+        }}
         onClose={() => setSheet(null)}
       />
       {/* Mounted per opening, so each count starts blank. */}
@@ -326,16 +265,10 @@ export default function MerchantSales() {
 
 const styles = StyleSheet.create({
   shell: { flex: 1, backgroundColor: colors.bg },
-  customers: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.cosy,
+  goal: {
     padding: space.room,
     borderRadius: RADII.card,
     backgroundColor: colors.card,
     ...elevation.rest,
   },
-  customersWords: { flex: 1, gap: 2 },
-  customersTitle: { ...type.label, color: colors.text },
-  customersHint: { ...type.caption, color: colors.subtle },
 });

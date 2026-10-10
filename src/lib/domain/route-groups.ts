@@ -20,7 +20,7 @@ export type RouteGroup = '(customer)' | '(merchant)' | '(admin)';
 /** The top-level screens in each group. A test holds this to `src/app`. */
 export const GROUP_SCREENS: Readonly<Record<RouteGroup, readonly string[]>> = Object.freeze({
   '(customer)': ['new-order', 'notifications', 'orders', 'scan', 'settings', 'shops'],
-  '(merchant)': ['analytics', 'customers', 'expenses', 'orders', 'pos', 'scan', 'services', 'settings'],
+  '(merchant)': ['analytics', 'customers', 'expenses', 'orders', 'pos', 'sales-analytics', 'scan', 'services', 'settings'],
   '(admin)': ['index', 'new-shop', 'settings', 'shops'],
 });
 

@@ -1,4 +1,4 @@
-import { METRIC_LOOKS, formatMetric, paceLine, quantityLabel, visibleRange } from '../sales-display';
+import { METRIC_LOOKS, formatMetric, keptHeadline, paceLine, quantityLabel, visibleRange } from '../sales-display';
 
 describe('how the figures read', () => {
   it('formats each metric in its own unit', () => {
@@ -50,5 +50,18 @@ describe('trimming the day to shop hours', () => {
 
   it('keeps every bucket of a week, month or year', () => {
     expect(visibleRange('day', [1, 2, 3], [0, 0, 0])).toEqual({ from: 0, to: 3 });
+  });
+});
+
+describe('the headline on the simple Sales screen', () => {
+  it('says what the owner kept in the period they are looking at', () => {
+    expect(keptHeadline('day', 3420)).toBe('You kept today');
+    expect(keptHeadline('week', 18250)).toBe('You kept this week');
+    expect(keptHeadline('month', 0)).toBe('You kept this month');
+  });
+
+  it('says a loss plainly rather than showing a kept minus', () => {
+    expect(keptHeadline('day', -150)).toBe('Down today');
+    expect(keptHeadline('month', -0.5)).toBe('Down this month');
   });
 });

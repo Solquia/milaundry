@@ -262,3 +262,19 @@ export function frameFor(period: SalesPeriod, now: Date): PeriodFrame {
     compareLabel: compareLabelFor(kind, isLive, now, previous.start),
   };
 }
+const KINDS: readonly PeriodKind[] = ['day', 'week', 'month', 'year'];
+
+/**
+ * A period carried in a link (`?kind=week&offset=-1`), so a screen opened from
+ * Sales starts on the period the owner was looking at. Anything malformed, or
+ * pointing into the future, falls back rather than throwing.
+ */
+export function periodFromParams(
+  kind: string | undefined,
+  offset: string | undefined,
+  fallback: SalesPeriod
+): SalesPeriod {
+  const parsed = Number(offset);
+  if (!KINDS.includes(kind as PeriodKind) || !Number.isInteger(parsed) || parsed > 0) return fallback;
+  return { kind: kind as PeriodKind, offset: parsed };
+}

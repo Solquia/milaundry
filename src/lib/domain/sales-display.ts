@@ -6,7 +6,7 @@
 import { formatMoneyCompact } from './money';
 import type { PricingUnit } from './pricing';
 import type { MetricKey } from './sales-metrics';
-import type { BucketUnit } from './sales-period';
+import type { BucketUnit, PeriodKind } from './sales-period';
 
 export interface MetricLook {
   label: string;
@@ -63,4 +63,16 @@ export function visibleRange(
     from: Math.min(OPENS, ...busy),
     to: Math.max(CLOSES, ...busy.map((index) => index + 1)),
   };
+}
+
+const THIS_PERIOD: Record<PeriodKind, string> = {
+  day: 'today',
+  week: 'this week',
+  month: 'this month',
+  year: 'this year',
+};
+
+/** The words over the profit figure: what the shop kept, or plainly that it is down. */
+export function keptHeadline(kind: PeriodKind, profit: number): string {
+  return profit < 0 ? `Down ${THIS_PERIOD[kind]}` : `You kept ${THIS_PERIOD[kind]}`;
 }
