@@ -25,10 +25,32 @@ import { WeightScale } from './quantity-picker';
 import { SERVICE_CUTOUTS } from './service-photo';
 import { RADII, colors, fontFor, space, type, useTint } from './ui-kit';
 
-const STAND_SIZE = 112;
+/**
+ * The stand: a disc the load sits down into and rises out of.
+ *
+ * The photo is drawn twice. Below the disc's middle it is clipped to the
+ * circle, so that half is inside it; above the middle it is drawn whole, so
+ * the top of the pile breaks over the rim. Every cut-out stands on the same
+ * baseline, 86% down its square canvas, which is set low in the disc.
+ */
+const DISC = 128;
+const PHOTO = 260;
+/** How far above the disc the stand reaches, for the half that rises out. */
+const RISE = 44;
+const STAND_WIDTH = 184;
+const STAND_HEIGHT = DISC + RISE;
+const DISC_LEFT = (STAND_WIDTH - DISC) / 2;
+const PHOTO_LEFT = (STAND_WIDTH - PHOTO) / 2;
+const PHOTO_FOOT = 0.86;
+/** Above this line the photo is whole; below it, only what is inside the circle. */
+const RIM_LINE = RISE + DISC / 2;
+const BASELINE = RISE + Math.round(DISC * 0.8);
+const PHOTO_TOP = Math.round(BASELINE - PHOTO_FOOT * PHOTO);
+/** From the photo's centre down to its baseline: what a scale moves, and is moved back by. */
+const FOOT_DROP = BASELINE - (PHOTO_TOP + PHOTO / 2);
 /** The photo's scale at an empty load and at the largest size. */
-const SCALE_EMPTY = 0.62;
-const SCALE_FULL = 1.04;
+const SCALE_EMPTY = 0.8;
+const SCALE_FULL = 1;
 /** More than this and the baskets on a chip stop reading as a count. */
 const MAX_BASKETS_SHOWN = 3;
 
@@ -54,16 +76,23 @@ function LoadStand({ service, photo, level }: { service: ServiceRow; photo: numb
   }, [grow, level, isReduced]);
 
   const scale = grow.interpolate({ inputRange: [0, 1], outputRange: [SCALE_EMPTY, SCALE_FULL] });
+  // Scaling is about the centre; this keeps the foot on the baseline as it grows.
+  const settle = grow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [FOOT_DROP * (1 - SCALE_EMPTY), FOOT_DROP * (1 - SCALE_FULL)],
+  });
   return (
     <View style={styles.stand} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[styles.standDisc, { backgroundColor: tone.field }]} />
-      <Animated.View style={[styles.standPhoto, { transform: [{ scale }] }]}>
-        <Image
-          source={photo}
-          style={styles.fill}
-          contentFit="contain"
-        />
-      </Animated.View>
+      <View style={[styles.standDisc, { backgroundColor: tone.field }]}>
+        <Animated.View style={[styles.standPhoto, styles.photoInDisc, { transform: [{ translateY: settle }, { scale }] }]}>
+          <Image source={photo} style={styles.fill} contentFit="contain" />
+        </Animated.View>
+      </View>
+      <View style={styles.aboveRim} pointerEvents="none">
+        <Animated.View style={[styles.standPhoto, { transform: [{ translateY: settle }, { scale }] }]}>
+          <Image source={photo} style={styles.fill} contentFit="contain" />
+        </Animated.View>
+      </View>
     </View>
   );
 }
@@ -175,15 +204,26 @@ const styles = StyleSheet.create({
   fill: { width: '100%', height: '100%' },
 
   stage: { flexDirection: 'row', alignItems: 'center', gap: space.room },
-  stand: { width: STAND_SIZE, height: STAND_SIZE, alignItems: 'center', justifyContent: 'flex-end' },
+  stand: { width: STAND_WIDTH, height: STAND_HEIGHT },
   standDisc: {
     position: 'absolute',
-    bottom: 0,
-    width: STAND_SIZE,
-    height: STAND_SIZE,
-    borderRadius: STAND_SIZE / 2,
+    top: RISE,
+    left: DISC_LEFT,
+    width: DISC,
+    height: DISC,
+    borderRadius: DISC / 2,
+    overflow: 'hidden',
   },
-  standPhoto: { width: STAND_SIZE, height: STAND_SIZE, transformOrigin: 'bottom' },
+  standPhoto: {
+    position: 'absolute',
+    top: PHOTO_TOP,
+    left: PHOTO_LEFT,
+    width: PHOTO,
+    height: PHOTO,
+  },
+  /** The same photo, placed in the disc's own coordinates. */
+  photoInDisc: { top: PHOTO_TOP - RISE, left: PHOTO_LEFT - DISC_LEFT },
+  aboveRim: { position: 'absolute', top: 0, left: 0, right: 0, height: RIM_LINE, overflow: 'hidden' },
   stageText: { flex: 1, minWidth: 0, gap: 2 },
   eyebrow: { ...type.caption, fontSize: 11, fontFamily: fontFor(700), letterSpacing: 1.2 },
   headline: { ...type.value, color: colors.text },
