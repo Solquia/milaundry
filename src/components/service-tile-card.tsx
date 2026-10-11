@@ -34,7 +34,7 @@ import {
 } from '@/lib/domain/service-showcase';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
-import { ServiceScene } from './service-scene';
+import { SERVICE_CUTOUTS } from './service-photo';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
 export interface ShowcaseCardService extends ShowcaseService {
@@ -119,7 +119,11 @@ function CareTag({ look }: { look: ServiceLook }) {
   );
 }
 
-/** The object in the corner: the shop's photograph if it has one, else the drawing. */
+/**
+ * The object in the corner: the shop's photograph if it has one, else a real
+ * cut-out of the work. Every cut-out sits on the same transparent canvas and
+ * baseline, so it is shown whole (`contain`) and a grid of them lines up.
+ */
 function CornerArt({
   service,
   look,
@@ -132,7 +136,6 @@ function CornerArt({
   const [isPhotoBroken, setIsPhotoBroken] = React.useState(false);
   const photo = (service.image_url ?? '').trim();
   const hasPhoto = photo.length > 0 && !isPhotoBroken;
-  const tone = showcaseTone(service.category);
 
   // Under a finger the object leans in toward the name, a little larger.
   const artStyle = {
@@ -154,7 +157,12 @@ function CornerArt({
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <ServiceScene scene={look.scene} colorway={look.colorway} brand={tone.bg} surface="white" />
+        <Image
+          source={SERVICE_CUTOUTS[look.scene]}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          accessibilityIgnoresInvertColors
+        />
       )}
     </Animated.View>
   );

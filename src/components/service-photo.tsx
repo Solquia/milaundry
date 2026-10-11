@@ -21,7 +21,8 @@ import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { BannerPhoto } from '@/lib/domain/spotlight';
 
-const PHOTOS: Record<BannerPhoto, number> = {
+/** The cut-out for each kind of work, for any card that shows the object on its own. */
+export const SERVICE_CUTOUTS: Record<BannerPhoto, number> = {
   stack: require('../../assets/images/services/stack.webp'),
   iron: require('../../assets/images/services/iron.webp'),
   suit: require('../../assets/images/services/suit.webp'),
@@ -54,7 +55,7 @@ export function ServicePhoto({ photo, uri, style, inset = 0 }: ServicePhotoProps
         <Image
           source={{ uri }}
           // Our cut-out stands in while the shop's photo loads, and if it never does.
-          placeholder={PHOTOS[photo]}
+          placeholder={SERVICE_CUTOUTS[photo]}
           placeholderContentFit="contain"
           style={StyleSheet.absoluteFill}
           contentFit="cover"
@@ -62,7 +63,7 @@ export function ServicePhoto({ photo, uri, style, inset = 0 }: ServicePhotoProps
         />
       ) : (
         <Image
-          source={PHOTOS[photo]}
+          source={SERVICE_CUTOUTS[photo]}
           style={[StyleSheet.absoluteFill, { margin: inset }]}
           contentFit="contain"
           transition={180}

@@ -17,7 +17,7 @@ import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { SearchField } from './search-field';
-import { ServiceScene } from './service-scene';
+import { SERVICE_CUTOUTS } from './service-photo';
 import { ShopLogo } from './shop-logo';
 import { ShopStatusPill } from './shop-status-pill';
 import { ACCENTS, RADII, colors, elevation, formatMoney, space, type } from './ui-kit';
@@ -308,7 +308,14 @@ function ProductCard({ service, label, look, quantity, accent, isDisabled, onAdd
         style={({ pressed }) => [card.tap, pressed && card.pressed]}
       >
         <View style={[card.art, { backgroundColor: tone.field }]}>
-          {look ? <ServiceScene scene={look.scene} colorway={look.colorway} brand={tone.bg} surface="white" /> : null}
+          {look ? (
+            <Image
+              source={SERVICE_CUTOUTS[look.scene]}
+              style={card.cutout}
+              contentFit="contain"
+              accessibilityIgnoresInvertColors
+            />
+          ) : null}
           <View style={[card.badge, { backgroundColor: tone.bg }]}>
             <Text style={card.badgeText}>{label}</Text>
           </View>
@@ -460,6 +467,7 @@ const card = StyleSheet.create({
   },
   pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   art: { height: 116, alignItems: 'center', justifyContent: 'center', padding: space.cosy },
+  cutout: { width: '100%', height: '100%' },
   badge: {
     position: 'absolute',
     top: space.snug,
