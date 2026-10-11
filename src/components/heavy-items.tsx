@@ -30,8 +30,8 @@ import { COLORWAYS, serviceLooks, type ServiceLook } from '@/lib/domain/service-
 import { showcaseTone } from '@/lib/domain/service-showcase';
 import type { ServiceRow } from '@/lib/types';
 
-import { ExtraArt, hasExtraArt } from './extra-art';
 import { ServiceScene } from './service-scene';
+import { sceneFor, type SceneKey } from '@/lib/domain/service-scene';
 import { Card, RADII, colors, elevation, fontFor, space, type, useTint } from './ui-kit';
 
 /** Every extra is in `looks`; this only satisfies the map's lookup type. */
@@ -79,12 +79,23 @@ function MiniButton({
 /** A service row, plus the photo a shop may have uploaded for it. */
 type ExtraService = ServiceRow & { image_url?: string | null };
 
-/** Shelf scenes for the two kinds the shelf already draws. */
-const SHELF_SCENES = { curtain: 'curtain', shoe: 'shoes' } as const;
+/** The real cut-out each kind of extra wears: bedding of every sort is the folded linen. */
+const SHELF_SCENES: Record<ReturnType<typeof extraArt>, SceneKey> = {
+  sheets: 'bed',
+  blanket: 'bed',
+  comforter: 'bed',
+  bulky: 'bed',
+  pillow: 'bed',
+  rug: 'curtain',
+  curtain: 'curtain',
+  shoe: 'shoes',
+  toy: 'bed',
+  sack: 'bed',
+};
 
 /**
- * The extra itself: the shop's own photo when it has one, else a drawing of
- * that kind of thing — sheets, a comforter, a bear — in the shelf's style.
+ * The extra itself: the shop's own photo when it has one, else a real
+ * cut-out of that kind of thing, in the same set as the shelf's.
  */
 function TileArt({
   extra,
@@ -146,11 +157,10 @@ export function HeavyItemArt({
           onError={() => setIsPhotoBroken(true)}
           accessibilityIgnoresInvertColors
         />
-      ) : hasExtraArt(art) ? (
-        <ExtraArt art={art} cloth={cloth} uid={extra.id} />
       ) : (
         <ServiceScene
-          scene={SHELF_SCENES[art]}
+          // A name no word matched is read like a service name, so "Package 1 Beddings" is linen.
+          scene={art === 'sack' ? sceneFor(extra.name, extra.category) : SHELF_SCENES[art]}
           colorway={look.colorway}
           brand={showcaseTone(extra.category).bg}
           surface="white"
