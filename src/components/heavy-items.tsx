@@ -369,7 +369,7 @@ const styles = StyleSheet.create({
   // Every cut-out leaves its top third empty, so the box tucks up into the
   // tile's padding and the name sits close under the object.
   art: { alignSelf: 'center', width: '78%', aspectRatio: 1, marginTop: '-20%', marginBottom: '-9%' },
-  photo: { borderRadius: RADII.chip, overflow: 'hidden', marginTop: 0, marginBottom: 0, aspectRatio: 1.3 },
+  photo: { borderRadius: RADII.chip, overflow: 'hidden', marginTop: 0, marginBottom: 0 },
   head: { alignItems: 'center' },
   names: { alignItems: 'center', minWidth: 0 },
   title: { ...type.label, fontSize: 15, lineHeight: 19, color: colors.text, textAlign: 'center' },
