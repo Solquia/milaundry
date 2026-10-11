@@ -1,3 +1,5 @@
+import { priceForWeight, readWeightPrices, type WeightPrice } from './weight-prices';
+
 export type PricingUnit = 'per_kg' | 'per_item' | 'flat';
 
 export interface Service {
@@ -9,6 +11,8 @@ export interface Service {
   min_quantity?: number;
   /** Most a single load may weigh, in kg. 0/absent = no limit. Informational. */
   max_quantity?: number;
+  /** A price per weight band (0043). When set, it prices the line by its kilos. */
+  weight_prices?: readonly WeightPrice[];
 }
 
 /**
@@ -48,6 +52,9 @@ export function estimateLineTotal(service: Service, quantity: number): number {
   if (!Number.isFinite(quantity) || quantity <= 0) {
     throw new Error(`Invalid quantity: ${quantity}`);
   }
+  // A weight table outranks the unit: the band the load falls in is the price.
+  const byWeight = priceForWeight(readWeightPrices(service.weight_prices), quantity);
+  if (byWeight !== null) return roundMoney(byWeight);
   if (service.unit === 'flat') {
     return roundMoney(service.price);
   }

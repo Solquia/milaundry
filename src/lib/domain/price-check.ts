@@ -14,6 +14,7 @@
  */
 import { roundCentavos } from './money';
 import type { PricingUnit } from './pricing';
+import { priceForWeight, type WeightPrice } from './weight-prices';
 import { MAX_SCALE_KG } from './weigh-order';
 
 /** Past this a count is a slipped key, not a bag of laundry. */
@@ -28,12 +29,21 @@ export interface CheckLine {
   /** Billable floor for a weighed line; 0 for none. */
   minQuantity: number;
   bookedQuantity: number;
+  /** The service's weight table; a line with one is weighed and priced by band. */
+  weightPrices?: readonly WeightPrice[];
+}
+
+/** Whether the counter enters this line as kilos off the scale rather than a count. */
+export function isKgLine(line: Pick<CheckLine, 'unit' | 'weightPrices'>): boolean {
+  return line.unit === 'per_kg' || (line.weightPrices?.length ?? 0) > 0;
 }
 
 /** item id → the quantity the counter set; absent means "as booked". */
 export type CheckQuantities = Readonly<Record<string, number>>;
 
 export function checkLineSubtotal(line: CheckLine, quantity: number): number {
+  const byWeight = priceForWeight(line.weightPrices ?? [], quantity);
+  if (byWeight !== null) return roundCentavos(byWeight);
   const billable = line.unit === 'per_kg' ? Math.max(quantity, line.minQuantity) : quantity;
   return roundCentavos(line.unitPrice * billable);
 }
@@ -51,7 +61,7 @@ export function checkTotal(lines: readonly CheckLine[], quantities: CheckQuantit
 /** Why a quantity cannot be sent, or null when it can. */
 export function quantityError(line: CheckLine, quantity: number): string | null {
   if (!Number.isFinite(quantity)) return `Enter a number for ${line.name}.`;
-  if (line.unit === 'per_kg') {
+  if (isKgLine(line)) {
     if (quantity <= 0) return `Enter the weight the scale shows for ${line.name}.`;
     if (quantity > MAX_SCALE_KG) return `${line.name}: more than ${MAX_SCALE_KG} kg looks like a typo.`;
     return null;

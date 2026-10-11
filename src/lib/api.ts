@@ -727,7 +727,15 @@ export async function updateService(
   patch: Partial<
     Pick<
       ServiceRow,
-      'name' | 'unit' | 'price' | 'category' | 'min_quantity' | 'description' | 'is_active'
+      | 'name'
+      | 'unit'
+      | 'price'
+      | 'category'
+      | 'min_quantity'
+      | 'max_quantity'
+      | 'description'
+      | 'is_active'
+      | 'weight_prices'
     >
   >
 ): Promise<ServiceRow> {

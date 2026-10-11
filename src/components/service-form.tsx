@@ -28,12 +28,14 @@ import {
 } from '@/lib/domain/service-draft';
 import { sceneFor } from '@/lib/domain/service-scene';
 import { showcaseTone } from '@/lib/domain/service-showcase';
+import { readWeightPrices, validateWeightPriceDraft, type WeightPriceDraft } from '@/lib/domain/weight-prices';
 import type { ServiceRow } from '@/lib/types';
 
 import { Segmented } from './segmented';
 import { ServiceScene } from './service-scene';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
 import { Button, ErrorText, Field, RADII, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
+import { WeightPriceEditor, draftsFromWeightPrices } from './weight-price-editor';
 
 const UNIT_OPTIONS: { key: ChargeKind; label: string }[] = [
   { key: 'per_kg', label: 'Per kg' },
@@ -211,17 +213,25 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
   // Errors wait for the first save attempt, then follow every keystroke.
   const [hasTried, setHasTried] = useState(false);
   const [serverError, setServerError] = useState('');
+  const [weightRows, setWeightRows] = useState<WeightPriceDraft[]>(() =>
+    draftsFromWeightPrices(readWeightPrices(service?.weight_prices))
+  );
 
   const result = validateServiceDraft(draft);
+  const weightResult = validateWeightPriceDraft(weightRows);
+  const weightError = hasTried && !weightResult.ok ? weightResult.error : undefined;
   const errors = hasTried && !result.ok ? result.errors : {};
   const update = (patch: Partial<ServiceDraft>) =>
     setDraft((current) => ({ ...current, ...patch }));
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!result.ok) throw new Error('The price was not saved.');
-      if (service) return updateService(service.id, result.value);
-      return upsertService({ shop_id: shopId, ...result.value });
+      if (!result.ok || !weightResult.ok) throw new Error('The price was not saved.');
+      // A piece is not weighed, so a table left over from another unit is dropped.
+      const weightPrices = draft.unit === 'per_item' ? [] : weightResult.value;
+      const fields = { ...result.value, weight_prices: weightPrices };
+      if (service) return updateService(service.id, fields);
+      return upsertService({ shop_id: shopId, ...fields });
     },
     onSuccess: (saved) =>
       onDone({ name: saved.name, category: saved.category, verb: isEditing ? 'saved' : 'added' }),
@@ -238,7 +248,7 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
   const handleSave = () => {
     setHasTried(true);
     setServerError('');
-    if (result.ok) save.mutate();
+    if (result.ok && weightResult.ok) save.mutate();
   };
 
   const isBusy = save.isPending || remove.isPending;
@@ -340,6 +350,12 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
           </View>
         ) : null}
       </Panel>
+
+      {draft.unit && draft.unit !== 'per_item' ? (
+        <Panel title="Price by weight">
+          <WeightPriceEditor rows={weightRows} onChange={setWeightRows} error={weightError} />
+        </Panel>
+      ) : null}
 
       <Panel title="Section on your price list">
         <CategoryChoice value={draft.category} onChange={(category) => update({ category })} />

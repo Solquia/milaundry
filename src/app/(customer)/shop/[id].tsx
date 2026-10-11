@@ -17,7 +17,7 @@ import { useClaim } from '@/components/claim';
 import { MarketBasketBar } from '@/components/market-basket-bar';
 import { SpotlightBasket } from '@/components/spotlight-basket';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
-import { ShopPriceGuide } from '@/components/price-guide';
+import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
@@ -459,7 +459,7 @@ export default function CustomerShopHome() {
             />
           ) : null}
         </SpotlightBody>
-        <ShopPriceGuide shopId={id} />
+        <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
         {ratings}
         {storeInfo}
         <SpotlightBasket
@@ -523,7 +523,7 @@ export default function CustomerShopHome() {
           isDisabled={!isRegistered}
           notice={basket.notice}
         />
-        <ShopPriceGuide shopId={id} />
+        <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
         {ratings}
         {storeInfo}
       </Screen>
@@ -606,15 +606,18 @@ export default function CustomerShopHome() {
           The shelf owns its own cascade, so it takes the page's list cue as a
           delay rather than a driver: the cards land behind the hero, and land
           again whenever a search re-forms the grid. */}
-      <ServiceShelf
-        entries={orderedServices}
-        isDisabled={!isRegistered}
-        onBook={handleBook}
-        delay={ENTRANCE.list.delay}
-      />
-
-      {/* The shop's own wall board, for a shop whose prices go by package and weight. */}
-      <ShopPriceGuide shopId={id} />
+      {/* A shop with a price guide shows its menu that way instead: packages
+          with the choices inside them, then its other services. */}
+      {hasPriceGuide(id) ? (
+        <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
+      ) : (
+        <ServiceShelf
+          entries={orderedServices}
+          isDisabled={!isRegistered}
+          onBook={handleBook}
+          delay={ENTRANCE.list.delay}
+        />
+      )}
 
       {/* Where the shop is, before what people said about it: a customer
           deciding whether to come needs the corner more than the score. */}

@@ -2,6 +2,7 @@ import {
   MAX_PIECES,
   checkLineSubtotal,
   checkTotal,
+  isKgLine,
   quantityError,
   type CheckLine,
 } from '../price-check';
@@ -71,5 +72,28 @@ describe('quantityError', () => {
     expect(quantityError(comforter, 1.5)).toMatch(/whole/i);
     expect(quantityError(comforter, 0)).toBeNull();
     expect(quantityError(comforter, MAX_PIECES + 1)).not.toBeNull();
+  });
+});
+
+describe('a line with a weight table', () => {
+  const pack = {
+    itemId: 'i1',
+    name: 'Package 1 Wash Dry Fold',
+    unit: 'flat' as const,
+    unitPrice: 185,
+    minQuantity: 0,
+    bookedQuantity: 9,
+    weightPrices: [
+      { up_to_kg: 8, price: 185 },
+      { up_to_kg: 9, price: 215 },
+      { up_to_kg: 10, price: 300 },
+    ],
+  };
+
+  test('is entered as kilos and priced by its band, not as pieces', () => {
+    expect(isKgLine(pack)).toBe(true);
+    expect(checkLineSubtotal(pack, 9)).toBe(215);
+    expect(checkLineSubtotal(pack, 9.5)).toBe(300);
+    expect(quantityError(pack, 8.5)).toBeNull();
   });
 });

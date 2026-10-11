@@ -23,8 +23,10 @@ import {
   checkTotal,
   quantityError,
   quantityFor,
+  isKgLine,
   type CheckLine,
 } from '@/lib/domain/price-check';
+import { readWeightPrices } from '@/lib/domain/weight-prices';
 import { describeWeighChange, parseWeight } from '@/lib/domain/weigh-order';
 
 interface PriceCheckSheetProps {
@@ -84,7 +86,8 @@ function LineRow({
 }) {
   const quantity = quantityFor(line, quantities);
   const isChanged = quantity !== line.bookedQuantity;
-  const isRemoved = line.unit !== 'per_kg' && quantity === 0;
+  const isRemoved = !isKgLine(line) && quantity === 0;
+  const isBanded = (line.weightPrices?.length ?? 0) > 0;
   return (
     <View style={styles.line}>
       <View style={styles.lineText}>
@@ -92,13 +95,13 @@ function LineRow({
           {line.name}
         </Text>
         <Text style={styles.lineMeta}>
-          {formatMoney(line.unitPrice)}
-          {line.unit === 'per_kg' ? '/kg' : ' each'} · booked {line.bookedQuantity}
-          {line.unit === 'per_kg' ? ' kg' : ''}
+          {isBanded ? 'Priced by weight table' : formatMoney(line.unitPrice)}
+          {isBanded ? '' : line.unit === 'per_kg' ? '/kg' : ' each'} · booked {line.bookedQuantity}
+          {isKgLine(line) ? ' kg' : ''}
           {isChanged ? ` → ${formatMoney(checkLineSubtotal(line, quantity))}` : ''}
         </Text>
       </View>
-      {line.unit === 'per_kg' ? (
+      {isKgLine(line) ? (
         <View style={styles.kgBox}>
           <TextInput
             value={kgText}
@@ -140,6 +143,7 @@ export function PriceCheckSheet({ order, onConfirmed }: PriceCheckSheetProps) {
         unitPrice: item.unit_price,
         minQuantity: services?.find((row) => row.id === item.service_id)?.min_quantity ?? 0,
         bookedQuantity: item.quantity,
+        weightPrices: readWeightPrices(services?.find((row) => row.id === item.service_id)?.weight_prices),
       })),
     [order.order_items, services]
   );
@@ -157,7 +161,7 @@ export function PriceCheckSheet({ order, onConfirmed }: PriceCheckSheetProps) {
   const firstError = lines
     .map((line) => quantityError(line, quantityFor(line, quantities)))
     .find((message): message is string => message !== null);
-  const isEmpty = lines.every((line) => line.unit !== 'per_kg' && quantityFor(line, quantities) === 0);
+  const isEmpty = lines.every((line) => !isKgLine(line) && quantityFor(line, quantities) === 0);
   const total = firstError ? null : checkTotal(lines, quantities);
   const difference = total === null ? null : describeWeighChange(order.estimated_total, total);
 

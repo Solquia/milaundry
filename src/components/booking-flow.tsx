@@ -36,6 +36,7 @@ import {
   type ChoiceTile,
 } from "@/components/booking-ticket";
 import { HeavyItems } from "@/components/heavy-items";
+import { isHeavyLaundry } from "@/lib/domain/heavy-items";
 import { PreferencePicker } from "@/components/laundry-preferences";
 import { LoadSizePicker } from "@/components/load-size-picker";
 import { MarketBasketPage } from "@/components/market-checkout";
@@ -280,9 +281,7 @@ export function BookingFlow({
 
   /** Heavy/thick extras: the shop's bedding & heavy items, minus the main service. */
   const heavyExtras = questions.offersHeavyItems
-    ? services.filter(
-        (row) => row.category === "special_items" && row.id !== serviceId,
-      )
+    ? services.filter((row) => isHeavyLaundry(row) && row.id !== serviceId)
     : [];
 
   /**

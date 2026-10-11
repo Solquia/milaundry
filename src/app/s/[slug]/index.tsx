@@ -23,7 +23,7 @@ import { SpotlightBasket } from '@/components/spotlight-basket';
 import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
-import { ShopPriceGuide } from '@/components/price-guide';
+import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
 import { PriceList } from '@/components/web/price-list';
 import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
@@ -182,7 +182,7 @@ function MarketBody({ storefront }: { storefront: Storefront }) {
             onRemove={basket.remove}
             notice={basket.notice}
           />
-          <ShopPriceGuide shopId={shop.id} />
+          <ShopPriceGuide shopId={shop.id} services={services} />
           {tracked ? null : trackBand}
           {reputation && reviews.length > 0 ? (
             <>
@@ -312,7 +312,7 @@ function SpotlightPage({ storefront }: { storefront: Storefront }) {
               onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
             />
           </SpotlightBody>
-          <ShopPriceGuide shopId={shop.id} />
+          <ShopPriceGuide shopId={shop.id} services={services} />
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>Ratings</Text>
@@ -443,18 +443,30 @@ function ClassicBody({ storefront }: { storefront: Storefront }) {
           {/* The shelf carries its own heading, because on a shop with enough
               services it also carries the search under it — a page heading
               above that would be a second title for one region. */}
-          <PriceList
-            services={services}
-            theme={theme}
-            columns={layout.priceColumns}
-            onBook={
-              canBook
-                ? (serviceId) =>
-                    router.push({ pathname: `/s/${shop.slug}/book`, params: { service: serviceId } } as never)
-                : undefined
-            }
-          />
-          <ShopPriceGuide shopId={shop.id} />
+          {hasPriceGuide(shop.id) ? (
+            <ShopPriceGuide
+              shopId={shop.id}
+              services={services}
+              onBook={
+                canBook
+                  ? (service) =>
+                      router.push({ pathname: `/s/${shop.slug}/book`, params: { service: service.id } } as never)
+                  : undefined
+              }
+            />
+          ) : (
+            <PriceList
+              services={services}
+              theme={theme}
+              columns={layout.priceColumns}
+              onBook={
+                canBook
+                  ? (serviceId) =>
+                      router.push({ pathname: `/s/${shop.slug}/book`, params: { service: serviceId } } as never)
+                  : undefined
+              }
+            />
+          )}
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>

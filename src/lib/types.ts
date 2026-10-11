@@ -2,6 +2,7 @@ import type { PreferredMethod } from './domain/customer-book';
 import type { OrderStatus } from './domain/order-status';
 import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
+import type { WeightPrice } from './domain/weight-prices';
 import type { ServiceCategory } from './domain/service-catalog';
 import type { ShopAccountRole } from './domain/shop-account';
 import type { AddonGroupRules, ShopAddon } from './domain/shop-addons';
@@ -114,6 +115,8 @@ export interface ServiceRow {
    * '' or absent means the app's stock cut-out. Optional until 0042 is live.
    */
   image_url?: string;
+  /** A price per weight band (0043); empty or absent = priced by `unit` and `price`. */
+  weight_prices?: WeightPrice[];
 }
 
 export interface OrderRow {
@@ -241,6 +244,8 @@ export type StorefrontService = Pick<
   max_quantity?: number;
   /** The shop's own photo, merged in from get_shop_service_images (0042). */
   image_url?: string;
+  /** A price per weight band (0043); absent on a project without it. */
+  weight_prices?: WeightPrice[];
 };
 
 export interface StorefrontReview {

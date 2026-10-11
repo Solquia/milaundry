@@ -10,6 +10,8 @@ import { MAX_WEIGHT_KG } from './booking-estimate';
 import { formatMoneyCompact } from './money';
 import { estimateLineTotal, type PricingUnit, type Service } from './pricing';
 import { MAX_PIECES } from './quantity-input';
+import type { ServiceCategory } from './service-catalog';
+import { sceneFor } from './service-scene';
 import { showcaseTitle } from './service-showcase';
 
 /**
@@ -117,6 +119,17 @@ const ART_WORDS: readonly [RegExp, ExtraArt][] = [
  * looking like four copies of one throw. An oversized comforter gets a
  * bulkier drawing than a plain one; anything unnamed is a big laundry sack.
  */
+/**
+ * Whether a special item rides along on a laundry booking as a heavy item:
+ * bedding and curtains go in the machine with the load; shoes, caps, bags and
+ * sofas are services of their own and are booked on their own.
+ */
+export function isHeavyLaundry(service: { name: string; category: ServiceCategory }): boolean {
+  if (service.category !== 'special_items') return false;
+  const scene = sceneFor(service.name, service.category);
+  return scene === 'bed' || scene === 'curtain';
+}
+
 export function extraArt(name: string): ExtraArt {
   if (BEDDING.test(name) && OVERSIZED.test(name)) return 'bulky';
   return ART_WORDS.find(([pattern]) => pattern.test(name))?.[1] ?? 'sack';

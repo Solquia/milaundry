@@ -1,18 +1,22 @@
 /**
- * A shop's printed price guide, for a shop whose prices do not fit one row
- * per service.
+ * A shop's price guide, for a shop whose menu does not fit one row per service.
  *
- * Bubbly Gav prices a load by package *and* by weight: the package names the
- * soap and fabcon you choose from, and every half kilo past 8 adds to it until
- * the load is split in two. Its walls also carry drying packages and sneaker
- * and cap care. The service rows still carry what can be booked; this is the
- * board on the wall, drawn on the shop's page so a customer reads the same
- * prices at home as at the counter.
+ * Bubbly Gav sells three wash-dry-fold packages. Each is one decision with a
+ * few inside it: regular clothes or beddings, which soap, which fabcon, and a
+ * price that moves with the weight. Beside them it cleans shoes, caps,
+ * helmets, bags and sofas in a basic and a deep grade, and dries laundry
+ * washed elsewhere.
  *
- * Kept as data here rather than in the database because only one shop has
- * one, and its shape is that shop's own. Photos are named by key, so this file
- * stays plain data the tests can read; `price-guide.tsx` maps a key to a file.
+ * Every price comes from the shop's own services, so the owner corrects one
+ * in the service editor and the guide follows: the packages are the services
+ * named "Package N…", their weight tables are `weight_prices`, the other
+ * services are the remaining special items (grouped by the name before " · "),
+ * and drying is the "other" section. What is kept here is only what a
+ * service row cannot say: the poster's colours, the soap and fabcon photos for
+ * each package, and the shop's rules about loads.
  */
+import type { ServiceCategory } from './service-catalog';
+import { readWeightPrices, weightBands, type WeightBand, type WeightPrice } from './weight-prices';
 
 export const BUBBLY_GAV_SHOP_ID = 'f858c7ec-146b-444b-a6b1-93ebed38fae6';
 
@@ -24,59 +28,102 @@ export interface GuideProduct {
   photo: string;
 }
 
-export interface WeightBand {
-  from: number;
-  to: number;
-}
-
-export interface WeightRow extends WeightBand {
-  loads: 1 | 2;
-  price: number;
-}
-
-export interface GuidePackage {
-  label: string;
+/** What a package says about itself that its service row cannot. */
+export interface GuidePackageLook {
+  number: number;
   tone: GuideTone;
-  /** Per load, up to 8 kg. */
-  price: number;
   detergentTitle: string;
   detergents: GuideProduct[];
   fabcons: GuideProduct[];
-  weights: WeightRow[];
-}
-
-export interface GuideOption {
-  name: string;
-  price: number;
-  points: string[];
-}
-
-export interface RestoreItem {
-  name: string;
-  icon: 'footsteps' | 'baseball';
-  blurb: string;
-  tiers: { name: string; price: number }[];
 }
 
 export interface PriceGuide {
   title: string;
   tagline: string;
-  packages: GuidePackage[];
+  packages: GuidePackageLook[];
   /** How weight turns into loads, shared by every package. */
   loadRules: { icon: 'scale' | 'add-circle' | 'copy'; text: string }[];
-  drying: { limits: string[]; options: GuideOption[] };
-  restore: { photo: string; items: RestoreItem[] };
+}
+
+/** The fields of a service the guide reads. */
+export interface GuideService {
+  id: string;
+  name: string;
+  category: ServiceCategory;
+  price: number;
+  description?: string | null;
+  sort_order?: number;
+  max_quantity?: number;
+  weight_prices?: readonly WeightPrice[];
+}
+
+export interface MenuPackage<S extends GuideService> {
+  number: number;
+  /** Regular clothes, weighed. */
+  clothes?: S;
+  /** Beddings and towels, by the load. */
+  beddings?: S;
+  weights: WeightBand[];
+}
+
+export interface MenuGroup<S extends GuideService> {
+  /** "Shoe cleaning" */
+  name: string;
+  /** "Basic", "Deep" — or one option with no label. */
+  options: { label: string; service: S }[];
+}
+
+export interface GuideMenu<S extends GuideService> {
+  packages: MenuPackage<S>[];
+  others: MenuGroup<S>[];
+  drying: S[];
 }
 
 /** "Up to 8 kg", "9 kg", "10.5 – 11 kg". */
-export function weightLabel({ from, to }: WeightBand): string {
+export function weightLabel({ from, to }: { from: number; to: number }): string {
   if (from === 0) return `Up to ${to} kg`;
   if (from === to) return `${from} kg`;
   return `${from} – ${to} kg`;
 }
 
-function row(from: number, to: number, price: number): WeightRow {
-  return { from, to, loads: from >= 10 ? 2 : 1, price };
+const PACKAGE_NAME = /^package\s*(\d+)/i;
+const BEDDING_WORDS = /bed|towel|linen|kumot/i;
+/** "Shoe cleaning · Deep", "Shoe cleaning - Deep" */
+const OPTION_SEPARATOR = /\s+[·•|–-]\s+/;
+
+function bySortThenName<S extends GuideService>(a: S, b: S): number {
+  return (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name);
+}
+
+/** The shop's services, sorted into the guide's three sections. */
+export function guideMenu<S extends GuideService>(services: readonly S[]): GuideMenu<S> {
+  const byNumber = new Map<number, MenuPackage<S>>();
+  const others = new Map<string, MenuGroup<S>>();
+  const drying: S[] = [];
+
+  for (const service of [...services].sort(bySortThenName)) {
+    const packageNumber = Number(PACKAGE_NAME.exec(service.name)?.[1]);
+    if (packageNumber > 0) {
+      const entry = byNumber.get(packageNumber) ?? { number: packageNumber, weights: [] };
+      if (BEDDING_WORDS.test(service.name)) entry.beddings ??= service;
+      else entry.clothes ??= service;
+      byNumber.set(packageNumber, entry);
+      continue;
+    }
+    if (service.category === 'other') {
+      drying.push(service);
+      continue;
+    }
+    const [base, ...rest] = service.name.split(OPTION_SEPARATOR);
+    const group = others.get(base) ?? { name: base, options: [] };
+    group.options.push({ label: rest.join(' '), service });
+    others.set(base, group);
+  }
+
+  const packages = [...byNumber.values()]
+    .sort((a, b) => a.number - b.number)
+    .map((entry) => ({ ...entry, weights: weightBands(readWeightPrices(entry.clothes?.weight_prices)) }));
+  return { packages, others: [...others.values()], drying };
 }
 
 const BUBBLY_GAV: PriceGuide = {
@@ -84,9 +131,8 @@ const BUBBLY_GAV: PriceGuide = {
   tagline: 'Trusted wash for every home',
   packages: [
     {
-      label: 'Package 1',
+      number: 1,
       tone: 'blue',
-      price: 185,
       detergentTitle: 'Choose your detergent',
       detergents: [
         { name: 'Membership Value', photo: 'membership-value' },
@@ -97,20 +143,10 @@ const BUBBLY_GAV: PriceGuide = {
         { name: 'Calla Pink', photo: 'calla-pink' },
         { name: 'Calla Blue', photo: 'calla-blue' },
       ],
-      weights: [
-        row(0, 8, 185),
-        row(8.5, 8.5, 200),
-        row(9, 9, 215),
-        row(9.5, 9.5, 230),
-        row(10, 10, 300),
-        row(10.5, 10.5, 315),
-        row(11, 11, 330),
-      ],
     },
     {
-      label: 'Package 2',
+      number: 2,
       tone: 'green',
-      price: 210,
       detergentTitle: 'Liquid detergent',
       detergents: [{ name: 'Ariel', photo: 'ariel' }],
       fabcons: [
@@ -119,21 +155,10 @@ const BUBBLY_GAV: PriceGuide = {
         { name: 'Champion Antibac', photo: 'champion-antibac' },
         { name: 'Personal Collection', photo: 'personal-collection' },
       ],
-      weights: [
-        row(0, 8, 210),
-        row(8.5, 8.5, 225),
-        row(9, 9, 240),
-        row(9.5, 9.5, 255),
-        row(10, 10, 350),
-        row(10.5, 11, 365),
-        row(11.5, 13.5, 400),
-        row(14, 16, 435),
-      ],
     },
     {
-      label: 'Package 3',
+      number: 3,
       tone: 'orange',
-      price: 240,
       detergentTitle: 'Choose your detergent',
       detergents: [
         { name: 'Tide', photo: 'tide' },
@@ -147,87 +172,13 @@ const BUBBLY_GAV: PriceGuide = {
         { name: 'PC Pink', photo: 'pc-pink' },
         { name: 'Downy April Fresh', photo: 'downy' },
       ],
-      weights: [row(0, 8, 240), row(8.1, 8.5, 255), row(9, 9.5, 270), row(10, 16, 480)],
     },
   ],
   loadRules: [
-    { icon: 'scale', text: 'Max 8 kg per load — we never overload the machines.' },
+    { icon: 'scale', text: 'Max 8 kg per load for clothes, 4 kg for beddings — we never overload the machines.' },
     { icon: 'add-circle', text: 'Over 8 kg: +₱15 for every extra ½ kg, +₱30 for every extra 1 kg.' },
     { icon: 'copy', text: '10 kg and up is split into 2 loads for a proper wash and tumble.' },
   ],
-  drying: {
-    limits: ['Max 8 kg regular clothes', 'Max 4 kg beddings & towels', 'Comforters & duvets per piece'],
-    options: [
-      {
-        name: 'Dry only',
-        price: 90,
-        points: [
-          'Tumble drying gamit ang commercial dryer',
-          'Perfect para sa bahagyang basa o napiga nang damit',
-        ],
-      },
-      {
-        name: 'Dry + dryer sheet',
-        price: 105,
-        points: [
-          'Commercial dryer drying',
-          'May dryer sheets para sa dagdag lambot at bango',
-          'Bawas static at wrinkles',
-        ],
-      },
-      {
-        name: 'Spin + dry',
-        price: 120,
-        points: [
-          'High-speed spin para matanggal ang sobrang tubig',
-          'Mas mabilis at efficient ang drying',
-          'Ideal para sa handwashed o mas basang labada',
-        ],
-      },
-      {
-        name: 'Spin + dry + dryer sheet',
-        price: 135,
-        points: [
-          'High-speed spin extraction',
-          'Commercial dryer drying',
-          'May dryer sheets para sa extra freshness at mabangong amoy',
-        ],
-      },
-      {
-        name: 'Spin + dry + fold',
-        price: 150,
-        points: [
-          'High-speed spin extraction',
-          'Commercial dryer drying',
-          'Neatly folded, ready to store or use',
-          'May finishing spray para sa bagong-labada feel',
-        ],
-      },
-    ],
-  },
-  restore: {
-    photo: 'sneakers',
-    items: [
-      {
-        name: 'Sneakers',
-        icon: 'footsteps',
-        blurb: 'Dull sneakers? Muddy shoes? We clean, shine and revive them.',
-        tiers: [
-          { name: 'Basic cleaning', price: 250 },
-          { name: 'Deep cleaning', price: 400 },
-        ],
-      },
-      {
-        name: 'Caps',
-        icon: 'baseball',
-        blurb: 'Your cap deserves spa-like care. Say goodbye to grimy caps.',
-        tiers: [
-          { name: 'Basic cleaning', price: 150 },
-          { name: 'Deep cleaning', price: 300 },
-        ],
-      },
-    ],
-  },
 };
 
 const GUIDES: Readonly<Record<string, PriceGuide>> = {

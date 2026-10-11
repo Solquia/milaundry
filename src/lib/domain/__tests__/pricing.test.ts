@@ -92,3 +92,27 @@ describe('isWeighed', () => {
     expect(isWeighed({ ...delivery, max_quantity: 6, category: 'wash_fold' })).toBe(true);
   });
 });
+describe('estimateLineTotal with a weight table', () => {
+  const pack: Service = {
+    id: 'p1',
+    name: 'Package 1 Wash Dry Fold',
+    unit: 'flat',
+    price: 185,
+    max_quantity: 8,
+    weight_prices: [
+      { up_to_kg: 8, price: 185 },
+      { up_to_kg: 9, price: 215 },
+      { up_to_kg: 10, price: 300 },
+    ],
+  };
+
+  test('prices a flat package by the band its weight falls in', () => {
+    expect(estimateLineTotal(pack, 6)).toBe(185);
+    expect(estimateLineTotal(pack, 9)).toBe(215);
+    expect(estimateLineTotal(pack, 10)).toBe(300);
+  });
+
+  test('an empty table leaves the old pricing alone', () => {
+    expect(estimateLineTotal({ ...pack, weight_prices: [] }, 9)).toBe(185);
+  });
+});

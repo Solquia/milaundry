@@ -1,4 +1,4 @@
-import { extraArt, extraLabel, extraLimit, extraTilePrice, stepExtra } from '../heavy-items';
+import { extraArt, extraLabel, extraLimit, extraTilePrice, isHeavyLaundry, stepExtra } from '../heavy-items';
 import type { Service } from '../pricing';
 
 const beddings: Service = { id: 'bed', name: 'BIG BEDDINGS', unit: 'per_item', price: 123 };
@@ -76,5 +76,23 @@ describe('extraArt', () => {
     expect(extraArt('Curtains')).toBe('curtain');
     expect(extraArt('Sneakers')).toBe('shoe');
     expect(extraArt('Large Item')).toBe('sack');
+  });
+});
+
+describe('isHeavyLaundry', () => {
+  test('bedding and curtains ride along with a load', () => {
+    expect(isHeavyLaundry({ name: 'Package 1 Beddings', category: 'special_items' })).toBe(true);
+    expect(isHeavyLaundry({ name: 'Comforter', category: 'special_items' })).toBe(true);
+    expect(isHeavyLaundry({ name: 'Curtains', category: 'special_items' })).toBe(true);
+  });
+
+  test('shoes, caps, bags and sofas are booked on their own', () => {
+    expect(isHeavyLaundry({ name: 'Shoe cleaning · Basic', category: 'special_items' })).toBe(false);
+    expect(isHeavyLaundry({ name: 'Bag cleaning · Deep', category: 'special_items' })).toBe(false);
+    expect(isHeavyLaundry({ name: 'Sofa & carpet cleaning · Basic', category: 'special_items' })).toBe(false);
+  });
+
+  test('only special items count', () => {
+    expect(isHeavyLaundry({ name: 'Bedding wash', category: 'wash_fold' })).toBe(false);
   });
 });

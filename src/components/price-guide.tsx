@@ -1,16 +1,16 @@
 /**
- * The shop's own price guide, for a shop that has one (`priceGuideFor`).
+ * The shop's own menu, for a shop that has a price guide (`priceGuideFor`).
  *
- * It reads top to bottom the way a customer decides: which package, what it
- * comes with, what my load weighs, then what else I can add or bring. The
- * three packages sit side by side as tabs wearing the colours of the shop's
- * own poster — blue, green, orange — so the board on the wall and the page on
- * the phone are recognisably the same list. The open package shows the soaps
- * and fabcons to choose from as photos, then its weight table, where a
- * two-load row is tinted so the jump in price explains itself.
+ * Three packages, then everything else. The packages sit side by side as
+ * tabs in the colours of the shop's poster; the open one asks the questions
+ * inside it — regular clothes or beddings, which soap and fabcon — shows the
+ * weight table that sets its price, and books it. Below come the other
+ * services, each with its basic and deep grade as two buttons, then drying,
+ * then the add-on shelf.
  *
- * Add-ons are read live from the shop's shelf, so a price the owner changes in
- * the app is the price shown here; everything else is the printed board.
+ * Every price is read from the shop's services (`guideMenu`), so what the
+ * owner changes in the service editor is what this shows and what the
+ * booking charges. The soap photos and the colours are the only fixed parts.
  */
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -22,14 +22,16 @@ import { CROWN, RADII, colors, fontFor, space, type } from './ui-kit';
 import { getShopAddonShelf } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import {
+  guideMenu,
   priceGuideFor,
   weightLabel,
-  type GuideOption,
-  type GuidePackage,
+  type GuidePackageLook,
   type GuideProduct,
+  type GuideService,
   type GuideTone,
+  type MenuGroup,
+  type MenuPackage,
   type PriceGuide,
-  type RestoreItem,
 } from '@/lib/domain/price-guide';
 import { ADDON_KIND_SHORT, groupAddons, type ShopAddon } from '@/lib/domain/shop-addons';
 
@@ -64,20 +66,24 @@ const TONES: Record<GuideTone, { band: string; surface: string; ink: string }> =
 
 const SUN = { surface: '#FFF4CC', ink: '#8A5606', tag: '#1D4E89' };
 const TILE_WIDTH = 84;
+const BEDDING_LOAD_KG = 4;
+
+type Load = 'clothes' | 'beddings';
+
+/** An icon for a cleaning service by what it cleans; a bag where nothing matches. */
+function serviceIcon(name: string): keyof typeof Ionicons.glyphMap {
+  if (/shoe|sneaker|sapatos/i.test(name)) return 'footsteps';
+  if (/cap|hat/i.test(name)) return 'baseball';
+  if (/helmet/i.test(name)) return 'bicycle';
+  if (/sofa|carpet|couch|rug/i.test(name)) return 'home';
+  return 'bag-handle';
+}
 
 function money(amount: number): string {
   return formatMoneyCompact(amount);
 }
 
-function ProductTile({
-  name,
-  source,
-  price,
-}: {
-  name: string;
-  source: ImageSource | null;
-  price?: string;
-}) {
+function ProductTile({ name, source, price }: { name: string; source: ImageSource | null; price?: string }) {
   return (
     <View style={styles.tile} accessible accessibilityLabel={price ? `${name}, ${price}` : name}>
       {source ? (
@@ -108,27 +114,33 @@ function ProductStrip({ title, products }: { title: string; products: GuideProdu
   );
 }
 
-function PackageTabs({
+interface PackageView<S extends GuideService> {
+  look: GuidePackageLook;
+  menu: MenuPackage<S>;
+}
+
+function PackageTabs<S extends GuideService>({
   packages,
   picked,
   onPick,
 }: {
-  packages: GuidePackage[];
+  packages: PackageView<S>[];
   picked: number;
   onPick: (index: number) => void;
 }) {
   return (
     <View style={styles.tabs} accessibilityRole="tablist">
-      {packages.map((pack, index) => {
-        const tone = TONES[pack.tone];
+      {packages.map(({ look, menu }, index) => {
+        const tone = TONES[look.tone];
         const isPicked = index === picked;
         const ink = isPicked ? colors.onAccent : tone.ink;
+        const price = menu.clothes?.price ?? menu.beddings?.price ?? 0;
         return (
           <Pressable
-            key={pack.label}
+            key={look.number}
             accessibilityRole="tab"
             accessibilityState={{ selected: isPicked }}
-            accessibilityLabel={`${pack.label}, ${money(pack.price)} per load`}
+            accessibilityLabel={`Package ${look.number}, from ${money(price)} per load`}
             onPress={() => onPick(index)}
             style={({ pressed }) => [
               styles.tab,
@@ -136,8 +148,8 @@ function PackageTabs({
               pressed && styles.pressed,
             ]}
           >
-            <Text style={[styles.tabLabel, { color: ink }]}>{pack.label}</Text>
-            <Text style={[styles.tabPrice, { color: ink }]}>{money(pack.price)}</Text>
+            <Text style={[styles.tabLabel, { color: ink }]}>{`Package ${look.number}`}</Text>
+            <Text style={[styles.tabPrice, { color: ink }]}>{money(price)}</Text>
             <Text style={[styles.tabUnit, { color: ink }]}>per load</Text>
           </Pressable>
         );
@@ -146,34 +158,82 @@ function PackageTabs({
   );
 }
 
-function WeightTable({ pack }: { pack: GuidePackage }) {
-  const tone = TONES[pack.tone];
+function LoadChoice({
+  value,
+  onChange,
+  tone,
+  clothesPrice,
+  beddingsPrice,
+}: {
+  value: Load;
+  onChange: (load: Load) => void;
+  tone: (typeof TONES)[GuideTone];
+  clothesPrice: number;
+  beddingsPrice: number;
+}) {
+  const options: { key: Load; title: string; meta: string }[] = [
+    { key: 'clothes', title: 'Regular clothes', meta: `${money(clothesPrice)} · up to 8 kg a load` },
+    { key: 'beddings', title: 'Beddings & towels', meta: `${money(beddingsPrice)} · up to ${BEDDING_LOAD_KG} kg a load` },
+  ];
+  return (
+    <View style={styles.strip}>
+      <Text style={styles.stripTitle}>What are we washing?</Text>
+      <View style={styles.choices} accessibilityRole="radiogroup">
+        {options.map((option) => {
+          const isOn = option.key === value;
+          return (
+            <Pressable
+              key={option.key}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: isOn }}
+              onPress={() => onChange(option.key)}
+              style={({ pressed }) => [
+                styles.choice,
+                isOn && { borderColor: tone.band, backgroundColor: tone.surface },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name={isOn ? 'radio-button-on' : 'radio-button-off'}
+                size={18}
+                color={isOn ? tone.band : colors.borderStrong}
+              />
+              <View style={styles.grow}>
+                <Text style={[styles.choiceTitle, isOn && { color: tone.ink }]}>{option.title}</Text>
+                <Text style={styles.choiceMeta}>{option.meta}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+function WeightTable({ weights, tone }: { weights: MenuPackage<GuideService>['weights']; tone: (typeof TONES)[GuideTone] }) {
+  if (weights.length === 0) return null;
   return (
     <View style={styles.strip}>
       <Text style={styles.stripTitle}>Price by weight</Text>
       <View style={[styles.table, { borderColor: tone.surface }]}>
-        {pack.weights.map((row, index) => {
-          const label = weightLabel(row);
-          const loads = row.loads === 2 ? '2 loads' : '1 load';
+        {weights.map((band, index) => {
+          const label = weightLabel(band);
+          // The shop splits a load at 10 kg; the row says so where the price jumps.
+          const isSplit = band.from >= 10;
           return (
             <View
               key={label}
               accessible
-              accessibilityLabel={`${label}, ${loads}, ${money(row.price)}`}
-              style={[
-                styles.tableRow,
-                index > 0 && styles.tableRuled,
-                row.loads === 2 && { backgroundColor: tone.surface },
-              ]}
+              accessibilityLabel={`${label}${isSplit ? ', 2 loads' : ''}, ${money(band.price)}`}
+              style={[styles.tableRow, index > 0 && styles.ruled, isSplit && { backgroundColor: tone.surface }]}
             >
               <Text style={styles.tableWeight}>{label}</Text>
-              {/* Only the split is worth a mark: every other row is one load. */}
-              {row.loads === 2 ? (
+              {isSplit ? (
                 <View style={[styles.loads, { borderColor: tone.ink }]}>
-                  <Text style={[styles.loadsText, { color: tone.ink }]}>{loads}</Text>
+                  <Text style={[styles.loadsText, { color: tone.ink }]}>2 loads</Text>
                 </View>
               ) : null}
-              <Text style={styles.tablePrice}>{money(row.price)}</Text>
+              <Text style={styles.tablePrice}>{money(band.price)}</Text>
             </View>
           );
         })}
@@ -182,24 +242,84 @@ function WeightTable({ pack }: { pack: GuidePackage }) {
   );
 }
 
-function PackagePanel({ pack }: { pack: GuidePackage }) {
-  const tone = TONES[pack.tone];
+function BookButton({
+  label,
+  fill,
+  onPress,
+}: {
+  label: string;
+  fill: string;
+  onPress?: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !onPress }}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.book,
+        { backgroundColor: onPress ? fill : colors.borderStrong },
+        pressed && styles.pressed,
+      ]}
+    >
+      <Text style={styles.bookText}>{label}</Text>
+      <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
+    </Pressable>
+  );
+}
+
+function PackagePanel<S extends GuideService>({
+  view,
+  load,
+  onLoad,
+  onBook,
+}: {
+  view: PackageView<S>;
+  load: Load;
+  onLoad: (load: Load) => void;
+  onBook?: (serviceId: string) => void;
+}) {
+  const { look, menu } = view;
+  const tone = TONES[look.tone];
+  const hasChoice = Boolean(menu.clothes && menu.beddings);
+  const effective: Load = hasChoice ? load : menu.clothes ? 'clothes' : 'beddings';
+  const chosen = effective === 'clothes' ? menu.clothes : menu.beddings;
+  const loadKg = effective === 'clothes' ? 8 : chosen?.max_quantity || BEDDING_LOAD_KG;
   return (
     <View style={[styles.panel, { borderColor: tone.band }]}>
       <View style={[styles.panelBand, { backgroundColor: tone.band }]}>
         <View style={styles.grow}>
-          <Text style={styles.panelEyebrow}>{pack.label.toUpperCase()}</Text>
+          <Text style={styles.panelEyebrow}>{`PACKAGE ${look.number}`}</Text>
           <Text style={styles.panelTitle}>Wash · Dry · Fold</Text>
         </View>
-        <View style={styles.panelPriceWrap}>
-          <Text style={styles.panelPrice}>{money(pack.price)}</Text>
-          <Text style={styles.panelUnit}>per load · up to 8 kg</Text>
-        </View>
+        {chosen ? (
+          <View style={styles.panelPriceWrap}>
+            <Text style={styles.panelPrice}>{money(chosen.price)}</Text>
+            <Text style={styles.panelUnit}>{`per load · up to ${loadKg} kg`}</Text>
+          </View>
+        ) : null}
       </View>
       <View style={styles.panelBody}>
-        <ProductStrip title={pack.detergentTitle} products={pack.detergents} />
-        <ProductStrip title="Choose your fabric conditioner" products={pack.fabcons} />
-        <WeightTable pack={pack} />
+        {hasChoice ? (
+          <LoadChoice
+            value={effective}
+            onChange={onLoad}
+            tone={tone}
+            clothesPrice={menu.clothes?.price ?? 0}
+            beddingsPrice={menu.beddings?.price ?? 0}
+          />
+        ) : null}
+        <ProductStrip title={look.detergentTitle} products={look.detergents} />
+        <ProductStrip title="Choose your fabric conditioner" products={look.fabcons} />
+        {effective === 'clothes' ? <WeightTable weights={menu.weights} tone={tone} /> : null}
+        {chosen ? (
+          <BookButton
+            label={`Book Package ${look.number} · ${effective === 'clothes' ? 'Clothes' : 'Beddings'}`}
+            fill={tone.band}
+            onPress={onBook ? () => onBook(chosen.id) : undefined}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -222,28 +342,132 @@ function LoadRules({ rules }: { rules: PriceGuide['loadRules'] }) {
   );
 }
 
-function CardHead({
-  icon,
-  tint,
-  title,
-  caption,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  tint: { surface: string; ink: string };
-  title: string;
-  caption: string;
-}) {
+function SectionHead({ eyebrow, title, caption }: { eyebrow: string; title: string; caption: string }) {
   return (
-    <View style={styles.cardHead}>
-      <View style={[styles.badge, { backgroundColor: tint.surface }]}>
-        <Ionicons name={icon} size={20} color={tint.ink} />
+    <View style={styles.sectionHead}>
+      <Text style={styles.eyebrow}>{eyebrow}</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        {title}
+      </Text>
+      <Text style={styles.tagline}>{caption}</Text>
+    </View>
+  );
+}
+
+function OtherRow<S extends GuideService>({
+  group,
+  isFirst,
+  onBook,
+}: {
+  group: MenuGroup<S>;
+  isFirst: boolean;
+  onBook?: (serviceId: string) => void;
+}) {
+  const blurb = group.options[0]?.service.description?.trim();
+  return (
+    <View style={[styles.otherRow, !isFirst && styles.ruled]}>
+      <View style={styles.otherHead}>
+        <View style={styles.otherBadge}>
+          <Ionicons name={serviceIcon(group.name)} size={20} color={colors.actionInk} />
+        </View>
+        <View style={styles.grow}>
+          <Text style={styles.otherName}>{group.name}</Text>
+          {blurb ? (
+            <Text style={styles.caption} numberOfLines={2}>
+              {blurb}
+            </Text>
+          ) : null}
+        </View>
       </View>
-      <View style={styles.grow}>
-        <Text style={styles.cardTitle} accessibilityRole="header">
-          {title}
-        </Text>
-        <Text style={styles.cardCaption}>{caption}</Text>
+      <View style={styles.tiers}>
+        {group.options.map((option) => (
+          <Pressable
+            key={option.service.id}
+            accessibilityRole="button"
+            accessibilityLabel={`Book ${option.service.name}, ${money(option.service.price)}`}
+            disabled={!onBook}
+            onPress={onBook ? () => onBook(option.service.id) : undefined}
+            style={({ pressed }) => [styles.tier, pressed && styles.pressed]}
+          >
+            <Text style={styles.tierName}>{option.label || 'Cleaning'}</Text>
+            <Text style={styles.tierPrice}>{money(option.service.price)}</Text>
+          </Pressable>
+        ))}
       </View>
+    </View>
+  );
+}
+
+function OthersCard<S extends GuideService>({
+  groups,
+  onBook,
+}: {
+  groups: MenuGroup<S>[];
+  onBook?: (serviceId: string) => void;
+}) {
+  if (groups.length === 0) return null;
+  return (
+    <View style={[styles.card, styles.cardFlush]}>
+      <View>
+        <Image
+          source={PHOTOS.sneakers}
+          style={styles.banner}
+          contentFit="cover"
+          accessibilityLabel="Muddy sneakers beside the same pair cleaned white"
+        />
+        <View style={styles.bannerTag}>
+          <Text style={styles.bannerTitle}>Restore your style</Text>
+          <Text style={styles.bannerSub}>Tap a price to book it · Drop off today!</Text>
+        </View>
+      </View>
+      <View style={styles.cardBody}>
+        {groups.map((group, index) => (
+          <OtherRow key={group.name} group={group} isFirst={index === 0} onBook={onBook} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function DryingCard<S extends GuideService>({
+  rows,
+  onBook,
+}: {
+  rows: S[];
+  onBook?: (serviceId: string) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <View style={styles.card}>
+      <View style={styles.limits}>
+        {['Max 8 kg regular clothes', 'Max 4 kg beddings & towels', 'Comforters & duvets per piece'].map(
+          (limit) => (
+            <View key={limit} style={styles.limit}>
+              <Text style={styles.limitText}>{limit}</Text>
+            </View>
+          )
+        )}
+      </View>
+      {rows.map((row, index) => (
+        <Pressable
+          key={row.id}
+          accessibilityRole="button"
+          accessibilityLabel={`Book ${row.name}, ${money(row.price)}`}
+          disabled={!onBook}
+          onPress={onBook ? () => onBook(row.id) : undefined}
+          style={({ pressed }) => [styles.dryRow, index > 0 && styles.ruled, pressed && styles.pressed]}
+        >
+          <View style={[styles.grow, styles.dryWords]}>
+            <View style={styles.dryName}>
+              <Text style={styles.dryNameText}>{row.name.toUpperCase()}</Text>
+            </View>
+            {row.description ? <Text style={styles.caption}>{row.description}</Text> : null}
+          </View>
+          <View style={styles.priceTag}>
+            <Text style={styles.priceTagText}>{money(row.price)}</Text>
+          </View>
+        </Pressable>
+      ))}
     </View>
   );
 }
@@ -253,12 +477,7 @@ function AddonsCard({ addons }: { addons: readonly ShopAddon[] }) {
   if (groups.length === 0) return null;
   return (
     <View style={styles.card}>
-      <CardHead
-        icon="add-circle-outline"
-        tint={TONES.blue}
-        title="Add-ons"
-        caption="Extras on top of any package, charged once per booking."
-      />
+      <Text style={styles.caption}>Added to any package at booking, charged once.</Text>
       {groups.map((group) => (
         <View key={group.kind} style={styles.strip}>
           <Text style={styles.stripTitle}>{ADDON_KIND_SHORT[group.kind]}</Text>
@@ -278,106 +497,27 @@ function AddonsCard({ addons }: { addons: readonly ShopAddon[] }) {
   );
 }
 
-function DryingRow({ option, isFirst }: { option: GuideOption; isFirst: boolean }) {
-  return (
-    <View
-      style={[styles.dryRow, !isFirst && styles.tableRuled]}
-      accessible
-      accessibilityLabel={`${option.name}, ${money(option.price)}. ${option.points.join('. ')}`}
-    >
-      <View style={[styles.grow, styles.dryWords]}>
-        <View style={styles.dryName}>
-          <Text style={styles.dryNameText}>{option.name.toUpperCase()}</Text>
-        </View>
-        {option.points.map((point) => (
-          <Text key={point} style={styles.point}>
-            {`•  ${point}`}
-          </Text>
-        ))}
-      </View>
-      <View style={styles.priceTag}>
-        <Text style={styles.priceTagText}>{money(option.price)}</Text>
-      </View>
-    </View>
-  );
+/** Whether this shop's page is drawn as a price guide instead of the plain service list. */
+export function hasPriceGuide(shopId: string | null | undefined): boolean {
+  return priceGuideFor(shopId) !== null;
 }
 
-function DryingCard({ drying }: { drying: PriceGuide['drying'] }) {
-  return (
-    <View style={styles.card}>
-      <CardHead
-        icon="sunny"
-        tint={SUN}
-        title="Drying packages"
-        caption="Already washed? Bring it in just to dry."
-      />
-      <View style={styles.limits}>
-        {drying.limits.map((limit) => (
-          <View key={limit} style={styles.limit}>
-            <Text style={styles.limitText}>{limit}</Text>
-          </View>
-        ))}
-      </View>
-      {drying.options.map((option, index) => (
-        <DryingRow key={option.name} option={option} isFirst={index === 0} />
-      ))}
-    </View>
-  );
-}
-
-function RestoreRow({ item }: { item: RestoreItem }) {
-  return (
-    <View style={styles.restoreRow}>
-      <View style={styles.restoreHead}>
-        <Ionicons name={item.icon} size={18} color={colors.actionInk} />
-        <Text style={styles.restoreName}>{item.name}</Text>
-      </View>
-      <Text style={styles.cardCaption}>{item.blurb}</Text>
-      <View style={styles.tiers}>
-        {item.tiers.map((tier) => (
-          <View
-            key={tier.name}
-            style={styles.tier}
-            accessible
-            accessibilityLabel={`${item.name}, ${tier.name}, ${money(tier.price)}`}
-          >
-            <Text style={styles.tierName}>{tier.name}</Text>
-            <Text style={styles.tierPrice}>{money(tier.price)}</Text>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function RestoreCard({ restore }: { restore: PriceGuide['restore'] }) {
-  return (
-    <View style={[styles.card, styles.cardFlush]}>
-      <View>
-        <Image
-          source={PHOTOS[restore.photo]}
-          style={styles.banner}
-          contentFit="cover"
-          accessibilityLabel="Muddy sneakers beside the same pair cleaned white"
-        />
-        <View style={styles.bannerTag}>
-          <Text style={styles.bannerTitle}>Restore your style</Text>
-          <Text style={styles.bannerSub}>Sneaker and cap care · Drop off today!</Text>
-        </View>
-      </View>
-      <View style={styles.restoreBody}>
-        {restore.items.map((item) => (
-          <RestoreRow key={item.name} item={item} />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-/** Draws the shop's price guide, or nothing for a shop without one. */
-export function ShopPriceGuide({ shopId }: { shopId: string | null | undefined }) {
+/**
+ * The shop's menu as a price guide, or nothing for a shop without one.
+ * `onBook` is absent while the customer cannot book yet; the prices still show.
+ */
+export function ShopPriceGuide<S extends GuideService>({
+  shopId,
+  services,
+  onBook,
+}: {
+  shopId: string | null | undefined;
+  services: readonly S[];
+  onBook?: (service: S) => void;
+}) {
   const guide = priceGuideFor(shopId);
   const [picked, setPicked] = useState(0);
+  const [load, setLoad] = useState<Load>('clothes');
   // Shares the booking page's key, so a customer who goes on to book reads the cache.
   const shelf = useQuery({
     queryKey: ['shop-addon-shelf', shopId],
@@ -387,35 +527,69 @@ export function ShopPriceGuide({ shopId }: { shopId: string | null | undefined }
   });
 
   if (!guide) return null;
-  const pack = guide.packages[picked] ?? guide.packages[0];
+  const menu = guideMenu(services);
+  const packages = guide.packages.flatMap((look) => {
+    const entry = menu.packages.find((pack) => pack.number === look.number);
+    return entry && (entry.clothes || entry.beddings) ? [{ look, menu: entry }] : [];
+  });
+  const view = packages[picked] ?? packages[0];
+  const book = onBook
+    ? (serviceId: string) => {
+        const service = services.find((row) => row.id === serviceId);
+        if (service) onBook(service);
+      }
+    : undefined;
 
   return (
     <View style={styles.guide}>
-      <View style={styles.heading}>
-        <Text style={styles.eyebrow}>PRICE LIST</Text>
-        <Text style={styles.title} accessibilityRole="header">
-          {guide.title}
-        </Text>
-        <Text style={styles.tagline}>{guide.tagline}</Text>
-      </View>
-      <PackageTabs packages={guide.packages} picked={picked} onPick={setPicked} />
-      <PackagePanel pack={pack} />
-      <LoadRules rules={guide.loadRules} />
-      <AddonsCard addons={shelf.data?.addons ?? []} />
-      <DryingCard drying={guide.drying} />
-      <RestoreCard restore={guide.restore} />
+      {view ? (
+        <>
+          <SectionHead eyebrow="PACKAGES" title={guide.title} caption={guide.tagline} />
+          <PackageTabs packages={packages} picked={picked} onPick={setPicked} />
+          <PackagePanel view={view} load={load} onLoad={setLoad} onBook={book} />
+          <LoadRules rules={guide.loadRules} />
+        </>
+      ) : null}
+      {menu.others.length > 0 ? (
+        <>
+          <SectionHead
+            eyebrow="MORE SERVICES"
+            title="Shoes, caps, bags & more"
+            caption="Basic or deep clean — tap a price to book it."
+          />
+          <OthersCard groups={menu.others} onBook={book} />
+        </>
+      ) : null}
+      {menu.drying.length > 0 ? (
+        <>
+          <SectionHead
+            eyebrow="DRYING"
+            title="Drying services"
+            caption="Already washed? Bring it in just to dry."
+          />
+          <DryingCard rows={menu.drying} onBook={book} />
+        </>
+      ) : null}
+      {groupAddons(shelf.data?.addons ?? []).length > 0 ? (
+        <>
+          <SectionHead eyebrow="ADD-ONS" title="Extras" caption="Pick these while you book." />
+          <AddonsCard addons={shelf.data?.addons ?? []} />
+        </>
+      ) : null}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  guide: { gap: space.cosy, marginTop: space.section },
+  guide: { gap: space.cosy, marginTop: space.cosy },
   grow: { flex: 1, minWidth: 0 },
-  heading: { gap: 2 },
+  sectionHead: { gap: 2, marginTop: space.cosy },
   eyebrow: { ...type.caption, fontFamily: fontFor(700), color: colors.actionInk, letterSpacing: 1.2 },
-  title: { ...type.title, color: colors.text },
+  sectionTitle: { ...type.title, color: colors.text },
   tagline: { ...type.caption, color: colors.subtle },
+  caption: { ...type.caption, color: colors.subtle },
   pressed: { opacity: 0.75 },
+  ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
 
   tabs: { flexDirection: 'row', gap: space.snug },
   tab: {
@@ -445,6 +619,19 @@ const styles = StyleSheet.create({
   panelUnit: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.onAccent },
   panelBody: { padding: space.room, gap: space.section },
 
+  choices: { gap: space.snug },
+  choice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    padding: space.cosy,
+    borderRadius: RADII.control,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  choiceTitle: { ...type.label, color: colors.text },
+  choiceMeta: { ...type.caption, color: colors.subtle },
+
   strip: { gap: space.snug },
   stripTitle: { ...type.label, color: colors.text },
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
@@ -473,7 +660,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.cosy,
     minHeight: 44,
   },
-  tableRuled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
   tableWeight: { ...type.body, flex: 1, color: colors.text },
   loads: { borderWidth: 1, borderRadius: RADII.pill, paddingHorizontal: space.snug, paddingVertical: 1 },
   loadsText: { ...type.caption, fontSize: 11, lineHeight: 14, fontFamily: fontFor(600) },
@@ -485,6 +671,16 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
+
+  book: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.snug,
+    minHeight: 50,
+    borderRadius: RADII.pill,
+  },
+  bookText: { ...type.label, fontSize: 16, color: colors.onAccent },
 
   rules: {
     gap: space.snug,
@@ -505,10 +701,44 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardFlush: { padding: 0, gap: 0 },
-  cardHead: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  badge: { width: 40, height: 40, borderRadius: RADII.chip, alignItems: 'center', justifyContent: 'center' },
-  cardTitle: { ...type.body, fontFamily: fontFor(700), color: colors.text },
-  cardCaption: { ...type.caption, color: colors.subtle },
+  cardBody: { paddingHorizontal: space.room, paddingBottom: space.snug },
+
+  banner: { width: '100%', aspectRatio: 640 / 300 },
+  bannerTag: {
+    position: 'absolute',
+    left: space.cosy,
+    bottom: space.cosy,
+    paddingHorizontal: space.cosy,
+    paddingVertical: space.snug,
+    borderRadius: RADII.chip,
+    backgroundColor: 'rgba(13, 45, 92, 0.88)',
+  },
+  bannerTitle: { ...type.label, color: colors.onAccent },
+  bannerSub: { ...type.caption, fontSize: 12, color: colors.onAccent },
+
+  otherRow: { gap: space.snug, paddingVertical: space.cosy },
+  otherHead: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
+  otherBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: RADII.chip,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.actionSurface,
+  },
+  otherName: { ...type.body, fontFamily: fontFor(700), color: colors.text },
+  tiers: { flexDirection: 'row', gap: space.snug },
+  tier: {
+    flex: 1,
+    padding: space.cosy,
+    borderRadius: RADII.control,
+    borderWidth: 1,
+    borderColor: colors.actionMuted,
+    backgroundColor: colors.actionSurface,
+    gap: 2,
+  },
+  tierName: { ...type.caption, color: colors.actionInk },
+  tierPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
 
   limits: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   limit: {
@@ -529,7 +759,6 @@ const styles = StyleSheet.create({
     backgroundColor: SUN.surface,
   },
   dryNameText: { ...type.caption, fontFamily: fontFor(700), letterSpacing: 0.6, color: SUN.ink },
-  point: { ...type.caption, color: colors.subtle },
   priceTag: {
     paddingHorizontal: space.cosy,
     paddingVertical: space.tight,
@@ -538,31 +767,4 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '-4deg' }],
   },
   priceTagText: { ...type.label, color: colors.onAccent, fontVariant: ['tabular-nums'] },
-
-  banner: { width: '100%', aspectRatio: 640 / 374 },
-  bannerTag: {
-    position: 'absolute',
-    left: space.cosy,
-    bottom: space.cosy,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.snug,
-    borderRadius: RADII.chip,
-    backgroundColor: 'rgba(13, 45, 92, 0.88)',
-  },
-  bannerTitle: { ...type.label, color: colors.onAccent },
-  bannerSub: { ...type.caption, fontSize: 12, color: colors.onAccent },
-  restoreBody: { padding: space.room, gap: space.section },
-  restoreRow: { gap: space.snug },
-  restoreHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  restoreName: { ...type.body, fontFamily: fontFor(700), color: colors.text },
-  tiers: { flexDirection: 'row', gap: space.snug },
-  tier: {
-    flex: 1,
-    padding: space.cosy,
-    borderRadius: RADII.control,
-    backgroundColor: colors.actionSurface,
-    gap: 2,
-  },
-  tierName: { ...type.caption, color: colors.actionInk },
-  tierPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
 });
