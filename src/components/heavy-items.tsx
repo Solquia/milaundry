@@ -30,6 +30,7 @@ import { COLORWAYS, serviceLooks, type ServiceLook } from '@/lib/domain/service-
 import { showcaseTone } from '@/lib/domain/service-showcase';
 import type { ServiceRow } from '@/lib/types';
 
+import { guideServicePhoto } from './guide-photos';
 import { ServiceScene } from './service-scene';
 import { sceneFor, type SceneKey } from '@/lib/domain/service-scene';
 import { Card, RADII, colors, elevation, fontFor, space, type, useTint } from './ui-kit';
@@ -147,6 +148,7 @@ export function HeavyItemArt({
   const setIsPhotoBroken = (_: true) => (onPhotoError ? onPhotoError() : setIsBrokenHere(true));
   const photo = (extra.image_url ?? '').trim();
   const hasPhoto = photo.length > 0 && !isPhotoBroken;
+  const shopCutout = guideServicePhoto(extra);
   return (
     <>
       {hasPhoto ? (
@@ -157,6 +159,8 @@ export function HeavyItemArt({
           onError={() => setIsPhotoBroken(true)}
           accessibilityIgnoresInvertColors
         />
+      ) : shopCutout ? (
+        <Image source={shopCutout} style={StyleSheet.absoluteFill} contentFit="contain" />
       ) : (
         <ServiceScene
           // A name no word matched is read like a service name, so "Package 1 Beddings" is linen.
