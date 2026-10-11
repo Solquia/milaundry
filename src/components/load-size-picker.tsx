@@ -26,25 +26,24 @@ import { SERVICE_CUTOUTS } from './service-photo';
 import { RADII, colors, fontFor, space, type, useTint } from './ui-kit';
 
 /**
- * The stand: a disc the load sits down into and rises out of.
+ * The stand: a disc with the load standing in it and rising out of its top.
  *
- * The photo is drawn twice. Below the disc's middle it is clipped to the
- * circle, so that half is inside it; above the middle it is drawn whole, so
- * the top of the pile breaks over the rim. Every cut-out stands on the same
- * baseline, 86% down its square canvas, which is set low in the disc.
+ * The photo is whole and in front of the disc — clipping it to the circle
+ * left a hard straight cut wherever a wide pile reached past the rim. Its
+ * foot sits low in the disc, so the lower half reads as inside the circle and
+ * the top breaks out above it. Every cut-out stands on the same baseline, 86%
+ * down its square canvas.
  */
-const DISC = 128;
-const PHOTO = 260;
+const DISC = 150;
+const PHOTO = 230;
 /** How far above the disc the stand reaches, for the half that rises out. */
-const RISE = 44;
-const STAND_WIDTH = 184;
+const RISE = 36;
+const STAND_WIDTH = PHOTO;
 const STAND_HEIGHT = DISC + RISE;
 const DISC_LEFT = (STAND_WIDTH - DISC) / 2;
 const PHOTO_LEFT = (STAND_WIDTH - PHOTO) / 2;
 const PHOTO_FOOT = 0.86;
-/** Above this line the photo is whole; below it, only what is inside the circle. */
-const RIM_LINE = RISE + DISC / 2;
-const BASELINE = RISE + Math.round(DISC * 0.8);
+const BASELINE = RISE + Math.round(DISC * 0.66);
 const PHOTO_TOP = Math.round(BASELINE - PHOTO_FOOT * PHOTO);
 /** From the photo's centre down to its baseline: what a scale moves, and is moved back by. */
 const FOOT_DROP = BASELINE - (PHOTO_TOP + PHOTO / 2);
@@ -83,16 +82,10 @@ function LoadStand({ service, photo, level }: { service: ServiceRow; photo: numb
   });
   return (
     <View style={styles.stand} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
-      <View style={[styles.standDisc, { backgroundColor: tone.field }]}>
-        <Animated.View style={[styles.standPhoto, styles.photoInDisc, { transform: [{ translateY: settle }, { scale }] }]}>
-          <Image source={photo} style={styles.fill} contentFit="contain" />
-        </Animated.View>
-      </View>
-      <View style={styles.aboveRim} pointerEvents="none">
-        <Animated.View style={[styles.standPhoto, { transform: [{ translateY: settle }, { scale }] }]}>
-          <Image source={photo} style={styles.fill} contentFit="contain" />
-        </Animated.View>
-      </View>
+      <View style={[styles.standDisc, { backgroundColor: tone.field }]} />
+      <Animated.View style={[styles.standPhoto, { transform: [{ translateY: settle }, { scale }] }]}>
+        <Image source={photo} style={styles.fill} contentFit="contain" />
+      </Animated.View>
     </View>
   );
 }
@@ -203,7 +196,8 @@ const styles = StyleSheet.create({
   wrap: { gap: space.cosy },
   fill: { width: '100%', height: '100%' },
 
-  stage: { flexDirection: 'row', alignItems: 'center', gap: space.room },
+  // The load centred on top, what it is and what it costs centred under it.
+  stage: { alignItems: 'center', gap: space.snug },
   stand: { width: STAND_WIDTH, height: STAND_HEIGHT },
   standDisc: {
     position: 'absolute',
@@ -212,7 +206,6 @@ const styles = StyleSheet.create({
     width: DISC,
     height: DISC,
     borderRadius: DISC / 2,
-    overflow: 'hidden',
   },
   standPhoto: {
     position: 'absolute',
@@ -222,15 +215,13 @@ const styles = StyleSheet.create({
     height: PHOTO,
   },
   /** The same photo, placed in the disc's own coordinates. */
-  photoInDisc: { top: PHOTO_TOP - RISE, left: PHOTO_LEFT - DISC_LEFT },
-  aboveRim: { position: 'absolute', top: 0, left: 0, right: 0, height: RIM_LINE, overflow: 'hidden' },
-  stageText: { flex: 1, minWidth: 0, gap: 2 },
+  stageText: { alignItems: 'center', gap: 2, maxWidth: 420 },
   eyebrow: { ...type.caption, fontSize: 11, fontFamily: fontFor(700), letterSpacing: 1.2 },
-  headline: { ...type.value, color: colors.text },
-  hint: { ...type.caption, color: colors.subtle },
+  headline: { ...type.value, color: colors.text, textAlign: 'center' },
+  hint: { ...type.caption, color: colors.subtle, textAlign: 'center' },
   price: { ...type.section, marginTop: space.tight },
   minimumTag: {
-    alignSelf: 'flex-start',
+    alignSelf: 'center',
     marginTop: space.tight,
     paddingHorizontal: space.snug,
     paddingVertical: 3,

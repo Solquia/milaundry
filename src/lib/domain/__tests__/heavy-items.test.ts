@@ -90,6 +90,8 @@ describe('isHeavyLaundry', () => {
     expect(isHeavyLaundry({ name: 'Shoe cleaning · Basic', category: 'special_items' })).toBe(false);
     expect(isHeavyLaundry({ name: 'Bag cleaning · Deep', category: 'special_items' })).toBe(false);
     expect(isHeavyLaundry({ name: 'Sofa & carpet cleaning · Basic', category: 'special_items' })).toBe(false);
+    expect(isHeavyLaundry({ name: 'Cap cleaning · Basic', category: 'special_items' })).toBe(false);
+    expect(isHeavyLaundry({ name: 'Helmet cleaning · Deep', category: 'special_items' })).toBe(false);
   });
 
   test('only special items count', () => {

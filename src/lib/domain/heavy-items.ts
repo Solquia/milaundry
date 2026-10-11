@@ -11,7 +11,6 @@ import { formatMoneyCompact } from './money';
 import { estimateLineTotal, type PricingUnit, type Service } from './pricing';
 import { MAX_PIECES } from './quantity-input';
 import type { ServiceCategory } from './service-catalog';
-import { sceneFor } from './service-scene';
 import { showcaseTitle } from './service-showcase';
 
 /**
@@ -125,10 +124,13 @@ const ART_WORDS: readonly [RegExp, ExtraArt][] = [
  * sofas are services of their own and are booked on their own.
  */
 export function isHeavyLaundry(service: { name: string; category: ServiceCategory }): boolean {
-  if (service.category !== 'special_items') return false;
-  const scene = sceneFor(service.name, service.category);
-  return scene === 'bed' || scene === 'curtain';
+  // Named, not inferred: a special item no word matched ("Cap cleaning") would
+  // otherwise fall back to the category's bedding picture and pass as linen.
+  return service.category === 'special_items' && HEAVY_LAUNDRY_WORDS.test(service.name);
 }
+
+const HEAVY_LAUNDRY_WORDS =
+  /bed|comforter|blanket|duvet|sheet|pillow|kumot|towel|linen|curtain|drape|kurtina/i;
 
 export function extraArt(name: string): ExtraArt {
   if (BEDDING.test(name) && OVERSIZED.test(name)) return 'bulky';

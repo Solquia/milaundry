@@ -280,13 +280,11 @@ function ExtraTile({
       onPress={add}
       style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
     >
-      <TileArt extra={extra} look={look} cloth={cloth} />
-      <View style={styles.head}>
-        {names}
-        <View style={[styles.mini, { borderColor: tint, backgroundColor: tint }]}>
-          <Ionicons name="add" size={16} color={colors.onAccent} />
-        </View>
+      <View style={[styles.mini, styles.corner, { borderColor: tint, backgroundColor: tint }]}>
+        <Ionicons name="add" size={16} color={colors.onAccent} />
       </View>
+      <TileArt extra={extra} look={look} cloth={cloth} />
+      <View style={styles.head}>{names}</View>
       <View style={styles.foot}>
         <View style={styles.pricePill}>
           <Text style={styles.price}>{price}</Text>
@@ -355,12 +353,12 @@ const styles = StyleSheet.create({
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   // Two to a row at any phone width; a lone last tile keeps the same width.
+  // The piece stands centred at the top, its name and price under it.
   tile: {
     flexBasis: '47%',
     flexGrow: 1,
     maxWidth: '50%',
-    minHeight: 150,
-    justifyContent: 'space-between',
+    gap: 6,
     padding: space.cosy,
     borderRadius: RADII.control,
     borderWidth: 1.5,
@@ -368,14 +366,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     overflow: 'hidden',
   },
-  // The object stands in the lower right and runs off the corner, as on the shelf.
-  art: { position: 'absolute', right: -10, bottom: -10, width: '62%', aspectRatio: 1 },
-  photo: { borderTopLeftRadius: RADII.control, overflow: 'hidden' },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.tight },
-  names: { flex: 1, minWidth: 0 },
-  title: { ...type.label, fontSize: 15, lineHeight: 19, color: colors.text },
-  variant: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.subtle },
-  foot: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
+  // Every cut-out leaves its top third empty, so the box tucks up into the
+  // tile's padding and the name sits close under the object.
+  art: { alignSelf: 'center', width: '78%', aspectRatio: 1, marginTop: '-20%', marginBottom: '-9%' },
+  photo: { borderRadius: RADII.chip, overflow: 'hidden', marginTop: 0, marginBottom: 0, aspectRatio: 1.3 },
+  head: { alignItems: 'center' },
+  names: { alignItems: 'center', minWidth: 0 },
+  title: { ...type.label, fontSize: 15, lineHeight: 19, color: colors.text, textAlign: 'center' },
+  variant: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.subtle, textAlign: 'center' },
+  foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: 6 },
+  corner: { position: 'absolute', top: space.snug, right: space.snug, zIndex: 1 },
   // White behind the figures so they stay legible over the drawing.
   pricePill: {
     paddingHorizontal: 8,
