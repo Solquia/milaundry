@@ -23,6 +23,7 @@ import { SpotlightBasket } from '@/components/spotlight-basket';
 import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
+import { ShopPriceGuide } from '@/components/price-guide';
 import { PriceList } from '@/components/web/price-list';
 import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
@@ -181,6 +182,7 @@ function MarketBody({ storefront }: { storefront: Storefront }) {
             onRemove={basket.remove}
             notice={basket.notice}
           />
+          <ShopPriceGuide shopId={shop.id} />
           {tracked ? null : trackBand}
           {reputation && reviews.length > 0 ? (
             <>
@@ -310,6 +312,7 @@ function SpotlightPage({ storefront }: { storefront: Storefront }) {
               onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
             />
           </SpotlightBody>
+          <ShopPriceGuide shopId={shop.id} />
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>Ratings</Text>
@@ -451,6 +454,7 @@ function ClassicBody({ storefront }: { storefront: Storefront }) {
                 : undefined
             }
           />
+          <ShopPriceGuide shopId={shop.id} />
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>

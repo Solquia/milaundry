@@ -17,6 +17,7 @@ import { useClaim } from '@/components/claim';
 import { MarketBasketBar } from '@/components/market-basket-bar';
 import { SpotlightBasket } from '@/components/spotlight-basket';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
+import { ShopPriceGuide } from '@/components/price-guide';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
@@ -458,6 +459,7 @@ export default function CustomerShopHome() {
             />
           ) : null}
         </SpotlightBody>
+        <ShopPriceGuide shopId={id} />
         {ratings}
         {storeInfo}
         <SpotlightBasket
@@ -521,6 +523,7 @@ export default function CustomerShopHome() {
           isDisabled={!isRegistered}
           notice={basket.notice}
         />
+        <ShopPriceGuide shopId={id} />
         {ratings}
         {storeInfo}
       </Screen>
@@ -609,6 +612,9 @@ export default function CustomerShopHome() {
         onBook={handleBook}
         delay={ENTRANCE.list.delay}
       />
+
+      {/* The shop's own wall board, for a shop whose prices go by package and weight. */}
+      <ShopPriceGuide shopId={id} />
 
       {/* Where the shop is, before what people said about it: a customer
           deciding whether to come needs the corner more than the score. */}
