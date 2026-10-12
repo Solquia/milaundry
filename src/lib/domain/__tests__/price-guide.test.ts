@@ -1,4 +1,12 @@
-import { BUBBLY_GAV_SHOP_ID, guideMenu, priceGuideFor, weightLabel, type PriceGuide } from '../price-guide';
+import {
+  BUBBLY_GAV_SHOP_ID,
+  dryCleaningHeading,
+  guideMenu,
+  isFromPrice,
+  priceGuideFor,
+  weightLabel,
+  type PriceGuide,
+} from '../price-guide';
 import type { ServiceCategory } from '../service-catalog';
 import type { PricingUnit } from '../pricing';
 
@@ -35,8 +43,10 @@ const SERVICES = [
   service('Shoe cleaning · Deep', 'special_items', 400, { sort_order: 21 }),
   service('Shoe cleaning · Basic', 'special_items', 250, { sort_order: 20 }),
   service('Helmet cleaning', 'special_items', 200, { sort_order: 24 }),
-  service('Dry cleaning · Barong', 'dry_cleaning', 250, { sort_order: 30 }),
-  service('Gown', 'dry_cleaning', 600, { sort_order: 31 }),
+  service('Long Gown · S', 'dry_cleaning', 400, { sort_order: 100 }),
+  service('Long Gown · M', 'dry_cleaning', 500, { sort_order: 101 }),
+  service('Wedding Dress · Sweep train', 'dry_cleaning', 700, { sort_order: 130 }),
+  service('Leather Jacket · Short', 'dry_cleaning', 200, { sort_order: 150 }),
   service('Dry only', 'other', 90, { sort_order: 40 }),
   service('Spin + dry', 'other', 120, { sort_order: 42 }),
 ];
@@ -117,11 +127,29 @@ describe('guideMenu', () => {
     ]);
   });
 
-  test('dry cleaning is its own list, read by the part after the separator', () => {
-    expect(menu.dryCleaning.map((row) => [row.label, row.service.price])).toEqual([
-      ['Barong', 250],
-      ['Gown', 600],
+  test('dry cleaning is grouped under board headings, each item with its sizes', () => {
+    expect(
+      menu.dryCleaning.map((section) => [
+        section.heading,
+        section.groups.map((group) => [group.name, group.options.map((option) => option.label)]),
+      ])
+    ).toEqual([
+      ['Gowns', [['Long Gown', ['S', 'M']]]],
+      ['Wedding dress', [['Wedding Dress', ['Sweep train']]]],
+      ['Leather jackets', [['Leather Jacket', ['Short']]]],
     ]);
+  });
+
+  test('a board range reads as a "from" price', () => {
+    expect(isFromPrice('₱700 – ₱1,000, depending on size and condition.')).toBe(true);
+    expect(isFromPrice('Large is ₱1,000 and up.')).toBe(true);
+    expect(isFromPrice('Per piece.')).toBe(false);
+  });
+
+  test('dry cleaning headings come from the item name', () => {
+    expect(dryCleaningHeading('Winter Hoodie Jacket')).toBe('Jackets');
+    expect(dryCleaningHeading('Graduation Toga · Kids')).toBe('Graduation toga');
+    expect(dryCleaningHeading('Barong')).toBe('More dry cleaning');
   });
 
   test('drying services are their own list', () => {

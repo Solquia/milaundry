@@ -25,6 +25,7 @@ import {
   guideMenu,
   priceGuideFor,
   weightLabel,
+  isFromPrice,
   type GuidePackageLook,
   type GuideProduct,
   type GuideService,
@@ -370,17 +371,51 @@ function OtherRow<S extends GuideService>({
   group,
   isFirst,
   onBook,
+  icon,
 }: {
   group: MenuGroup<S>;
   isFirst: boolean;
   onBook?: (serviceId: string) => void;
+  icon?: keyof typeof Ionicons.glyphMap;
 }) {
-  const blurb = group.options[0]?.service.description?.trim();
+  // One line for the item, but only when every option says the same thing;
+  // a range that differs by option is shown on its own price instead.
+  const notes = new Set(group.options.map((option) => option.service.description?.trim() ?? ''));
+  const blurb = notes.size === 1 ? [...notes][0] : '';
+  const [only] = group.options;
+  // One price and no grade to choose: the row itself books it, the price at its end.
+  if (group.options.length === 1 && !only.label) {
+    const from = isFromPrice(only.service.description) ? '+' : '';
+    return (
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Book ${only.service.name}, ${money(only.service.price)}`}
+        disabled={!onBook}
+        onPress={onBook ? () => onBook(only.service.id) : undefined}
+        style={({ pressed }) => [styles.otherRow, styles.otherHead, !isFirst && styles.ruled, pressed && styles.pressed]}
+      >
+        <View style={styles.otherBadge}>
+          <Ionicons name={icon ?? serviceIcon(group.name)} size={20} color={colors.actionInk} />
+        </View>
+        <View style={styles.grow}>
+          <Text style={styles.otherName}>{group.name}</Text>
+          {blurb ? (
+            <Text style={styles.caption} numberOfLines={2}>
+              {blurb}
+            </Text>
+          ) : null}
+        </View>
+        <View style={styles.pricePill}>
+          <Text style={styles.pricePillText}>{`${money(only.service.price)}${from}`}</Text>
+        </View>
+      </Pressable>
+    );
+  }
   return (
     <View style={[styles.otherRow, !isFirst && styles.ruled]}>
       <View style={styles.otherHead}>
         <View style={styles.otherBadge}>
-          <Ionicons name={serviceIcon(group.name)} size={20} color={colors.actionInk} />
+          <Ionicons name={icon ?? serviceIcon(group.name)} size={20} color={colors.actionInk} />
         </View>
         <View style={styles.grow}>
           <Text style={styles.otherName}>{group.name}</Text>
@@ -402,7 +437,9 @@ function OtherRow<S extends GuideService>({
             style={({ pressed }) => [styles.tier, pressed && styles.pressed]}
           >
             <Text style={styles.tierName}>{option.label || 'Cleaning'}</Text>
-            <Text style={styles.tierPrice}>{money(option.service.price)}</Text>
+            <Text style={styles.tierPrice}>
+              {`${money(option.service.price)}${isFromPrice(option.service.description) ? '+' : ''}`}
+            </Text>
           </Pressable>
         ))}
       </View>
@@ -442,37 +479,24 @@ function OthersCard<S extends GuideService>({
 }
 
 function DryCleaningCard<S extends GuideService>({
-  rows,
+  sections,
   onBook,
 }: {
-  rows: { label: string; service: S }[];
+  sections: { heading: string; groups: MenuGroup<S>[] }[];
   onBook?: (serviceId: string) => void;
 }) {
-  if (rows.length === 0) return null;
+  if (sections.length === 0) return null;
   return (
     <View style={styles.card}>
-      {rows.map(({ label, service }, index) => (
-        <Pressable
-          key={service.id}
-          accessibilityRole="button"
-          accessibilityLabel={`Book ${service.name}, ${money(service.price)}`}
-          disabled={!onBook}
-          onPress={onBook ? () => onBook(service.id) : undefined}
-          style={({ pressed }) => [styles.cleanRow, index > 0 && styles.ruled, pressed && styles.pressed]}
-        >
-          <View style={styles.otherBadge}>
-            <Ionicons name="shirt-outline" size={20} color={colors.actionInk} />
-          </View>
-          <View style={styles.grow}>
-            <Text style={styles.otherName}>{label}</Text>
-            {service.description ? (
-              <Text style={styles.caption} numberOfLines={2}>
-                {service.description}
-              </Text>
-            ) : null}
-          </View>
-          <Text style={styles.cleanPrice}>{money(service.price)}</Text>
-        </Pressable>
+      {sections.map((section, index) => (
+        <View key={section.heading} style={[styles.cleanSection, index > 0 && styles.ruled]}>
+          <Text style={styles.cleanHeading} accessibilityRole="header">
+            {section.heading.toUpperCase()}
+          </Text>
+          {section.groups.map((group, at) => (
+            <OtherRow key={group.name} group={group} isFirst={at === 0} onBook={onBook} icon="shirt-outline" />
+          ))}
+        </View>
       ))}
     </View>
   );
@@ -603,7 +627,7 @@ export function ShopPriceGuide<S extends GuideService>({
         <>
           <SectionHead
             eyebrow="MORE SERVICES"
-            title="Shoes, caps, bags & more"
+            title="Shoes, caps, toys & more"
             caption="Basic or deep clean — tap a price to book it."
           />
           <OthersCard groups={menu.others} onBook={book} />
@@ -614,9 +638,9 @@ export function ShopPriceGuide<S extends GuideService>({
           <SectionHead
             eyebrow="DRY CLEANING"
             title="Dry cleaning"
-            caption="Barong, suits, gowns and office wear — priced per piece."
+            caption="Gowns, wedding dresses, jackets and togas — tap a size to book."
           />
-          <DryCleaningCard rows={menu.dryCleaning} onBook={book} />
+          <DryCleaningCard sections={menu.dryCleaning} onBook={book} />
         </>
       ) : null}
       {menu.drying.length > 0 ? (
@@ -786,9 +810,11 @@ const styles = StyleSheet.create({
     backgroundColor: colors.actionSurface,
   },
   otherName: { ...type.body, fontFamily: fontFor(700), color: colors.text },
-  tiers: { flexDirection: 'row', gap: space.snug },
+  // Wraps three to a row, so six sizes or seven trains still read as one list.
+  tiers: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   tier: {
-    flex: 1,
+    flexBasis: '30%',
+    flexGrow: 1,
     padding: space.cosy,
     borderRadius: RADII.control,
     borderWidth: 1,
@@ -799,8 +825,15 @@ const styles = StyleSheet.create({
   tierName: { ...type.caption, color: colors.actionInk },
   tierPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
 
-  cleanRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, paddingVertical: space.cosy },
-  cleanPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
+  pricePill: {
+    paddingHorizontal: space.cosy,
+    paddingVertical: space.tight,
+    borderRadius: RADII.pill,
+    backgroundColor: colors.actionSurface,
+  },
+  pricePillText: { ...type.label, fontSize: 16, color: colors.text, fontVariant: ['tabular-nums'] },
+  cleanSection: { paddingTop: space.cosy },
+  cleanHeading: { ...type.caption, fontFamily: fontFor(700), color: colors.actionInk, letterSpacing: 1 },
 
   limits: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   limit: {

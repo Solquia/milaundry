@@ -85,8 +85,8 @@ export interface MenuGroup<S extends GuideService> {
 export interface GuideMenu<S extends GuideService> {
   packages: MenuPackage<S>[];
   others: MenuGroup<S>[];
-  /** Garments by the piece: "Barong", "Suit (2 pcs)". */
-  dryCleaning: { label: string; service: S }[];
+  /** Garments by the piece, under the shop's own board headings: Gowns, Jackets… */
+  dryCleaning: { heading: string; groups: MenuGroup<S>[] }[];
   drying: S[];
 }
 
@@ -116,6 +116,25 @@ function variantKind(name: string): VariantKind {
 /** "Shoe cleaning · Deep", "Shoe cleaning - Deep" */
 const OPTION_SEPARATOR = /\s+[·•|–-]\s+/;
 
+/** The board a dry-cleaning item is printed on, read from its name. */
+const DRY_CLEANING_HEADINGS: readonly [RegExp, string][] = [
+  [/wedding|bridal/i, 'Wedding dress'],
+  [/gown/i, 'Gowns'],
+  [/leather/i, 'Leather jackets'],
+  [/jacket|coat|blazer/i, 'Jackets'],
+  [/toga/i, 'Graduation toga'],
+  [/pants|slacks|trouser/i, 'Pants'],
+];
+
+export function dryCleaningHeading(name: string): string {
+  return DRY_CLEANING_HEADINGS.find(([pattern]) => pattern.test(name))?.[1] ?? 'More dry cleaning';
+}
+
+/** A price the board prints as a range or "and up": the row shows it as "from". */
+export function isFromPrice(description: string | null | undefined): boolean {
+  return /–|and up/i.test(description ?? '');
+}
+
 function bySortThenName<S extends GuideService>(a: S, b: S): number {
   return (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name);
 }
@@ -125,7 +144,7 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
   const byNumber = new Map<number, Map<VariantKind, S>>();
   const others = new Map<string, MenuGroup<S>>();
   const drying: S[] = [];
-  const dryCleaning: { label: string; service: S }[] = [];
+  const dryCleaning = new Map<string, Map<string, MenuGroup<S>>>();
 
   for (const service of [...services].sort(bySortThenName)) {
     const packageNumber = Number(PACKAGE_NAME.exec(service.name)?.[1]);
@@ -142,7 +161,12 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
     }
     const [base, ...rest] = service.name.split(OPTION_SEPARATOR);
     if (service.category === 'dry_cleaning') {
-      dryCleaning.push({ label: rest.join(' ') || base, service });
+      const heading = dryCleaningHeading(service.name);
+      const section = dryCleaning.get(heading) ?? new Map<string, MenuGroup<S>>();
+      const item = section.get(base) ?? { name: base, options: [] };
+      item.options.push({ label: rest.join(' '), service });
+      section.set(base, item);
+      dryCleaning.set(heading, section);
       continue;
     }
     const group = others.get(base) ?? { name: base, options: [] };
@@ -165,7 +189,15 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
           weights: weightBands(readWeightPrices(service.weight_prices)),
         })),
     }));
-  return { packages, others: [...others.values()], dryCleaning, drying };
+  return {
+    packages,
+    others: [...others.values()],
+    dryCleaning: [...dryCleaning.entries()].map(([heading, section]) => ({
+      heading,
+      groups: [...section.values()],
+    })),
+    drying,
+  };
 }
 
 const BUBBLY_GAV: PriceGuide = {
