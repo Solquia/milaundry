@@ -18,7 +18,7 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { MenuBoard, type BoardTint } from './menu-board';
+import { ServiceSteps, type StepTint } from './service-steps';
 import { CROWN, RADII, colors, fontFor, space, type } from './ui-kit';
 import { getShopAddonShelf } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
@@ -31,7 +31,6 @@ import {
   type GuideProduct,
   type GuideService,
   type GuideTone,
-  type MenuGroup,
   type MenuPackage,
   type MenuVariant,
   type VariantKind,
@@ -59,7 +58,6 @@ const PHOTOS: Record<string, ImageSource> = {
   'pc-all-time-fresh': require('../../assets/images/price-guides/bubblygav/pc-all-time-fresh.jpg'),
   'pc-pink': require('../../assets/images/price-guides/bubblygav/pc-pink.jpg'),
   downy: require('../../assets/images/price-guides/bubblygav/downy.jpg'),
-  sneakers: require('../../assets/images/price-guides/bubblygav/sneakers.jpg'),
 };
 
 /** The poster's colours. Every `band` carries white text at 4.5:1 or better. */
@@ -69,7 +67,7 @@ const TONES: Record<GuideTone, { band: string; surface: string; ink: string }> =
   orange: { band: '#C2410C', surface: '#FDEBDD', ink: '#9A3412' },
 };
 
-const BOARD_TINT: BoardTint = { fill: colors.action, ink: colors.actionInk, surface: colors.actionSurface };
+const STEP_TINT: StepTint = { fill: colors.action, ink: colors.actionInk, surface: colors.actionSurface };
 
 const SUN = { surface: '#FFF4CC', ink: '#8A5606', tag: '#1D4E89' };
 const TILE_WIDTH = 84;
@@ -361,40 +359,6 @@ function SectionHead({ eyebrow, title, caption }: { eyebrow: string; title: stri
   );
 }
 
-function OthersCard<S extends GuideService>({
-  groups,
-  onBook,
-}: {
-  groups: MenuGroup<S>[];
-  onBook?: (serviceId: string) => void;
-}) {
-  if (groups.length === 0) return null;
-  return (
-    <View style={[styles.card, styles.cardFlush]}>
-      <View>
-        <Image
-          source={PHOTOS.sneakers}
-          style={styles.banner}
-          contentFit="cover"
-          accessibilityLabel="Muddy sneakers beside the same pair cleaned white"
-        />
-        <View style={styles.bannerTag}>
-          <Text style={styles.bannerTitle}>Restore your style</Text>
-          <Text style={styles.bannerSub}>Tap a price to book it · Drop off today!</Text>
-        </View>
-      </View>
-      <View style={styles.cardBody}>
-        <MenuBoard
-          sections={otherBoards(groups)}
-          tint={BOARD_TINT}
-          onPick={onBook ? (service) => onBook(service.id) : undefined}
-          isFlat
-        />
-      </View>
-    </View>
-  );
-}
-
 function DryingCard<S extends GuideService>({
   rows,
   onBook,
@@ -516,31 +480,35 @@ export function ShopPriceGuide<S extends GuideService>({
           <LoadRules rules={guide.loadRules} />
         </>
       ) : null}
-      {menu.others.length > 0 ? (
-        <>
-          <SectionHead
-            eyebrow="MORE SERVICES"
-            title="Shoes, caps, toys & more"
-            caption="Tap a price to book it."
-          />
-          <OthersCard groups={menu.others} onBook={book} />
-        </>
-      ) : null}
       {menu.dryCleaning.length > 0 ? (
         <>
           <SectionHead
             eyebrow="DRY CLEANING"
             title="Dry cleaning"
-            caption="Pick a board, then tap a size to book it."
+            caption="What needs cleaning? Pick it, then its size."
           />
-          <MenuBoard
+          <ServiceSteps
             sections={menu.dryCleaning.map((section) => ({
               key: section.heading,
               title: section.heading,
               groups: section.groups,
             }))}
-            tint={BOARD_TINT}
-            onPick={book ? (service) => book(service.id) : undefined}
+            tint={STEP_TINT}
+            onBook={book ? (service) => book(service.id) : undefined}
+          />
+        </>
+      ) : null}
+      {menu.others.length > 0 ? (
+        <>
+          <SectionHead
+            eyebrow="MORE SERVICES"
+            title="Shoes, bags, toys & more"
+            caption="Pick what you're bringing, then its size."
+          />
+          <ServiceSteps
+            sections={otherBoards(menu.others)}
+            tint={STEP_TINT}
+            onBook={book ? (service) => book(service.id) : undefined}
           />
         </>
       ) : null}
@@ -684,58 +652,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     overflow: 'hidden',
   },
-  cardFlush: { padding: 0, gap: 0 },
-  cardBody: { paddingHorizontal: space.room, paddingBottom: space.snug },
-
-  banner: { width: '100%', aspectRatio: 640 / 300 },
-  bannerTag: {
-    position: 'absolute',
-    left: space.cosy,
-    bottom: space.cosy,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.snug,
-    borderRadius: RADII.chip,
-    backgroundColor: 'rgba(13, 45, 92, 0.88)',
-  },
-  bannerTitle: { ...type.label, color: colors.onAccent },
-  bannerSub: { ...type.caption, fontSize: 12, color: colors.onAccent },
-
-  otherRow: { gap: space.snug, paddingVertical: space.cosy },
-  otherHead: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  otherBadge: {
-    width: 40,
-    height: 40,
-    borderRadius: RADII.chip,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
-  },
-  otherName: { ...type.body, fontFamily: fontFor(700), color: colors.text },
-  // Wraps three to a row, so six sizes or seven trains still read as one list.
-  tiers: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
-  tier: {
-    flexBasis: '30%',
-    flexGrow: 1,
-    padding: space.cosy,
-    borderRadius: RADII.control,
-    borderWidth: 1,
-    borderColor: colors.actionMuted,
-    backgroundColor: colors.actionSurface,
-    gap: 2,
-  },
-  tierName: { ...type.caption, color: colors.actionInk },
-  tierPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
-
-  pricePill: {
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.tight,
-    borderRadius: RADII.pill,
-    backgroundColor: colors.actionSurface,
-  },
-  pricePillText: { ...type.label, fontSize: 16, color: colors.text, fontVariant: ['tabular-nums'] },
-  cleanSection: { paddingTop: space.cosy },
-  cleanHeading: { ...type.caption, fontFamily: fontFor(700), color: colors.actionInk, letterSpacing: 1 },
-
   limits: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   limit: {
     paddingHorizontal: space.snug,

@@ -47,7 +47,7 @@ import {
 import { Reveal } from '@/components/reveal';
 import type { QuantityTone } from '@/components/quantity-picker';
 import { ScaleSheet } from '@/components/scale-sheet';
-import { MenuBoard } from '@/components/menu-board';
+import { ServiceSteps } from '@/components/service-steps';
 import { hasPriceGuide } from '@/components/price-guide';
 import { ALL_CATEGORIES, CategoryStrip, ServiceMenu } from '@/components/service-menu';
 import { TicketSlip } from '@/components/ticket-slip';
@@ -707,8 +707,8 @@ export default function Pos() {
         </>
       }
     >
-      {/* A shop with a price guide works the counter from its boards — one
-          board at a time, a pill per size — rather than a tile per service. */}
+      {/* A shop with a price guide works the counter in steps — one
+          step at a time, what then which then size — rather than a tile per service. */}
       {hasGuide ? null : (
         <View style={styles.stripWrap}>
           <CategoryStrip groups={groups} active={category} onChange={setCategory} tone={tone} />
@@ -716,13 +716,13 @@ export default function Pos() {
       )}
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         {hasGuide ? (
-          <MenuBoard
+          <ServiceSteps
             sections={counterBoards(guideMenu(services ?? []))}
             tint={{ fill: tone.brand, ink: tone.ink, surface: tone.soft }}
             counts={quantities}
             onPick={handleTile}
             onLess={handleLess}
-            formatCount={(service, count) => (isWeighed(service) ? `${count} kg` : String(count))}
+            formatCount={(service, count) => (isWeighed(service) ? `${count} kg` : `× ${count}`)}
           />
         ) : (
           <ServiceMenu

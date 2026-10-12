@@ -335,6 +335,65 @@ export function otherHeading(name: string): string {
   return OTHER_HEADINGS.find(([pattern]) => pattern.test(name))?.[1] ?? 'More';
 }
 
+/** The cheapest price on a board or under one item: what its card reads "from". */
+export function lowestPrice<S extends GuideService>(groups: readonly MenuGroup<S>[]): number {
+  const prices = groups.flatMap((group) => group.options.map((option) => option.service.price));
+  return prices.length > 0 ? Math.min(...prices) : 0;
+}
+
+export type ItemPhotoKey =
+  | 'wedding'
+  | 'gown'
+  | 'toga'
+  | 'leather'
+  | 'jacket'
+  | 'pants'
+  | 'teddy'
+  | 'helmet'
+  | 'cap'
+  | 'bag'
+  | 'sneakers'
+  | 'bed'
+  | 'sofa'
+  | 'curtain'
+  | 'machine'
+  | 'stack'
+  | 'suit'
+  | 'basket';
+
+const ITEM_PHOTOS: readonly [RegExp, ItemPhotoKey][] = [
+  [/wedding|bridal/i, 'wedding'],
+  [/gown/i, 'gown'],
+  [/toga|graduation/i, 'toga'],
+  [/leather/i, 'leather'],
+  [/jacket|coat|hoodie|blazer/i, 'jacket'],
+  [/pants|maong|jean|denim|slacks|trouser|cargo/i, 'pants'],
+  [/toy|stuffed|teddy|plush/i, 'teddy'],
+  [/helmet/i, 'helmet'],
+  [/\bcaps?\b|\bhats?\b/i, 'cap'],
+  [/bag|backpack/i, 'bag'],
+  [/shoe|sneaker|sapatos/i, 'sneakers'],
+  [/comforter|blanket|duvet|bed|pillow|kumot/i, 'bed'],
+  [/sofa|carpet|couch|rug|mattress/i, 'sofa'],
+  [/curtain|kurtina|drape/i, 'curtain'],
+  [/dry only|spin|drying/i, 'machine'],
+  [/package|wash/i, 'stack'],
+  [/dry cleaning|barong|suit/i, 'suit'],
+];
+
+/**
+ * The real photo for an item, read from the first name that says what it is
+ * — the item's own, then its board's — so an owner's new "Kids Toga" finds
+ * the toga without anyone mapping it.
+ */
+export function itemPhotoKey(...names: readonly string[]): ItemPhotoKey {
+  for (const name of names) {
+    const hit = ITEM_PHOTOS.find(([pattern]) => pattern.test(name));
+    if (hit) return hit[1];
+  }
+  return 'basket';
+}
+
 /** The other services as boards, one per kind, in the order they first appear. */
 export function otherBoards<S extends GuideService>(groups: readonly MenuGroup<S>[]): MenuBoardSection<S>[] {
   const byHeading = new Map<string, MenuGroup<S>[]>();

@@ -5,6 +5,8 @@ import {
   otherHeading,
   guideMenu,
   isFromPrice,
+  itemPhotoKey,
+  lowestPrice,
   priceGuideFor,
   sharedNote,
   weightLabel,
@@ -186,6 +188,29 @@ describe('otherHeading', () => {
     expect(otherHeading('Sofa(2 Seater)')).toBe('Sofa & carpet');
     expect(otherHeading('Stuffed Toy')).toBe('Stuffed toys');
     expect(otherHeading('Curtains')).toBe('More');
+  });
+});
+
+describe('lowestPrice', () => {
+  test('is the cheapest option on the board', () => {
+    expect(lowestPrice(guideMenu(SERVICES).others)).toBe(200);
+    expect(lowestPrice([])).toBe(0);
+  });
+});
+
+describe('itemPhotoKey', () => {
+  test('reads the item name first, then its board', () => {
+    expect(itemPhotoKey('Leather Jacket', 'Jackets')).toBe('leather');
+    expect(itemPhotoKey('Kids', 'Graduation toga')).toBe('toga');
+    expect(itemPhotoKey('Large Ball Gown')).toBe('gown');
+    expect(itemPhotoKey('Wedding Dress')).toBe('wedding');
+    expect(itemPhotoKey('Cap cleaning')).toBe('cap');
+    expect(itemPhotoKey('Spin + dry')).toBe('machine');
+    expect(itemPhotoKey('More dry cleaning')).toBe('suit');
+  });
+
+  test('falls back to the laundry basket', () => {
+    expect(itemPhotoKey('Mystery', 'More')).toBe('basket');
   });
 });
 
