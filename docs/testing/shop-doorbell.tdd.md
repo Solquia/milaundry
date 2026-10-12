@@ -47,7 +47,7 @@ turning the bell back on does not dump a backlog.
 Merchant settings gained a **New-order bell** card: a mute, and
 **Ring the shop**. The test tap unlocks the browser's audio, asks for
 notification permission so a background tab can ring later, plays the
-ding-dong, vibrates on a phone, and shows the same banner a real order
+new-order sound (`assets/sounds/new-order.mp3`, through expo-audio), vibrates on a phone, and shows the same banner a real order
 would. Copy after the tap: "Rang. If you did not hear it, turn the
 volume up."
 
@@ -77,7 +77,7 @@ refresh.
 1. Sign in as the shop.
 2. Open **Settings** (the cog).
 3. Under **New-order bell**, tap **Ring the shop**.
-4. You should hear a ding-dong (web), feel a vibration (phone), and see
+4. You should hear the new-order sound, feel a vibration (phone), and see
    a blue "Test ring" banner.
 5. To prove a real booking: keep the shop signed in, place an order from
    the shop's `/s/<slug>` page on another phone or browser. The shop
@@ -89,7 +89,11 @@ in that tab — that tap is what allows sound on the next real order.
 ## Coverage and known gaps
 
 - Domain module is the tested contract. The speaker (`doorbell-sound.ts`)
-  is not unit-tested: oscillators and `Vibration` are the platform.
+  is not unit-tested: expo-audio and `Vibration` are the platform.
+- 2026-10-12: a shop reported the phone only vibrated. The old tone was
+  drawn with Web Audio, which the native app does not have. The bell now
+  plays a bundled clip through expo-audio (a native module, so it needs
+  app 1.0.4 or later), and it rings with the silent switch on.
 - There is still no push notification when the Android app is killed.
   That needs `expo-notifications` and a new APK. The in-app bell covers
   the counter phone that stays open.

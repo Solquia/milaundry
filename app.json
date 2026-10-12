@@ -2,7 +2,7 @@
   "expo": {
     "name": "Milaundry",
     "slug": "milaundry",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "milaundry",
@@ -108,6 +108,14 @@
         "expo-location",
         {
           "locationWhenInUsePermission": "MiLaundry uses your location to place your shop's pin on the map."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
         }
       ]
     ],
