@@ -28,6 +28,7 @@ import {
   Loading,
   STATUS_LABELS,
   StatusBadge,
+  TAG_TONES,
   colors,
   elevation,
   formatMoney,
@@ -534,6 +535,39 @@ function AttentionBanner({
 }) {
   const isPay = card.kind === 'pay';
 
+  if (isPay) {
+    // A bill is the one thing here the shop is waiting on, so it is dressed
+    // as one: the amber every owed amount wears, the amount at headline size,
+    // and a button that says what pressing it does.
+    return (
+      <LiftPressable
+        accessibilityRole="button"
+        accessibilityLabel={`${card.title}. ${card.body}`}
+        onPress={onPress}
+        style={({ pressed }) => [styles.bill, pressed && { opacity: 0.9 }]}
+      >
+        <View style={styles.billHead}>
+          <View style={styles.billIcon}>
+            <Ionicons name={card.icon as never} size={22} color={colors.onAccent} />
+          </View>
+          <View style={styles.attentionText}>
+            <Text style={styles.billEyebrow}>Payment needed</Text>
+            <Text style={styles.billTitle} numberOfLines={1} adjustsFontSizeToFit>
+              {card.title}
+            </Text>
+          </View>
+        </View>
+        <Text style={styles.billBody}>{card.body}</Text>
+        {card.cta ? (
+          <View style={styles.billButton}>
+            <Text style={styles.billButtonText}>{card.cta}</Text>
+            <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
+          </View>
+        ) : null}
+      </LiftPressable>
+    );
+  }
+
   return (
     <LiftPressable
       accessibilityRole="button"
@@ -888,6 +922,45 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   attentionText: { flex: 1, gap: 2 },
+
+  /** A bill: amber like every owed amount, lifted off the field. */
+  bill: {
+    gap: space.cosy,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: '#F2C46B',
+    backgroundColor: TAG_TONES.owed.bg,
+    padding: space.cosy,
+    ...elevation.lift,
+  },
+  billHead: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
+  billIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.moneyOut,
+  },
+  billEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: TAG_TONES.owed.ink,
+  },
+  billTitle: { fontSize: 24, fontWeight: '800', color: colors.text },
+  billBody: { fontSize: 14, lineHeight: 20, color: colors.text },
+  billButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: space.tight,
+    minHeight: 48,
+    borderRadius: 999,
+    backgroundColor: colors.action,
+  },
+  billButtonText: { fontSize: 16, fontWeight: '700', color: colors.onAccent },
   attentionTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
   attentionBody: { fontSize: 13, color: colors.subtle },
 

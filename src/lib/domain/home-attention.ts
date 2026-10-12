@@ -43,6 +43,8 @@ export interface AttentionCard {
   body: string;
   /** Ionicons glyph. */
   icon: string;
+  /** The button on a bill: what pressing the card will let them do. */
+  cta: string | null;
 }
 
 function cardFor(order: AttentionOrder): AttentionCard | null {
@@ -56,6 +58,7 @@ function cardFor(order: AttentionOrder): AttentionCard | null {
         title: `${formatMoney(order.final_total ?? 0)} to pay`,
         body: `${order.shopName} checked your laundry — see the photo and pay online so they can start washing.`,
         icon: 'cash-outline',
+        cta: 'Pay now',
       };
     case 'awaiting_counter':
       return {
@@ -64,6 +67,7 @@ function cardFor(order: AttentionOrder): AttentionCard | null {
         title: `${formatMoney(order.final_total ?? 0)} to pay`,
         body: `Pay ${order.shopName} at the counter when you collect your laundry.`,
         icon: 'cash-outline',
+        cta: 'How to pay',
       };
     case 'submitted':
       return {
@@ -72,6 +76,7 @@ function cardFor(order: AttentionOrder): AttentionCard | null {
         title: 'Receipt sent',
         body: `${order.shopName} is checking your receipt.`,
         icon: 'hourglass-outline',
+        cta: null,
       };
     default:
       return null;
