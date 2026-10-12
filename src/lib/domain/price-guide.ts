@@ -85,6 +85,8 @@ export interface MenuGroup<S extends GuideService> {
 export interface GuideMenu<S extends GuideService> {
   packages: MenuPackage<S>[];
   others: MenuGroup<S>[];
+  /** Garments by the piece: "Barong", "Suit (2 pcs)". */
+  dryCleaning: { label: string; service: S }[];
   drying: S[];
 }
 
@@ -102,7 +104,7 @@ const FABRIC_WORDS = /maong|jean|denim|cargo|jacket|pants/i;
 
 const VARIANTS: Record<VariantKind, { title: string; usualLoadKg: number; order: number }> = {
   clothes: { title: 'Regular clothes', usualLoadKg: 8, order: 0 },
-  fabrics: { title: 'Maong, cargo & jackets', usualLoadKg: 4, order: 1 },
+  fabrics: { title: 'Maong, cargo & jackets', usualLoadKg: 8, order: 1 },
   beddings: { title: 'Beddings & towels', usualLoadKg: 4, order: 2 },
 };
 
@@ -123,6 +125,7 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
   const byNumber = new Map<number, Map<VariantKind, S>>();
   const others = new Map<string, MenuGroup<S>>();
   const drying: S[] = [];
+  const dryCleaning: { label: string; service: S }[] = [];
 
   for (const service of [...services].sort(bySortThenName)) {
     const packageNumber = Number(PACKAGE_NAME.exec(service.name)?.[1]);
@@ -138,6 +141,10 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
       continue;
     }
     const [base, ...rest] = service.name.split(OPTION_SEPARATOR);
+    if (service.category === 'dry_cleaning') {
+      dryCleaning.push({ label: rest.join(' ') || base, service });
+      continue;
+    }
     const group = others.get(base) ?? { name: base, options: [] };
     group.options.push({ label: rest.join(' '), service });
     others.set(base, group);
@@ -158,7 +165,7 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
           weights: weightBands(readWeightPrices(service.weight_prices)),
         })),
     }));
-  return { packages, others: [...others.values()], drying };
+  return { packages, others: [...others.values()], dryCleaning, drying };
 }
 
 const BUBBLY_GAV: PriceGuide = {

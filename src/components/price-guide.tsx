@@ -441,6 +441,43 @@ function OthersCard<S extends GuideService>({
   );
 }
 
+function DryCleaningCard<S extends GuideService>({
+  rows,
+  onBook,
+}: {
+  rows: { label: string; service: S }[];
+  onBook?: (serviceId: string) => void;
+}) {
+  if (rows.length === 0) return null;
+  return (
+    <View style={styles.card}>
+      {rows.map(({ label, service }, index) => (
+        <Pressable
+          key={service.id}
+          accessibilityRole="button"
+          accessibilityLabel={`Book ${service.name}, ${money(service.price)}`}
+          disabled={!onBook}
+          onPress={onBook ? () => onBook(service.id) : undefined}
+          style={({ pressed }) => [styles.cleanRow, index > 0 && styles.ruled, pressed && styles.pressed]}
+        >
+          <View style={styles.otherBadge}>
+            <Ionicons name="shirt-outline" size={20} color={colors.actionInk} />
+          </View>
+          <View style={styles.grow}>
+            <Text style={styles.otherName}>{label}</Text>
+            {service.description ? (
+              <Text style={styles.caption} numberOfLines={2}>
+                {service.description}
+              </Text>
+            ) : null}
+          </View>
+          <Text style={styles.cleanPrice}>{money(service.price)}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
 function DryingCard<S extends GuideService>({
   rows,
   onBook,
@@ -570,6 +607,16 @@ export function ShopPriceGuide<S extends GuideService>({
             caption="Basic or deep clean — tap a price to book it."
           />
           <OthersCard groups={menu.others} onBook={book} />
+        </>
+      ) : null}
+      {menu.dryCleaning.length > 0 ? (
+        <>
+          <SectionHead
+            eyebrow="DRY CLEANING"
+            title="Dry cleaning"
+            caption="Barong, suits, gowns and office wear — priced per piece."
+          />
+          <DryCleaningCard rows={menu.dryCleaning} onBook={book} />
         </>
       ) : null}
       {menu.drying.length > 0 ? (
@@ -751,6 +798,9 @@ const styles = StyleSheet.create({
   },
   tierName: { ...type.caption, color: colors.actionInk },
   tierPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
+
+  cleanRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, paddingVertical: space.cosy },
+  cleanPrice: { ...type.value, color: colors.text, fontVariant: ['tabular-nums'] },
 
   limits: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   limit: {

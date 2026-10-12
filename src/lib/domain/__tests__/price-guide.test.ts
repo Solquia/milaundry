@@ -35,6 +35,8 @@ const SERVICES = [
   service('Shoe cleaning · Deep', 'special_items', 400, { sort_order: 21 }),
   service('Shoe cleaning · Basic', 'special_items', 250, { sort_order: 20 }),
   service('Helmet cleaning', 'special_items', 200, { sort_order: 24 }),
+  service('Dry cleaning · Barong', 'dry_cleaning', 250, { sort_order: 30 }),
+  service('Gown', 'dry_cleaning', 600, { sort_order: 31 }),
   service('Dry only', 'other', 90, { sort_order: 40 }),
   service('Spin + dry', 'other', 120, { sort_order: 42 }),
 ];
@@ -112,6 +114,13 @@ describe('guideMenu', () => {
         ],
       ],
       ['Helmet cleaning', [['', 200]]],
+    ]);
+  });
+
+  test('dry cleaning is its own list, read by the part after the separator', () => {
+    expect(menu.dryCleaning.map((row) => [row.label, row.service.price])).toEqual([
+      ['Barong', 250],
+      ['Gown', 600],
     ]);
   });
 
