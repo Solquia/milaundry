@@ -31,9 +31,12 @@ import {
   type GuideTone,
   type MenuGroup,
   type MenuPackage,
+  type MenuVariant,
+  type VariantKind,
   type PriceGuide,
 } from '@/lib/domain/price-guide';
 import { ADDON_KIND_SHORT, groupAddons, type ShopAddon } from '@/lib/domain/shop-addons';
+import type { WeightBand } from '@/lib/domain/weight-prices';
 
 const PHOTOS: Record<string, ImageSource> = {
   'membership-value': require('../../assets/images/price-guides/bubblygav/membership-value.jpg'),
@@ -66,9 +69,9 @@ const TONES: Record<GuideTone, { band: string; surface: string; ink: string }> =
 
 const SUN = { surface: '#FFF4CC', ink: '#8A5606', tag: '#1D4E89' };
 const TILE_WIDTH = 84;
-const BEDDING_LOAD_KG = 4;
+/** A load runs this far over its limit for an excess fee before the shop splits it. */
+const SPLIT_AT = 1.25;
 
-type Load = 'clothes' | 'beddings';
 
 /** An icon for a cleaning service by what it cleans; a bag where nothing matches. */
 function serviceIcon(name: string): keyof typeof Ionicons.glyphMap {
@@ -134,7 +137,7 @@ function PackageTabs<S extends GuideService>({
         const tone = TONES[look.tone];
         const isPicked = index === picked;
         const ink = isPicked ? colors.onAccent : tone.ink;
-        const price = menu.clothes?.price ?? menu.beddings?.price ?? 0;
+        const price = menu.variants[0]?.service.price ?? 0;
         return (
           <Pressable
             key={look.number}
@@ -158,23 +161,22 @@ function PackageTabs<S extends GuideService>({
   );
 }
 
-function LoadChoice({
+function LoadChoice<S extends GuideService>({
+  variants,
   value,
   onChange,
   tone,
-  clothesPrice,
-  beddingsPrice,
 }: {
-  value: Load;
-  onChange: (load: Load) => void;
+  variants: MenuVariant<S>[];
+  value: VariantKind;
+  onChange: (kind: VariantKind) => void;
   tone: (typeof TONES)[GuideTone];
-  clothesPrice: number;
-  beddingsPrice: number;
 }) {
-  const options: { key: Load; title: string; meta: string }[] = [
-    { key: 'clothes', title: 'Regular clothes', meta: `${money(clothesPrice)} · up to 8 kg a load` },
-    { key: 'beddings', title: 'Beddings & towels', meta: `${money(beddingsPrice)} · up to ${BEDDING_LOAD_KG} kg a load` },
-  ];
+  const options = variants.map((variant) => ({
+    key: variant.kind,
+    title: variant.title,
+    meta: `${money(variant.service.price)} · up to ${variant.perLoadKg} kg a load`,
+  }));
   return (
     <View style={styles.strip}>
       <Text style={styles.stripTitle}>What are we washing?</Text>
@@ -210,7 +212,25 @@ function LoadChoice({
   );
 }
 
-function WeightTable({ weights, tone }: { weights: MenuPackage<GuideService>['weights']; tone: (typeof TONES)[GuideTone] }) {
+/**
+ * How many machines a band fills. The shop runs one load a little over its
+ * limit for an excess fee (8 kg loads up to 9.5 kg), and splits only past a
+ * quarter over (10 kg for an 8 kg load, 5 kg for a 4 kg one).
+ */
+function loadsFor(band: WeightBand, perLoadKg: number): number {
+  if (band.from < perLoadKg * SPLIT_AT) return 1;
+  return Math.max(2, Math.ceil(band.to / perLoadKg));
+}
+
+function WeightTable({
+  weights,
+  perLoadKg,
+  tone,
+}: {
+  weights: WeightBand[];
+  perLoadKg: number;
+  tone: (typeof TONES)[GuideTone];
+}) {
   if (weights.length === 0) return null;
   return (
     <View style={styles.strip}>
@@ -218,19 +238,19 @@ function WeightTable({ weights, tone }: { weights: MenuPackage<GuideService>['we
       <View style={[styles.table, { borderColor: tone.surface }]}>
         {weights.map((band, index) => {
           const label = weightLabel(band);
-          // The shop splits a load at 10 kg; the row says so where the price jumps.
-          const isSplit = band.from >= 10;
+          const loads = loadsFor(band, perLoadKg);
+          const isSplit = loads > 1;
           return (
             <View
               key={label}
               accessible
-              accessibilityLabel={`${label}${isSplit ? ', 2 loads' : ''}, ${money(band.price)}`}
+              accessibilityLabel={`${label}${isSplit ? `, ${loads} loads` : ''}, ${money(band.price)}`}
               style={[styles.tableRow, index > 0 && styles.ruled, isSplit && { backgroundColor: tone.surface }]}
             >
               <Text style={styles.tableWeight}>{label}</Text>
               {isSplit ? (
                 <View style={[styles.loads, { borderColor: tone.ink }]}>
-                  <Text style={[styles.loadsText, { color: tone.ink }]}>2 loads</Text>
+                  <Text style={[styles.loadsText, { color: tone.ink }]}>{`${loads} loads`}</Text>
                 </View>
               ) : null}
               <Text style={styles.tablePrice}>{money(band.price)}</Text>
@@ -276,16 +296,14 @@ function PackagePanel<S extends GuideService>({
   onBook,
 }: {
   view: PackageView<S>;
-  load: Load;
-  onLoad: (load: Load) => void;
+  load: VariantKind;
+  onLoad: (load: VariantKind) => void;
   onBook?: (serviceId: string) => void;
 }) {
   const { look, menu } = view;
   const tone = TONES[look.tone];
-  const hasChoice = Boolean(menu.clothes && menu.beddings);
-  const effective: Load = hasChoice ? load : menu.clothes ? 'clothes' : 'beddings';
-  const chosen = effective === 'clothes' ? menu.clothes : menu.beddings;
-  const loadKg = effective === 'clothes' ? 8 : chosen?.max_quantity || BEDDING_LOAD_KG;
+  const variant = menu.variants.find((entry) => entry.kind === load) ?? menu.variants[0];
+  const chosen = variant?.service;
   return (
     <View style={[styles.panel, { borderColor: tone.band }]}>
       <View style={[styles.panelBand, { backgroundColor: tone.band }]}>
@@ -296,26 +314,20 @@ function PackagePanel<S extends GuideService>({
         {chosen ? (
           <View style={styles.panelPriceWrap}>
             <Text style={styles.panelPrice}>{money(chosen.price)}</Text>
-            <Text style={styles.panelUnit}>{`per load · up to ${loadKg} kg`}</Text>
+            <Text style={styles.panelUnit}>{`per load · up to ${variant.perLoadKg} kg`}</Text>
           </View>
         ) : null}
       </View>
       <View style={styles.panelBody}>
-        {hasChoice ? (
-          <LoadChoice
-            value={effective}
-            onChange={onLoad}
-            tone={tone}
-            clothesPrice={menu.clothes?.price ?? 0}
-            beddingsPrice={menu.beddings?.price ?? 0}
-          />
+        {menu.variants.length > 1 ? (
+          <LoadChoice variants={menu.variants} value={variant.kind} onChange={onLoad} tone={tone} />
         ) : null}
         <ProductStrip title={look.detergentTitle} products={look.detergents} />
         <ProductStrip title="Choose your fabric conditioner" products={look.fabcons} />
-        {effective === 'clothes' ? <WeightTable weights={menu.weights} tone={tone} /> : null}
+        {variant ? <WeightTable weights={variant.weights} perLoadKg={variant.perLoadKg} tone={tone} /> : null}
         {chosen ? (
           <BookButton
-            label={`Book Package ${look.number} · ${effective === 'clothes' ? 'Clothes' : 'Beddings'}`}
+            label={`Book Package ${look.number} · ${variant.title}`}
             fill={tone.band}
             onPress={onBook ? () => onBook(chosen.id) : undefined}
           />
@@ -517,7 +529,7 @@ export function ShopPriceGuide<S extends GuideService>({
 }) {
   const guide = priceGuideFor(shopId);
   const [picked, setPicked] = useState(0);
-  const [load, setLoad] = useState<Load>('clothes');
+  const [load, setLoad] = useState<VariantKind>('clothes');
   // Shares the booking page's key, so a customer who goes on to book reads the cache.
   const shelf = useQuery({
     queryKey: ['shop-addon-shelf', shopId],
@@ -530,7 +542,7 @@ export function ShopPriceGuide<S extends GuideService>({
   const menu = guideMenu(services);
   const packages = guide.packages.flatMap((look) => {
     const entry = menu.packages.find((pack) => pack.number === look.number);
-    return entry && (entry.clothes || entry.beddings) ? [{ look, menu: entry }] : [];
+    return entry && entry.variants.length > 0 ? [{ look, menu: entry }] : [];
   });
   const view = packages[picked] ?? packages[0];
   const book = onBook

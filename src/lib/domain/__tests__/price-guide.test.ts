@@ -29,6 +29,7 @@ const SERVICES = [
       { up_to_kg: 10, price: 350 },
     ],
   }),
+  service('Package 1 (Maong Pants/Cargo Short/Jackets)', 'wash_fold', 185, { max_quantity: 4 }),
   service('Package 1 Wash Dry Fold', 'wash_fold', 185),
   service('Package 1 Beddings', 'special_items', 185, { max_quantity: 4 }),
   service('Shoe cleaning · Deep', 'special_items', 400, { sort_order: 21 }),
@@ -71,19 +72,32 @@ describe('weightLabel', () => {
 describe('guideMenu', () => {
   const menu = guideMenu(SERVICES);
 
-  test('packages are numbered, in order, each with its clothes and bedding services', () => {
-    expect(menu.packages.map((pack) => [pack.number, pack.clothes?.name, pack.beddings?.name])).toEqual([
-      [1, 'Package 1 Wash Dry Fold', 'Package 1 Beddings'],
-      [2, 'Package 2 Wash Dry Fold', undefined],
+  test('packages are numbered, in order, each with its variants in a fixed order', () => {
+    expect(
+      menu.packages.map((pack) => [pack.number, pack.variants.map((variant) => [variant.kind, variant.service.name])])
+    ).toEqual([
+      [
+        1,
+        [
+          ['clothes', 'Package 1 Wash Dry Fold'],
+          ['fabrics', 'Package 1 (Maong Pants/Cargo Short/Jackets)'],
+          ['beddings', 'Package 1 Beddings'],
+        ],
+      ],
+      [2, [['clothes', 'Package 2 Wash Dry Fold']]],
     ]);
   });
 
-  test("a package's weight table comes from its clothes service", () => {
-    expect(menu.packages[1].weights).toEqual([
+  test("each variant carries its own service's weight table and load size", () => {
+    const [two] = menu.packages[1].variants;
+    expect(two.weights).toEqual([
       { from: 0, to: 8, price: 210 },
       { from: 8.5, to: 10, price: 350 },
     ]);
-    expect(menu.packages[0].weights).toEqual([]);
+    expect(two.perLoadKg).toBe(8);
+    const fabrics = menu.packages[0].variants[1];
+    expect(fabrics.perLoadKg).toBe(4);
+    expect(fabrics.weights).toEqual([]);
   });
 
   test('other services group their Basic and Deep options under one name', () => {

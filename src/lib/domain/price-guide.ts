@@ -57,13 +57,22 @@ export interface GuideService {
   weight_prices?: readonly WeightPrice[];
 }
 
+/** What goes in the machine: each is its own service, load size and table. */
+export type VariantKind = 'clothes' | 'fabrics' | 'beddings';
+
+export interface MenuVariant<S extends GuideService> {
+  kind: VariantKind;
+  title: string;
+  service: S;
+  /** How much one load holds: the service's own limit, else the kind's usual. */
+  perLoadKg: number;
+  weights: WeightBand[];
+}
+
 export interface MenuPackage<S extends GuideService> {
   number: number;
-  /** Regular clothes, weighed. */
-  clothes?: S;
-  /** Beddings and towels, by the load. */
-  beddings?: S;
-  weights: WeightBand[];
+  /** Regular clothes, then heavy fabrics, then beddings — whichever the shop sells. */
+  variants: MenuVariant<S>[];
 }
 
 export interface MenuGroup<S extends GuideService> {
@@ -88,6 +97,20 @@ export function weightLabel({ from, to }: { from: number; to: number }): string 
 
 const PACKAGE_NAME = /^package\s*(\d+)/i;
 const BEDDING_WORDS = /bed|towel|linen|kumot/i;
+/** Denim and jackets: heavy in the drum, so the shop loads them lighter. */
+const FABRIC_WORDS = /maong|jean|denim|cargo|jacket|pants/i;
+
+const VARIANTS: Record<VariantKind, { title: string; usualLoadKg: number; order: number }> = {
+  clothes: { title: 'Regular clothes', usualLoadKg: 8, order: 0 },
+  fabrics: { title: 'Maong, cargo & jackets', usualLoadKg: 4, order: 1 },
+  beddings: { title: 'Beddings & towels', usualLoadKg: 4, order: 2 },
+};
+
+function variantKind(name: string): VariantKind {
+  if (BEDDING_WORDS.test(name)) return 'beddings';
+  if (FABRIC_WORDS.test(name)) return 'fabrics';
+  return 'clothes';
+}
 /** "Shoe cleaning · Deep", "Shoe cleaning - Deep" */
 const OPTION_SEPARATOR = /\s+[·•|–-]\s+/;
 
@@ -97,16 +120,16 @@ function bySortThenName<S extends GuideService>(a: S, b: S): number {
 
 /** The shop's services, sorted into the guide's three sections. */
 export function guideMenu<S extends GuideService>(services: readonly S[]): GuideMenu<S> {
-  const byNumber = new Map<number, MenuPackage<S>>();
+  const byNumber = new Map<number, Map<VariantKind, S>>();
   const others = new Map<string, MenuGroup<S>>();
   const drying: S[] = [];
 
   for (const service of [...services].sort(bySortThenName)) {
     const packageNumber = Number(PACKAGE_NAME.exec(service.name)?.[1]);
     if (packageNumber > 0) {
-      const entry = byNumber.get(packageNumber) ?? { number: packageNumber, weights: [] };
-      if (BEDDING_WORDS.test(service.name)) entry.beddings ??= service;
-      else entry.clothes ??= service;
+      const entry = byNumber.get(packageNumber) ?? new Map<VariantKind, S>();
+      const kind = variantKind(service.name);
+      if (!entry.has(kind)) entry.set(kind, service);
       byNumber.set(packageNumber, entry);
       continue;
     }
@@ -120,9 +143,21 @@ export function guideMenu<S extends GuideService>(services: readonly S[]): Guide
     others.set(base, group);
   }
 
-  const packages = [...byNumber.values()]
-    .sort((a, b) => a.number - b.number)
-    .map((entry) => ({ ...entry, weights: weightBands(readWeightPrices(entry.clothes?.weight_prices)) }));
+  const packages = [...byNumber.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([number, entry]) => ({
+      number,
+      variants: [...entry.entries()]
+        .sort(([a], [b]) => VARIANTS[a].order - VARIANTS[b].order)
+        .map(([kind, service]) => ({
+          kind,
+          title: VARIANTS[kind].title,
+          service,
+          perLoadKg:
+            Number(service.max_quantity) > 0 ? Number(service.max_quantity) : VARIANTS[kind].usualLoadKg,
+          weights: weightBands(readWeightPrices(service.weight_prices)),
+        })),
+    }));
   return { packages, others: [...others.values()], drying };
 }
 
