@@ -55,19 +55,16 @@ export async function uploadImage(
   //
   // How the bytes get attached differs by platform, and not for tidiness:
   // React Native's Blob cannot be built from an ArrayBuffer — it accepts only
-  // strings and other Blobs, and quietly stringifies anything else. That is the
-  // same shape of failure as the 14-byte photo, so on a device the file is
-  // handed to the native networking layer by uri and it streams it itself. The
-  // read above still happens, because it is what makes an unreadable file loud.
+  // strings and other Blobs, and quietly stringifies anything else. Nor can the
+  // part be a `{ uri }` object any more: since SDK 57 the global `fetch` is
+  // `expo/fetch`, whose multipart encoder refuses it ("Unsupported FormDataPart
+  // implementation"). What it does accept is any object with `bytes()`, so on a
+  // device the bytes already read and checked above are handed over that way.
   const fileName = credentials.uploadPayload.fileName;
   if (Platform.OS === 'web') {
     form.append('file', new Blob([bytes], { type: contentType }), fileName);
   } else {
-    form.append('file', {
-      uri: localUri,
-      name: fileName,
-      type: contentType,
-    } as unknown as Blob);
+    form.append('file', bytesPart(bytes, fileName, contentType));
   }
 
   const response = await fetch(IMAGEKIT_UPLOAD_URL, { method: 'POST', body: form });
@@ -80,6 +77,19 @@ export async function uploadImage(
     );
   }
   return parseUploadResponse(body);
+}
+
+/**
+ * A file part `expo/fetch` can encode: it reads `name` and `type` for the part
+ * headers and awaits `bytes()` for the body.
+ */
+function bytesPart(bytes: ArrayBuffer, name: string, type: string): Blob {
+  return {
+    name,
+    type,
+    size: bytes.byteLength,
+    bytes: async () => new Uint8Array(bytes),
+  } as unknown as Blob;
 }
 
 /**
