@@ -18,6 +18,15 @@ const NEW_ORDER_SOUND = require('../../assets/sounds/new-order.mp3');
 
 const RING_PATTERN = [0, 180, 80, 180, 80, 420];
 
+/**
+ * The clip is under a second, easy to miss over running machines, so one new
+ * order rings it three times. The gap is the clip's length plus a breath.
+ */
+const RING_COUNT = 3;
+const RING_GAP_MS = 1100;
+
+let pendingRings: ReturnType<typeof setTimeout>[] = [];
+
 let player: AudioPlayer | null = null;
 let modeSet = false;
 
@@ -53,6 +62,11 @@ export function unlockDoorbell(): void {
 }
 
 export function playDoorbell(): void {
+  // A second order mid-ring starts the run over rather than talking over it.
+  pendingRings.forEach(clearTimeout);
+  pendingRings = Array.from({ length: RING_COUNT - 1 }, (_, i) =>
+    setTimeout(() => void playChime().catch(() => undefined), RING_GAP_MS * (i + 1))
+  );
   void playChime().catch(() => undefined);
   try {
     if (Platform.OS !== 'web') Vibration.vibrate(RING_PATTERN);
