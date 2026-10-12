@@ -15,6 +15,7 @@ export interface WashCycleStage {
  */
 export const WASH_CYCLE_STAGES: readonly WashCycleStage[] = [
   { status: 'received', label: 'Received', icon: 'basket-outline' },
+  { status: 'sorting', label: 'Sorting', icon: 'shirt-outline' },
   { status: 'washing', label: 'Washing', icon: 'water-outline' },
   { status: 'drying', label: 'Drying', icon: 'sunny-outline' },
   { status: 'folded', label: 'Folded', icon: 'layers-outline' },
@@ -69,9 +70,9 @@ export interface CycleStanding {
  * The cycle as a position rather than a percentage.
  *
  * A percentage is an abstraction of something the customer can already count:
- * there are five stages, and their laundry is at one of them. "Step 3 of 5"
+ * there are six stages, and their laundry is at one of them. "Step 4 of 6"
  * says how much is left in the same terms the tracker's dots are drawn in,
- * which an unlabelled 60% arc does not.
+ * which an unlabelled 67% arc does not.
  */
 export function cycleStanding(status: OrderStatus): CycleStanding {
   const total = WASH_CYCLE_STAGES.length;

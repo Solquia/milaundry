@@ -109,10 +109,11 @@ describe('statusWord', () => {
 });
 
 describe('ringProgress', () => {
-  it('fills the ring a fifth per stage, empty before the shop has it', () => {
+  it('fills the ring a sixth per stage, empty before the shop has it', () => {
     expect(ringProgress('pending')).toBe(0);
-    expect(ringProgress('received')).toBeCloseTo(0.2);
-    expect(ringProgress('washing')).toBeCloseTo(0.4);
+    expect(ringProgress('received')).toBeCloseTo(1 / 6);
+    expect(ringProgress('sorting')).toBeCloseTo(2 / 6);
+    expect(ringProgress('washing')).toBeCloseTo(3 / 6);
     expect(ringProgress('ready')).toBe(1);
     expect(ringProgress('completed')).toBe(1);
     expect(ringProgress('cancelled')).toBe(0);

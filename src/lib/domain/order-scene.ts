@@ -28,6 +28,7 @@ export function orderScene(status: OrderStatus, fulfillment: Fulfillment): Order
   switch (status) {
     case 'pending':
     case 'received':
+    case 'sorting':
       return 'basket';
     case 'washing':
     case 'drying':

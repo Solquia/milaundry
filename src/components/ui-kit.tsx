@@ -282,6 +282,7 @@ export { CROWN, RADII, fontFor };
 export const STATUS_COLORS: Record<OrderStatus, string> = {
   pending: '#5A6B7D',
   received: '#1370CE',
+  sorting: '#4F46E5',
   washing: '#6D3FD4',
   drying: '#C2410C',
   folded: '#0E7490',

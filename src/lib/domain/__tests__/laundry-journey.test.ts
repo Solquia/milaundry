@@ -7,9 +7,10 @@ function order(status: Parameters<typeof laundryJourney>[0]['status'], fulfillme
 }
 
 describe('laundryJourney', () => {
-  it('walks seven stops and lights the one the laundry is at', () => {
+  it('walks eight stops and lights the one the laundry is at', () => {
     const journey = laundryJourney(order('drying'), []);
     expect(journey.stops.map((stop) => stop.state)).toEqual([
+      'done',
       'done',
       'done',
       'done',
@@ -18,19 +19,21 @@ describe('laundryJourney', () => {
       'upcoming',
       'upcoming',
     ]);
-    expect(journey.currentIndex).toBe(3);
+    expect(journey.currentIndex).toBe(4);
     expect(journey.current?.label).toBe('Drying');
   });
 
   it('stamps each stop with the last time the shop moved the order there', () => {
     const journey = laundryJourney(order('washing'), [
       { to_status: 'received', created_at: '2026-09-22T11:20:00.000Z' },
+      { to_status: 'sorting', created_at: '2026-09-22T11:30:00.000Z' },
       { to_status: 'washing', created_at: '2026-09-22T11:45:00.000Z' },
     ]);
     const reached = journey.stops.map((stop) => stop.reachedAt);
-    expect(reached.slice(0, 4)).toEqual([
+    expect(reached.slice(0, 5)).toEqual([
       BOOKED,
       '2026-09-22T11:20:00.000Z',
+      '2026-09-22T11:30:00.000Z',
       '2026-09-22T11:45:00.000Z',
       null,
     ]);
@@ -69,9 +72,18 @@ describe('laundryJourney', () => {
     expect(journey.headline).toBe('This order was cancelled');
   });
 
-  it('counts the wash cycle for the customer, not the seven stops', () => {
+  it('counts the wash cycle for the customer, not the eight stops', () => {
     expect(laundryJourney(order('pending'), []).standing).toBe('Not started yet');
-    expect(laundryJourney(order('folded'), []).standing).toBe('Step 4 of 5');
+    expect(laundryJourney(order('folded'), []).standing).toBe('Step 5 of 6');
+  });
+
+  it('shows sorting as its own stop, between the shop taking the laundry and the wash', () => {
+    const journey = laundryJourney(order('sorting'), []);
+    expect(journey.current?.label).toBe('Sorting');
+    expect(journey.current?.icon).toBe('shirt-outline');
+    expect(journey.current?.blurb).toBe('Sorted by colour and fabric before the wash.');
+    expect(journey.nextUp).toBe('Washing');
+    expect(laundryJourney(order('received'), []).nextUp).toBe('Sorting');
   });
 
   it('explains every stop in words', () => {

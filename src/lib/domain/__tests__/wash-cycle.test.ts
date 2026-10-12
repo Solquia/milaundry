@@ -3,18 +3,22 @@ import { WASH_CYCLE_STAGES, cycleStanding, washCycleProgress } from '../wash-cyc
 describe('cycleStanding', () => {
   it('counts the stage out of the whole cycle, so progress is a position', () => {
     expect(cycleStanding('drying')).toMatchObject({
-      position: 3,
-      total: 5,
-      caption: 'Step 3 of 5',
+      position: 4,
+      total: 6,
+      caption: 'Step 4 of 6',
     });
   });
 
   it('starts counting at the first stage of the cycle', () => {
-    expect(cycleStanding('received').caption).toBe('Step 1 of 5');
+    expect(cycleStanding('received').caption).toBe('Step 1 of 6');
+  });
+
+  it('counts sorting as its own step, between intake and the wash', () => {
+    expect(cycleStanding('sorting')).toMatchObject({ position: 2, caption: 'Step 2 of 6' });
   });
 
   it('reaches the last step without overshooting it', () => {
-    expect(cycleStanding('ready')).toMatchObject({ position: 5, caption: 'Step 5 of 5' });
+    expect(cycleStanding('ready')).toMatchObject({ position: 6, caption: 'Step 6 of 6' });
   });
 
   it('says a booking has not started rather than calling it step zero', () => {
@@ -25,7 +29,7 @@ describe('cycleStanding', () => {
   });
 
   it('reports a finished load as done, not as a step', () => {
-    expect(cycleStanding('completed')).toMatchObject({ position: 5, caption: 'All done' });
+    expect(cycleStanding('completed')).toMatchObject({ position: 6, caption: 'All done' });
   });
 
   it('does not count a cancelled load through a cycle it left', () => {
@@ -41,7 +45,7 @@ describe('cycleStanding', () => {
   });
 
   it('knows nothing is turning while the laundry only sits there', () => {
-    for (const status of ['pending', 'received', 'folded', 'ready', 'completed'] as const) {
+    for (const status of ['pending', 'received', 'sorting', 'folded', 'ready', 'completed'] as const) {
       expect(cycleStanding(status).isRunning).toBe(false);
     }
   });
@@ -56,11 +60,16 @@ describe('WASH_CYCLE_STAGES', () => {
   it('walks the laundry from intake to ready in order', () => {
     expect(WASH_CYCLE_STAGES.map((stage) => stage.status)).toEqual([
       'received',
+      'sorting',
       'washing',
       'drying',
       'folded',
       'ready',
     ]);
+  });
+
+  it('shows sorting with its own label and icon', () => {
+    expect(WASH_CYCLE_STAGES[1]).toEqual({ status: 'sorting', label: 'Sorting', icon: 'shirt-outline' });
   });
 
   it('gives every stage a customer-facing label and icon', () => {
@@ -83,6 +92,7 @@ describe('washCycleProgress', () => {
     expect(progress.steps.map((step) => step.state)).toEqual([
       'done',
       'done',
+      'done',
       'current',
       'upcoming',
       'upcoming',
@@ -90,8 +100,8 @@ describe('washCycleProgress', () => {
   });
 
   it('reports how far along the cycle is', () => {
-    // 'drying' is the 3rd of 5 stages.
-    expect(washCycleProgress('drying').percent).toBe(60);
+    // 'drying' is the 4th of 6 stages.
+    expect(washCycleProgress('drying').percent).toBe(67);
   });
 
   it('completes every stage once the laundry is handed back', () => {
@@ -102,7 +112,7 @@ describe('washCycleProgress', () => {
 
   it('treats ready as the final in-cycle stage', () => {
     const progress = washCycleProgress('ready');
-    expect(progress.steps[4].state).toBe('current');
+    expect(progress.steps[5].state).toBe('current');
     expect(progress.percent).toBe(100);
   });
 

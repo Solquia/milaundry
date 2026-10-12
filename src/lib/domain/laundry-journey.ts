@@ -57,6 +57,8 @@ function stopIcon(status: OrderStatus, isDelivery: boolean): string {
       return 'receipt-outline';
     case 'received':
       return 'basket-outline';
+    case 'sorting':
+      return 'shirt-outline';
     case 'washing':
       return 'water-outline';
     case 'drying':
@@ -79,7 +81,9 @@ function stopBlurb(status: OrderStatus, isDelivery: boolean): string {
         ? 'Your booking is in. The shop will come by to collect your laundry.'
         : 'Your booking is in. Drop your laundry off at the shop whenever you are ready.';
     case 'received':
-      return 'The shop has your laundry and is sorting and weighing it.';
+      return 'The shop has your laundry and is weighing it.';
+    case 'sorting':
+      return 'Sorted by colour and fabric before the wash.';
     case 'washing':
       return 'In the machine now, washed the way you asked.';
     case 'drying':

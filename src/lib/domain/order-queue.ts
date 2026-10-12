@@ -36,6 +36,7 @@ export interface QueueOrder extends ContactableOrder {
 export const STAGE_LIMIT_HOURS: Readonly<Partial<Record<OrderStatus, number>>> = {
   pending: 24,
   received: 24,
+  sorting: 12,
   washing: 12,
   drying: 12,
   folded: 24,
@@ -52,6 +53,7 @@ const DAY = 24 * HOUR;
 const STAGE_WORDS: Record<OrderStatus, string> = {
   pending: 'Booked',
   received: 'Dropped off',
+  sorting: 'Sorting',
   washing: 'Washing',
   drying: 'Drying',
   folded: 'Folded',
@@ -181,7 +183,8 @@ export function stuckAction(order: QueueOrder): RowAction | null {
 /** Short verbs: the button sits beside a name and a price on a narrow row. */
 const ADVANCE: Partial<Record<OrderStatus, { to: OrderStatus; label: string }>> = {
   pending: { to: 'received', label: 'Receive' },
-  received: { to: 'washing', label: 'Wash' },
+  received: { to: 'sorting', label: 'Sort' },
+  sorting: { to: 'washing', label: 'Wash' },
   washing: { to: 'drying', label: 'Dry' },
   drying: { to: 'folded', label: 'Fold' },
   folded: { to: 'ready', label: 'Ready' },

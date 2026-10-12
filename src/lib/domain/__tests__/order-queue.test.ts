@@ -38,7 +38,14 @@ function order(overrides: Partial<QueueOrder>): QueueOrder {
 
 describe('classify', () => {
   it('gives each stage its own time limit, counted from the last change', () => {
-    expect(STAGE_LIMIT_HOURS).toEqual({ pending: 24, received: 24, washing: 12, drying: 12, folded: 24 });
+    expect(STAGE_LIMIT_HOURS).toEqual({
+      pending: 24,
+      received: 24,
+      sorting: 12,
+      washing: 12,
+      drying: 12,
+      folded: 24,
+    });
     expect(classify(order({ updated_at: '2026-09-25T03:00:00' }), NOW)).toBe('working');
     expect(classify(order({ updated_at: '2026-09-25T01:00:00' }), NOW)).toBe('overdue');
     expect(classify(order({ status: 'received', updated_at: '2026-09-25T01:00:00' }), NOW)).toBe('working');
@@ -133,7 +140,8 @@ describe('the queue', () => {
 describe('the row action', () => {
   it('names the one step the row button takes, and the stage it lands in', () => {
     expect(rowAction(order({ status: 'pending' }))).toEqual({ kind: 'advance', to: 'received', label: 'Receive' });
-    expect(rowAction(order({ status: 'received' }))).toEqual({ kind: 'advance', to: 'washing', label: 'Wash' });
+    expect(rowAction(order({ status: 'received' }))).toEqual({ kind: 'advance', to: 'sorting', label: 'Sort' });
+    expect(rowAction(order({ status: 'sorting' }))).toEqual({ kind: 'advance', to: 'washing', label: 'Wash' });
     expect(rowAction(order({ status: 'washing' }))).toEqual({ kind: 'advance', to: 'drying', label: 'Dry' });
     expect(rowAction(order({ status: 'drying' }))).toEqual({ kind: 'advance', to: 'folded', label: 'Fold' });
     expect(rowAction(order({ status: 'folded' }))).toEqual({ kind: 'advance', to: 'ready', label: 'Ready' });

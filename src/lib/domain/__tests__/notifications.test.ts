@@ -45,6 +45,16 @@ describe('buildNotifications', () => {
     expect(notification.needsAction).toBe(false);
   });
 
+  it('says the laundry is being sorted before it goes in the machines', () => {
+    const [notification] = buildNotifications([order({ status: 'sorting' })]);
+
+    expect(notification.kind).toBe('stage');
+    expect(notification.title).toBe('Sorting');
+    expect(notification.body).toContain('Sparkle Wash');
+    expect(notification.icon).toBe('shirt-outline');
+    expect(notification.needsAction).toBe(false);
+  });
+
   it('carries the order it belongs to, so tapping it can open that order', () => {
     const [notification] = buildNotifications([order({ id: 'order-42' })]);
 

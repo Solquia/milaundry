@@ -98,6 +98,15 @@ function stageNotice(order: NotifiableOrder): Notice {
         tone: 'progress',
         needsAction: false,
       };
+    case 'sorting':
+      return {
+        kind: 'stage',
+        title: 'Sorting',
+        body: `${shop} is sorting your laundry by colour and fabric.`,
+        icon,
+        tone: 'progress',
+        needsAction: false,
+      };
     case 'washing':
       return {
         kind: 'stage',

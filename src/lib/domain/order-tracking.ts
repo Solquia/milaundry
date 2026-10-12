@@ -26,6 +26,8 @@ function stepLabel(status: OrderStatus, fulfillment: Fulfillment): string {
       return 'Booked';
     case 'received':
       return 'At the shop';
+    case 'sorting':
+      return 'Sorting';
     case 'washing':
       return 'Washing';
     case 'drying':
@@ -61,6 +63,8 @@ export function trackingHeadline(status: OrderStatus, fulfillment: Fulfillment):
       return 'Your booking is in';
     case 'received':
       return 'Your laundry is at the shop';
+    case 'sorting':
+      return 'Your laundry is being sorted';
     case 'washing':
       return 'Your laundry is being washed';
     case 'drying':

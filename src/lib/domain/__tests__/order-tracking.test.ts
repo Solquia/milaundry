@@ -7,6 +7,7 @@ describe('trackingSteps', () => {
       'done',
       'done',
       'done',
+      'done',
       'current',
       'upcoming',
       'upcoming',
@@ -17,6 +18,12 @@ describe('trackingSteps', () => {
   it('starts at booked', () => {
     const steps = trackingSteps('pending', 'pickup');
     expect(steps[0]).toEqual({ status: 'pending', label: 'Booked', state: 'current' });
+  });
+
+  it('sorts the laundry between the shop taking it and the wash', () => {
+    const steps = trackingSteps('sorting', 'pickup');
+    expect(steps.slice(1, 4).map((step) => step.status)).toEqual(['received', 'sorting', 'washing']);
+    expect(steps[2]).toEqual({ status: 'sorting', label: 'Sorting', state: 'current' });
   });
 
   it('names the last legs by how the laundry comes back', () => {
@@ -39,6 +46,7 @@ describe('trackingHeadline', () => {
   it('speaks to the customer at each stage', () => {
     expect(trackingHeadline('pending', 'delivery')).toBe('Your booking is in');
     expect(trackingHeadline('received', 'delivery')).toBe('Your laundry is at the shop');
+    expect(trackingHeadline('sorting', 'pickup')).toBe('Your laundry is being sorted');
     expect(trackingHeadline('washing', 'pickup')).toBe('Your laundry is being washed');
     expect(trackingHeadline('ready', 'delivery')).toBe('Your laundry is on its way');
     expect(trackingHeadline('ready', 'pickup')).toBe('Your laundry is ready for pickup');

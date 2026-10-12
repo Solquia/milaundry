@@ -63,6 +63,7 @@ export function loadSize(items: readonly LineItem[]): string {
 const STATUS_WORDS: Record<OrderStatus, string> = {
   pending: 'Booked',
   received: 'In the shop',
+  sorting: 'Sorting',
   washing: 'Washing',
   drying: 'Drying',
   folded: 'Folded',

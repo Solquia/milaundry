@@ -1,6 +1,7 @@
 export const ORDER_STATUSES = [
   'pending',
   'received',
+  'sorting',
   'washing',
   'drying',
   'folded',
@@ -15,7 +16,10 @@ export const TERMINAL_STATUSES: readonly OrderStatus[] = ['completed', 'cancelle
 
 const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   pending: ['received', 'cancelled'],
-  received: ['washing', 'cancelled'],
+  // The server still accepts received -> washing, for app builds from before
+  // sorting was a step. This app always sorts first: one button, not two.
+  received: ['sorting', 'cancelled'],
+  sorting: ['washing', 'cancelled'],
   washing: ['drying', 'cancelled'],
   drying: ['folded', 'cancelled'],
   folded: ['ready', 'cancelled'],
@@ -43,6 +47,7 @@ export function nextStatuses(from: OrderStatus): OrderStatus[] {
 const ADVANCE_LABELS: Record<OrderStatus, string> = {
   pending: 'Not started',
   received: 'Laundry received',
+  sorting: 'Start sorting',
   washing: 'Start washing',
   drying: 'Start drying',
   folded: 'Done folding',
@@ -66,6 +71,7 @@ export function advanceActionLabel(to: OrderStatus): string {
 export const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: 'Not started',
   received: 'In the shop',
+  sorting: 'Sorting',
   washing: 'Washing',
   drying: 'Drying',
   folded: 'Folded',
