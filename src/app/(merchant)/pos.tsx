@@ -47,6 +47,8 @@ import {
 import { Reveal } from '@/components/reveal';
 import type { QuantityTone } from '@/components/quantity-picker';
 import { ScaleSheet } from '@/components/scale-sheet';
+import { MenuBoard } from '@/components/menu-board';
+import { hasPriceGuide } from '@/components/price-guide';
 import { ALL_CATEGORIES, CategoryStrip, ServiceMenu } from '@/components/service-menu';
 import { TicketSlip } from '@/components/ticket-slip';
 import {
@@ -87,6 +89,7 @@ import {
   ticketLines,
   untapTile,
 } from '@/lib/domain/pos-ticket';
+import { counterBoards, guideMenu } from '@/lib/domain/price-guide';
 import { estimateOrderTotal, isWeighed } from '@/lib/domain/pricing';
 import { buildOrderQr } from '@/lib/domain/qr';
 import { groupServicesByCategory } from '@/lib/domain/service-catalog';
@@ -540,6 +543,7 @@ export default function Pos() {
   }
 
   const groups = groupServicesByCategory(services ?? []);
+  const hasGuide = hasPriceGuide(shopId);
 
   if (groups.length === 0) {
     return (
@@ -703,18 +707,33 @@ export default function Pos() {
         </>
       }
     >
-      <View style={styles.stripWrap}>
-        <CategoryStrip groups={groups} active={category} onChange={setCategory} tone={tone} />
-      </View>
+      {/* A shop with a price guide works the counter from its boards — one
+          board at a time, a pill per size — rather than a tile per service. */}
+      {hasGuide ? null : (
+        <View style={styles.stripWrap}>
+          <CategoryStrip groups={groups} active={category} onChange={setCategory} tone={tone} />
+        </View>
+      )}
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ServiceMenu
-          groups={groups}
-          active={category}
-          quantities={quantities}
-          onTap={handleTile}
-          onLess={handleLess}
-          tone={tone}
-        />
+        {hasGuide ? (
+          <MenuBoard
+            sections={counterBoards(guideMenu(services ?? []))}
+            tint={{ fill: tone.brand, ink: tone.ink, surface: tone.soft }}
+            counts={quantities}
+            onPick={handleTile}
+            onLess={handleLess}
+            formatCount={(service, count) => (isWeighed(service) ? `${count} kg` : String(count))}
+          />
+        ) : (
+          <ServiceMenu
+            groups={groups}
+            active={category}
+            quantities={quantities}
+            onTap={handleTile}
+            onLess={handleLess}
+            tone={tone}
+          />
+        )}
         {/* Add-ons ride on a service, so the shelf opens once one is on the
             ticket, under the menu the counter works from. */}
         {count > 0 && shopAddons.some((addon) => addon.is_active) ? (

@@ -1,9 +1,12 @@
 import {
   BUBBLY_GAV_SHOP_ID,
+  counterBoards,
   dryCleaningHeading,
+  otherHeading,
   guideMenu,
   isFromPrice,
   priceGuideFor,
+  sharedNote,
   weightLabel,
   type PriceGuide,
 } from '../price-guide';
@@ -154,5 +157,50 @@ describe('guideMenu', () => {
 
   test('drying services are their own list', () => {
     expect(menu.drying.map((row) => row.name)).toEqual(['Dry only', 'Spin + dry']);
+  });
+});
+
+describe('counterBoards', () => {
+  const boards = counterBoards(guideMenu(SERVICES));
+
+  test('lists packages, each dry-cleaning board, other services, then drying', () => {
+    expect(boards.map((board) => board.title)).toEqual([
+      'Wash packages',
+      'Gowns',
+      'Wedding dress',
+      'Leather jackets',
+      'Shoes',
+      'Caps & helmets',
+      'Drying',
+    ]);
+  });
+
+  test("a package's loads become its options", () => {
+    expect(boards[0].groups[0].options.map((option) => option.label)).toEqual(['Clothes', 'Maong', 'Beddings']);
+  });
+});
+
+describe('otherHeading', () => {
+  test('sorts other services onto boards by what they are', () => {
+    expect(otherHeading('King Comforter')).toBe('Comforters');
+    expect(otherHeading('Sofa(2 Seater)')).toBe('Sofa & carpet');
+    expect(otherHeading('Stuffed Toy')).toBe('Stuffed toys');
+    expect(otherHeading('Curtains')).toBe('More');
+  });
+});
+
+describe('sharedNote', () => {
+  const row = (name: string, description: string) => ({
+    name,
+    options: [{ label: '', service: { ...service(name, 'dry_cleaning', 100), description } }],
+  });
+
+  test('is the note most prices share, so one odd row does not hide it', () => {
+    expect(sharedNote([row('A', 'Per piece.'), row('B', 'Per piece.'), row('C', 'From ₱1,000.')])).toBe('Per piece.');
+  });
+
+  test('is nothing when no note covers half the board', () => {
+    expect(sharedNote([row('A', 'One.'), row('B', 'Two.'), row('C', 'Three.')])).toBe('');
+    expect(sharedNote([])).toBe('');
   });
 });

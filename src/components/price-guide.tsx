@@ -18,14 +18,15 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { MenuBoard, type BoardTint } from './menu-board';
 import { CROWN, RADII, colors, fontFor, space, type } from './ui-kit';
 import { getShopAddonShelf } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import {
   guideMenu,
+  otherBoards,
   priceGuideFor,
   weightLabel,
-  isFromPrice,
   type GuidePackageLook,
   type GuideProduct,
   type GuideService,
@@ -68,20 +69,13 @@ const TONES: Record<GuideTone, { band: string; surface: string; ink: string }> =
   orange: { band: '#C2410C', surface: '#FDEBDD', ink: '#9A3412' },
 };
 
+const BOARD_TINT: BoardTint = { fill: colors.action, ink: colors.actionInk, surface: colors.actionSurface };
+
 const SUN = { surface: '#FFF4CC', ink: '#8A5606', tag: '#1D4E89' };
 const TILE_WIDTH = 84;
 /** A load runs this far over its limit for an excess fee before the shop splits it. */
 const SPLIT_AT = 1.25;
 
-
-/** An icon for a cleaning service by what it cleans; a bag where nothing matches. */
-function serviceIcon(name: string): keyof typeof Ionicons.glyphMap {
-  if (/shoe|sneaker|sapatos/i.test(name)) return 'footsteps';
-  if (/cap|hat/i.test(name)) return 'baseball';
-  if (/helmet/i.test(name)) return 'bicycle';
-  if (/sofa|carpet|couch|rug/i.test(name)) return 'home';
-  return 'bag-handle';
-}
 
 function money(amount: number): string {
   return formatMoneyCompact(amount);
@@ -367,86 +361,6 @@ function SectionHead({ eyebrow, title, caption }: { eyebrow: string; title: stri
   );
 }
 
-function OtherRow<S extends GuideService>({
-  group,
-  isFirst,
-  onBook,
-  icon,
-}: {
-  group: MenuGroup<S>;
-  isFirst: boolean;
-  onBook?: (serviceId: string) => void;
-  icon?: keyof typeof Ionicons.glyphMap;
-}) {
-  // One line for the item, but only when every option says the same thing;
-  // a range that differs by option is shown on its own price instead.
-  const notes = new Set(group.options.map((option) => option.service.description?.trim() ?? ''));
-  const blurb = notes.size === 1 ? [...notes][0] : '';
-  const [only] = group.options;
-  // One price and no grade to choose: the row itself books it, the price at its end.
-  if (group.options.length === 1 && !only.label) {
-    const from = isFromPrice(only.service.description) ? '+' : '';
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Book ${only.service.name}, ${money(only.service.price)}`}
-        disabled={!onBook}
-        onPress={onBook ? () => onBook(only.service.id) : undefined}
-        style={({ pressed }) => [styles.otherRow, styles.otherHead, !isFirst && styles.ruled, pressed && styles.pressed]}
-      >
-        <View style={styles.otherBadge}>
-          <Ionicons name={icon ?? serviceIcon(group.name)} size={20} color={colors.actionInk} />
-        </View>
-        <View style={styles.grow}>
-          <Text style={styles.otherName}>{group.name}</Text>
-          {blurb ? (
-            <Text style={styles.caption} numberOfLines={2}>
-              {blurb}
-            </Text>
-          ) : null}
-        </View>
-        <View style={styles.pricePill}>
-          <Text style={styles.pricePillText}>{`${money(only.service.price)}${from}`}</Text>
-        </View>
-      </Pressable>
-    );
-  }
-  return (
-    <View style={[styles.otherRow, !isFirst && styles.ruled]}>
-      <View style={styles.otherHead}>
-        <View style={styles.otherBadge}>
-          <Ionicons name={icon ?? serviceIcon(group.name)} size={20} color={colors.actionInk} />
-        </View>
-        <View style={styles.grow}>
-          <Text style={styles.otherName}>{group.name}</Text>
-          {blurb ? (
-            <Text style={styles.caption} numberOfLines={2}>
-              {blurb}
-            </Text>
-          ) : null}
-        </View>
-      </View>
-      <View style={styles.tiers}>
-        {group.options.map((option) => (
-          <Pressable
-            key={option.service.id}
-            accessibilityRole="button"
-            accessibilityLabel={`Book ${option.service.name}, ${money(option.service.price)}`}
-            disabled={!onBook}
-            onPress={onBook ? () => onBook(option.service.id) : undefined}
-            style={({ pressed }) => [styles.tier, pressed && styles.pressed]}
-          >
-            <Text style={styles.tierName}>{option.label || 'Cleaning'}</Text>
-            <Text style={styles.tierPrice}>
-              {`${money(option.service.price)}${isFromPrice(option.service.description) ? '+' : ''}`}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
-    </View>
-  );
-}
-
 function OthersCard<S extends GuideService>({
   groups,
   onBook,
@@ -470,34 +384,13 @@ function OthersCard<S extends GuideService>({
         </View>
       </View>
       <View style={styles.cardBody}>
-        {groups.map((group, index) => (
-          <OtherRow key={group.name} group={group} isFirst={index === 0} onBook={onBook} />
-        ))}
+        <MenuBoard
+          sections={otherBoards(groups)}
+          tint={BOARD_TINT}
+          onPick={onBook ? (service) => onBook(service.id) : undefined}
+          isFlat
+        />
       </View>
-    </View>
-  );
-}
-
-function DryCleaningCard<S extends GuideService>({
-  sections,
-  onBook,
-}: {
-  sections: { heading: string; groups: MenuGroup<S>[] }[];
-  onBook?: (serviceId: string) => void;
-}) {
-  if (sections.length === 0) return null;
-  return (
-    <View style={styles.card}>
-      {sections.map((section, index) => (
-        <View key={section.heading} style={[styles.cleanSection, index > 0 && styles.ruled]}>
-          <Text style={styles.cleanHeading} accessibilityRole="header">
-            {section.heading.toUpperCase()}
-          </Text>
-          {section.groups.map((group, at) => (
-            <OtherRow key={group.name} group={group} isFirst={at === 0} onBook={onBook} icon="shirt-outline" />
-          ))}
-        </View>
-      ))}
     </View>
   );
 }
@@ -628,7 +521,7 @@ export function ShopPriceGuide<S extends GuideService>({
           <SectionHead
             eyebrow="MORE SERVICES"
             title="Shoes, caps, toys & more"
-            caption="Basic or deep clean — tap a price to book it."
+            caption="Tap a price to book it."
           />
           <OthersCard groups={menu.others} onBook={book} />
         </>
@@ -638,9 +531,17 @@ export function ShopPriceGuide<S extends GuideService>({
           <SectionHead
             eyebrow="DRY CLEANING"
             title="Dry cleaning"
-            caption="Gowns, wedding dresses, jackets and togas — tap a size to book."
+            caption="Pick a board, then tap a size to book it."
           />
-          <DryCleaningCard sections={menu.dryCleaning} onBook={book} />
+          <MenuBoard
+            sections={menu.dryCleaning.map((section) => ({
+              key: section.heading,
+              title: section.heading,
+              groups: section.groups,
+            }))}
+            tint={BOARD_TINT}
+            onPick={book ? (service) => book(service.id) : undefined}
+          />
         </>
       ) : null}
       {menu.drying.length > 0 ? (

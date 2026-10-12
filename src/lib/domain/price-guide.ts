@@ -264,3 +264,83 @@ export function priceGuideFor(shopId: string | null | undefined): PriceGuide | n
   if (!shopId) return null;
   return GUIDES[shopId] ?? null;
 }
+
+/** One tab of a menu board: a heading and the items printed under it. */
+export interface MenuBoardSection<S extends GuideService> {
+  key: string;
+  title: string;
+  groups: MenuGroup<S>[];
+}
+
+const SHORT_VARIANT: Record<VariantKind, string> = {
+  clothes: 'Clothes',
+  fabrics: 'Maong',
+  beddings: 'Beddings',
+};
+
+/**
+ * The whole menu as boards for the counter: the packages (each a row of its
+ * loads), every dry-cleaning board, the other services, then drying. The
+ * walk-in screen shows one board at a time instead of a tile per service.
+ */
+export function counterBoards<S extends GuideService>(menu: GuideMenu<S>): MenuBoardSection<S>[] {
+  const boards: MenuBoardSection<S>[] = [];
+  if (menu.packages.length > 0) {
+    boards.push({
+      key: 'packages',
+      title: 'Wash packages',
+      groups: menu.packages.map((pack) => ({
+        name: `Package ${pack.number}`,
+        options: pack.variants.map((variant) => ({ label: SHORT_VARIANT[variant.kind], service: variant.service })),
+      })),
+    });
+  }
+  for (const section of menu.dryCleaning) {
+    boards.push({ key: `dry:${section.heading}`, title: section.heading, groups: section.groups });
+  }
+  boards.push(...otherBoards(menu.others));
+  if (menu.drying.length > 0) {
+    boards.push({
+      key: 'drying',
+      title: 'Drying',
+      groups: menu.drying.map((service) => ({ name: service.name, options: [{ label: '', service }] })),
+    });
+  }
+  return boards;
+}
+
+/**
+ * The note most of a board's prices share, said once at its top so no row
+ * repeats it; '' when no note covers at least half of them.
+ */
+export function sharedNote<S extends GuideService>(groups: readonly MenuGroup<S>[]): string {
+  const notes = groups.flatMap((group) => group.options.map((option) => option.service.description?.trim() ?? ''));
+  const tally = new Map<string, number>();
+  for (const note of notes) if (note) tally.set(note, (tally.get(note) ?? 0) + 1);
+  const [best, count] = [...tally.entries()].sort((a, b) => b[1] - a[1])[0] ?? ['', 0];
+  return count >= 2 && count * 2 >= notes.length ? best : '';
+}
+
+/** The board an "other" service sits on, read from its name. */
+const OTHER_HEADINGS: readonly [RegExp, string][] = [
+  [/comforter|blanket|duvet|bed|pillow|kumot/i, 'Comforters'],
+  [/sofa|carpet|couch|rug|mattress/i, 'Sofa & carpet'],
+  [/shoe|sneaker|sapatos/i, 'Shoes'],
+  [/cap|hat|helmet/i, 'Caps & helmets'],
+  [/bag|backpack/i, 'Bags'],
+  [/toy|stuffed/i, 'Stuffed toys'],
+];
+
+export function otherHeading(name: string): string {
+  return OTHER_HEADINGS.find(([pattern]) => pattern.test(name))?.[1] ?? 'More';
+}
+
+/** The other services as boards, one per kind, in the order they first appear. */
+export function otherBoards<S extends GuideService>(groups: readonly MenuGroup<S>[]): MenuBoardSection<S>[] {
+  const byHeading = new Map<string, MenuGroup<S>[]>();
+  for (const group of groups) {
+    const heading = otherHeading(group.name);
+    byHeading.set(heading, [...(byHeading.get(heading) ?? []), group]);
+  }
+  return [...byHeading.entries()].map(([title, items]) => ({ key: `more:${title}`, title, groups: items }));
+}
