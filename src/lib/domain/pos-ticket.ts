@@ -19,7 +19,15 @@
 import { formatMoney } from './money';
 import { MAX_COUNTED_QUANTITY } from './order-quantity';
 import { formatQuantity } from './price-label';
-import { estimateLineTotal, isWeighed, type OrderItemInput, type Service } from './pricing';
+import {
+  estimateLineTotal,
+  hasWeightTable,
+  isPerLoad,
+  isWeighed,
+  loadsFor,
+  type OrderItemInput,
+  type Service,
+} from './pricing';
 import type { PaymentMethod } from './walk-in-order';
 
 export type TileTap = { kind: 'weigh' } | { kind: 'set'; quantity: number };
@@ -43,14 +51,8 @@ export function untapTile(service: Service, current: number): number {
   return Math.max(0, current - 1);
 }
 
-/** Whole loads for a weight at the service's load limit: 13 kg at 6 kg a load is 3. */
-export function loadsFor(service: Service, kg: number): number {
-  const limit = service.max_quantity ?? 0;
-  if (!Number.isFinite(kg) || kg <= 0 || limit <= 0) return 0;
-  return Math.max(1, Math.ceil(kg / limit - 1e-9));
-}
+export { loadsFor };
 
-const isPerLoad = (service: Service): boolean => service.unit === 'flat' && isWeighed(service);
 const loadWord = (loads: number): string => `${loads} ${loads === 1 ? 'load' : 'loads'}`;
 
 /**
@@ -61,11 +63,13 @@ export function ticketLines(
   services: readonly Service[],
   quantities: Readonly<Record<string, number>>
 ): OrderItemInput[] {
-  const units = new Map(services.map((service) => [service.id, service.unit]));
+  const byId = new Map(services.map((service) => [service.id, service]));
   const lines: OrderItemInput[] = [];
   for (const [serviceId, quantity] of Object.entries(quantities)) {
     if (!Number.isFinite(quantity) || quantity <= 0) continue;
-    if (units.get(serviceId) === 'flat') {
+    const service = byId.get(serviceId);
+    // A flat price with a weight table holds kilos, priced by the table.
+    if (service?.unit === 'flat' && !hasWeightTable(service)) {
       for (let piece = 0; piece < Math.round(quantity); piece += 1) lines.push({ serviceId, quantity: 1 });
     } else {
       lines.push({ serviceId, quantity });
@@ -78,7 +82,7 @@ export function ticketLines(
 export function tileBadge(service: Service, quantity: number | undefined): string | null {
   if (quantity === undefined || !Number.isFinite(quantity) || quantity <= 0) return null;
   if (isPerLoad(service)) return loadWord(quantity);
-  if (service.unit === 'per_kg') return formatQuantity('per_kg', quantity);
+  if (service.unit === 'per_kg' || hasWeightTable(service)) return formatQuantity('per_kg', quantity);
   return `×${quantity}`;
 }
 

@@ -204,3 +204,30 @@ describe('untapTile', () => {
     expect(untapTile(ironing, 1)).toBe(0);
   });
 });
+
+describe('a per-load service priced by its weight table', () => {
+  const tabled: Service = {
+    ...perLoad,
+    max_quantity: 0,
+    weight_prices: [
+      { up_to_kg: 8, price: 185 },
+      { up_to_kg: 9, price: 215 },
+    ],
+  };
+
+  test('goes to the scale and holds the kilos, not loads', () => {
+    expect(tapTile(tabled, 0)).toEqual({ kind: 'weigh' });
+    expect(ticketLines([tabled], { [tabled.id]: 9 })).toEqual([{ serviceId: tabled.id, quantity: 9 }]);
+    expect(tileBadge(tabled, 9)).toBe('9 kg');
+  });
+
+  test('quotes the table row for the weight', () => {
+    expect(scaleSheetCta(tabled, 9, false)).toMatch(/₱215/);
+  });
+
+  test('ignores a leftover load size once it has a table', () => {
+    const both: Service = { ...tabled, max_quantity: 8 };
+    expect(ticketLines([both], { [both.id]: 9 })).toEqual([{ serviceId: both.id, quantity: 9 }]);
+    expect(scaleSheetCta(both, 9, false)).toMatch(/₱215/);
+  });
+});

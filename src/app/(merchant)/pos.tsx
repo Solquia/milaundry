@@ -90,7 +90,7 @@ import {
   untapTile,
 } from '@/lib/domain/pos-ticket';
 import { counterBoards, guideMenu } from '@/lib/domain/price-guide';
-import { estimateOrderTotal, isWeighed } from '@/lib/domain/pricing';
+import { estimateOrderTotal, hasWeightTable, isPerLoad, isWeighed } from '@/lib/domain/pricing';
 import { buildOrderQr } from '@/lib/domain/qr';
 import { groupServicesByCategory } from '@/lib/domain/service-catalog';
 import {
@@ -351,7 +351,10 @@ export default function Pos() {
   const handleAdjust = (service: ServiceRow, delta: number) => {
     haptic('select');
     // A flat service counts like pieces here; only a weighed line has a ceiling of its own.
-    const ceiling = isWeighed(service) ? quantityCeiling(service.unit) : MAX_COUNTED_QUANTITY;
+    // A weight table holds kilos, so it takes a kilo ceiling whatever its unit.
+    const ceiling = !isWeighed(service)
+      ? MAX_COUNTED_QUANTITY
+      : quantityCeiling(hasWeightTable(service) ? 'per_kg' : service.unit);
     setQuantity(service, adjustQuantity(quantities[service.id] ?? 0, delta, ceiling));
   };
 
@@ -364,7 +367,7 @@ export default function Pos() {
   const handleWeighed = (kg: number) => {
     if (!weighing) return;
     haptic('select');
-    if (weighing.unit === 'flat') {
+    if (isPerLoad(weighing)) {
       // Per load: the scale reads kilos, the ticket holds whole loads.
       setLoadWeights((prev) => ({ ...prev, [weighing.id]: kg }));
       setQuantity(weighing, loadsFor(weighing, kg));
@@ -559,7 +562,7 @@ export default function Pos() {
 
   const held = weighing ? (quantities[weighing.id] ?? 0) : 0;
   const weighingKg =
-    weighing && held > 0 ? (weighing.unit === 'flat' ? (loadWeights[weighing.id] ?? 0) : held) : 0;
+    weighing && held > 0 ? (isPerLoad(weighing) ? (loadWeights[weighing.id] ?? 0) : held) : 0;
 
   const scaleSheet = (
     <ScaleSheet

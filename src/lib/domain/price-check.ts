@@ -13,7 +13,7 @@
  * server, which is the figure that counts.
  */
 import { roundCentavos } from './money';
-import type { PricingUnit } from './pricing';
+import { loadsFor, type PricingUnit } from './pricing';
 import { priceForWeight, type WeightPrice } from './weight-prices';
 import { MAX_SCALE_KG } from './weigh-order';
 
@@ -31,11 +31,13 @@ export interface CheckLine {
   bookedQuantity: number;
   /** The service's weight table; a line with one is weighed and priced by band. */
   weightPrices?: readonly WeightPrice[];
+  /** Kilos one load holds, for a flat price sold per load; the line is weighed. */
+  loadKg?: number;
 }
 
 /** Whether the counter enters this line as kilos off the scale rather than a count. */
-export function isKgLine(line: Pick<CheckLine, 'unit' | 'weightPrices'>): boolean {
-  return line.unit === 'per_kg' || (line.weightPrices?.length ?? 0) > 0;
+export function isKgLine(line: Pick<CheckLine, 'unit' | 'weightPrices' | 'loadKg'>): boolean {
+  return line.unit === 'per_kg' || (line.weightPrices?.length ?? 0) > 0 || (line.loadKg ?? 0) > 0;
 }
 
 /** item id → the quantity the counter set; absent means "as booked". */
@@ -44,6 +46,8 @@ export type CheckQuantities = Readonly<Record<string, number>>;
 export function checkLineSubtotal(line: CheckLine, quantity: number): number {
   const byWeight = priceForWeight(line.weightPrices ?? [], quantity);
   if (byWeight !== null) return roundCentavos(byWeight);
+  const loads = loadsFor({ max_quantity: line.loadKg }, quantity);
+  if (loads > 0) return roundCentavos(line.unitPrice * loads);
   const billable = line.unit === 'per_kg' ? Math.max(quantity, line.minQuantity) : quantity;
   return roundCentavos(line.unitPrice * billable);
 }

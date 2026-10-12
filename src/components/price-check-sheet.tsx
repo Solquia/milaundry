@@ -26,6 +26,7 @@ import {
   isKgLine,
   type CheckLine,
 } from '@/lib/domain/price-check';
+import { isPerLoad } from '@/lib/domain/pricing';
 import { readWeightPrices } from '@/lib/domain/weight-prices';
 import { describeWeighChange, parseWeight } from '@/lib/domain/weigh-order';
 
@@ -136,15 +137,19 @@ export function PriceCheckSheet({ order, onConfirmed }: PriceCheckSheetProps) {
 
   const lines: CheckLine[] = useMemo(
     () =>
-      order.order_items.map((item) => ({
-        itemId: item.id,
-        name: item.service_name,
-        unit: item.unit,
-        unitPrice: item.unit_price,
-        minQuantity: services?.find((row) => row.id === item.service_id)?.min_quantity ?? 0,
-        bookedQuantity: item.quantity,
-        weightPrices: readWeightPrices(services?.find((row) => row.id === item.service_id)?.weight_prices),
-      })),
+      order.order_items.map((item) => {
+        const service = services?.find((row) => row.id === item.service_id);
+        return {
+          itemId: item.id,
+          name: item.service_name,
+          unit: item.unit,
+          unitPrice: item.unit_price,
+          minQuantity: service?.min_quantity ?? 0,
+          bookedQuantity: item.quantity,
+          weightPrices: readWeightPrices(service?.weight_prices),
+          loadKg: service && isPerLoad(service) ? service.max_quantity : 0,
+        };
+      }),
     [order.order_items, services]
   );
 

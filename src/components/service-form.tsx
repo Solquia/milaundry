@@ -21,14 +21,21 @@ import {
   draftFromService,
   loadSizeExample,
   looksLikeAddon,
+  takesWeightTable,
   unitHelp,
   validateServiceDraft,
   type ChargeKind,
+  type PriceBy,
   type ServiceDraft,
 } from '@/lib/domain/service-draft';
 import { sceneFor } from '@/lib/domain/service-scene';
 import { showcaseTone } from '@/lib/domain/service-showcase';
-import { readWeightPrices, validateWeightPriceDraft, type WeightPriceDraft } from '@/lib/domain/weight-prices';
+import {
+  readWeightPrices,
+  validateWeightPriceDraft,
+  type WeightPrice,
+  type WeightPriceDraft,
+} from '@/lib/domain/weight-prices';
 import type { ServiceRow } from '@/lib/types';
 
 import { Segmented } from './segmented';
@@ -42,6 +49,11 @@ const UNIT_OPTIONS: { key: ChargeKind; label: string }[] = [
   { key: 'per_load', label: 'Per load' },
   { key: 'per_item', label: 'Per piece' },
   { key: 'flat', label: 'Flat' },
+];
+
+const PRICE_BY_OPTIONS: { key: PriceBy; label: string }[] = [
+  { key: 'one', label: 'One price' },
+  { key: 'table', label: 'Weight table' },
 ];
 
 /** The preview never shows a stepper, but the card asks for its colours. */
@@ -69,9 +81,13 @@ function unitSuffix(unit: ChargeKind | null): string {
  * something neutral rather than a guess: no unit shows no unit, no section
  * shows Other, so the preview never states a choice the owner has not made.
  */
-function previewService(draft: ServiceDraft, id: string): ShowcaseCardService {
-  const price = Number(draft.price.trim());
-  const minimum = Number(draft.minQuantity.trim());
+function previewService(
+  draft: ServiceDraft,
+  id: string,
+  table: readonly WeightPrice[] | null
+): ShowcaseCardService {
+  const price = table ? (table[0]?.price ?? 0) : Number(draft.price.trim());
+  const minimum = table ? 0 : Number(draft.minQuantity.trim());
   const loadSize = Number(draft.maxQuantity.trim());
   return {
     id,
@@ -81,6 +97,7 @@ function previewService(draft: ServiceDraft, id: string): ShowcaseCardService {
     price: Number.isFinite(price) && price > 0 ? price : 0,
     min_quantity: draft.unit === 'per_kg' && Number.isFinite(minimum) ? minimum : 0,
     max_quantity: draft.unit === 'per_load' && Number.isFinite(loadSize) && loadSize > 0 ? loadSize : 0,
+    weight_prices: table ?? [],
     description: draft.description,
   };
 }
@@ -217,19 +234,22 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
     draftsFromWeightPrices(readWeightPrices(service?.weight_prices))
   );
 
-  const result = validateServiceDraft(draft);
-  const weightResult = validateWeightPriceDraft(weightRows);
-  const weightError = hasTried && !weightResult.ok ? weightResult.error : undefined;
+  const byTable = draft.priceBy === 'table' && takesWeightTable(draft.unit);
+  // One price clears the table: only the table rows are checked, and only when they price it.
+  const weightResult = byTable ? validateWeightPriceDraft(weightRows) : null;
+  const table = weightResult?.ok ? weightResult.value : [];
+  const result = validateServiceDraft(draft, table);
   const errors = hasTried && !result.ok ? result.errors : {};
+  const weightError =
+    hasTried && weightResult && !weightResult.ok ? weightResult.error : errors.weightPrices;
+  const isReady = result.ok && (weightResult?.ok ?? true);
   const update = (patch: Partial<ServiceDraft>) =>
     setDraft((current) => ({ ...current, ...patch }));
 
   const save = useMutation({
     mutationFn: async () => {
-      if (!result.ok || !weightResult.ok) throw new Error('The price was not saved.');
-      // A piece is not weighed, so a table left over from another unit is dropped.
-      const weightPrices = draft.unit === 'per_item' ? [] : weightResult.value;
-      const fields = { ...result.value, weight_prices: weightPrices };
+      if (!result.ok || !isReady) throw new Error('The price was not saved.');
+      const fields = result.value;
       if (service) return updateService(service.id, fields);
       return upsertService({ shop_id: shopId, ...fields });
     },
@@ -248,7 +268,7 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
   const handleSave = () => {
     setHasTried(true);
     setServerError('');
-    if (result.ok && weightResult.ok) save.mutate();
+    if (isReady) save.mutate();
   };
 
   const isBusy = save.isPending || remove.isPending;
@@ -270,7 +290,7 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
       <View style={styles.preview}>
         <View style={styles.previewTile} pointerEvents="none">
           <ServiceTileCard
-            service={previewService(draft, service?.id ?? 'preview')}
+            service={previewService(draft, service?.id ?? 'preview', byTable ? table : null)}
             bookTone={PREVIEW_TONE}
           />
         </View>
@@ -301,12 +321,50 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
             accessibilityRole="radiogroup"
           />
           <ErrorText>{errors.unit}</ErrorText>
-          <PriceInput unit={draft.unit} value={draft.price} onChange={(price) => update({ price })} />
-          {draft.unit ? <Text style={styles.help}>{unitHelp(draft.unit)}</Text> : null}
-          <ErrorText>{errors.price}</ErrorText>
         </View>
 
-        {draft.unit === 'per_load' ? (
+        {takesWeightTable(draft.unit) ? (
+          <View style={styles.group}>
+            <Text style={styles.groupLabel}>Set the price by</Text>
+            <Segmented
+              options={PRICE_BY_OPTIONS}
+              value={byTable ? 'table' : 'one'}
+              onChange={(priceBy) => update({ priceBy })}
+              accessibilityRole="radiogroup"
+            />
+          </View>
+        ) : null}
+
+        {byTable ? (
+          <View style={styles.group}>
+            <WeightPriceEditor rows={weightRows} onChange={setWeightRows} error={weightError} />
+          </View>
+        ) : (
+          <View style={styles.group}>
+            <PriceInput unit={draft.unit} value={draft.price} onChange={(price) => update({ price })} />
+            {draft.unit ? <Text style={styles.help}>{unitHelp(draft.unit)}</Text> : null}
+            <ErrorText>{errors.price}</ErrorText>
+          </View>
+        )}
+
+        {draft.unit === 'per_load' && byTable ? (
+          <View style={styles.group}>
+            <Field
+              label="Kg per load (label only)"
+              value={draft.maxQuantity}
+              onChangeText={(maxQuantity) => update({ maxQuantity })}
+              keyboardType="decimal-pad"
+              placeholder="8"
+            />
+            <Text style={styles.help}>
+              Optional. Customers see it as a note, like max 8 kg per load. Your weight table sets
+              the price.
+            </Text>
+            <ErrorText>{errors.maxQuantity}</ErrorText>
+          </View>
+        ) : null}
+
+        {draft.unit === 'per_load' && !byTable ? (
           <View style={styles.group}>
             <Field
               label="Kg per load"
@@ -320,7 +378,7 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
           </View>
         ) : null}
 
-        {draft.unit === 'per_kg' || draft.unit === 'flat' ? (
+        {(draft.unit === 'per_kg' || draft.unit === 'flat') && !byTable ? (
           <View style={styles.group}>
             <View style={styles.pair}>
               {draft.unit === 'per_kg' ? (
@@ -350,12 +408,6 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
           </View>
         ) : null}
       </Panel>
-
-      {draft.unit && draft.unit !== 'per_item' ? (
-        <Panel title="Price by weight">
-          <WeightPriceEditor rows={weightRows} onChange={setWeightRows} error={weightError} />
-        </Panel>
-      ) : null}
 
       <Panel title="Section on your price list">
         <CategoryChoice value={draft.category} onChange={(category) => update({ category })} />

@@ -11,7 +11,7 @@
  * billed up from. The smallest size on offer *is* the minimum, and says so.
  */
 import { MIN_BOOKING_WEIGHT_KG } from '@/lib/domain/booking-validation';
-import type { Service } from '@/lib/domain/pricing';
+import { isPerLoad, loadsFor, type Service } from '@/lib/domain/pricing';
 
 export interface LoadSize {
   kg: number;
@@ -87,15 +87,14 @@ export function loadSummary(sizes: readonly LoadSize[], kg: number): string {
 }
 
 /**
- * The note shown once a per-load weight spills past one load. The price quoted
- * is one load's, and the counter can only re-weigh per-kilo lines, so the note
- * points at the one thing the customer can do: book the rest separately.
+ * The note shown once a per-load weight spills past one load, so a price that
+ * doubled says why: the weight is charged as as many loads as it fills.
  */
 export function overLoadNotice(service: Service, kg: number): string | null {
-  if (service.unit !== 'flat') return null;
-  const perLoad = service.max_quantity ?? 0;
-  if (!(perLoad > 0) || !(kg > perLoad)) return null;
-  return `One load holds up to ${perLoad} kg — this price covers one load. Book the rest as another load.`;
+  if (!isPerLoad(service)) return null;
+  const loads = loadsFor(service, kg);
+  if (loads < 2) return null;
+  return `One load holds up to ${service.max_quantity} kg, so ${kg} kg is charged as ${loads} loads.`;
 }
 
 /** 0–1: how high the water stands in the porthole for this weight. */

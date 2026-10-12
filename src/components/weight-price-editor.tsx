@@ -2,7 +2,7 @@
  * The owner's weight table for one service: "up to 8 kg ₱185, up to 8.5 kg
  * ₱200 …", typed as rows the way it is printed on the wall.
  *
- * Optional. Left empty, the service keeps its one price. Filled in, the
+ * Shown when the owner sets the price by weight table. Filled in, the
  * booking, the counter and the server all price a load by the first row it
  * fits under (`weight-prices.ts`, `public.weight_price`), so a wrong row is
  * fixed here and nowhere else.
@@ -37,8 +37,9 @@ export function WeightPriceEditor({
   return (
     <View style={styles.wrap}>
       <Text style={styles.help}>
-        Optional. Add a row for each weight on your price board, such as up to 8 kg ₱185, up to 8.5 kg
-        ₱200. A load is charged the first row it fits under. Leave it empty to charge the price above.
+        One row for each weight on your price board, such as up to 8 kg ₱185, up to 8.5 kg ₱200. The
+        laundry is charged the first row it fits under, and anything heavier than the last row is
+        charged the last row.
       </Text>
       {rows.length > 0 ? (
         <View style={styles.headRow}>

@@ -11,6 +11,7 @@
 import { formatMoneyCompact } from './money';
 import { CATEGORY_ORDER, type ServiceCategory } from './service-catalog';
 import { isWeighed, type PricingUnit } from './pricing';
+import type { WeightPrice } from './weight-prices';
 
 /**
  * How the owner says they charge. "Per load" is not a unit of its own on the
@@ -19,6 +20,13 @@ import { isWeighed, type PricingUnit } from './pricing';
  * price → most per load", owners could not find it, so the form names it.
  */
 export type ChargeKind = PricingUnit | 'per_load';
+
+/**
+ * Where a weighed service's price comes from: one price (per kg, per load or
+ * per job), or the shop's weight table. Never both — a load size beside a
+ * table read as two prices for the same load.
+ */
+export type PriceBy = 'one' | 'table';
 
 export interface ServiceDraft {
   name: string;
@@ -29,6 +37,8 @@ export interface ServiceDraft {
   /** Most a load may weigh, in kg; blank means no limit, except per load, where it is the load size. */
   maxQuantity: string;
   description: string;
+  /** Absent means one price. */
+  priceBy?: PriceBy;
 }
 
 export type ServiceDraftField =
@@ -37,7 +47,8 @@ export type ServiceDraftField =
   | 'unit'
   | 'price'
   | 'minQuantity'
-  | 'maxQuantity';
+  | 'maxQuantity'
+  | 'weightPrices';
 
 export interface ServiceValues {
   name: string;
@@ -47,6 +58,8 @@ export interface ServiceValues {
   min_quantity: number;
   max_quantity: number;
   description: string;
+  /** The weight table; empty when the service charges one price. */
+  weight_prices: WeightPrice[];
 }
 
 export type ServiceDraftResult =
@@ -88,6 +101,11 @@ function minimumError(minimum: number | null): string | undefined {
   return undefined;
 }
 
+/** A unit the laundry is weighed for, so a weight table can price it. */
+export function takesWeightTable(unit: ChargeKind | null): boolean {
+  return unit === 'per_kg' || unit === 'per_load' || unit === 'flat';
+}
+
 /** A load limit only means something where the laundry is weighed or loaded. */
 function takesLoadLimit(unit: ChargeKind | null): boolean {
   return unit === 'per_kg' || unit === 'flat' || unit === 'per_load';
@@ -123,10 +141,20 @@ function maximumError(maximum: number | null, minimum: number | null): string | 
   return undefined;
 }
 
-export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
+/**
+ * `table` is the owner's weight table, already checked row by row. Priced by
+ * the table, the service keeps no single price or minimum of its own: the
+ * first row is stored as the price its tile starts from. Its kg per load stays
+ * as a label ("max 8 kg per load") and is optional; it never sets the price.
+ */
+export function validateServiceDraft(
+  draft: ServiceDraft,
+  table: readonly WeightPrice[] = []
+): ServiceDraftResult {
+  const byTable = draft.priceBy === 'table' && takesWeightTable(draft.unit);
   const name = draft.name.trim();
-  const price = parseNumber(draft.price);
-  const minimum = draft.unit === 'per_kg' ? parseNumber(draft.minQuantity) : null;
+  const price = byTable ? (table[0]?.price ?? null) : parseNumber(draft.price);
+  const minimum = draft.unit === 'per_kg' && !byTable ? parseNumber(draft.minQuantity) : null;
   const maximum = takesLoadLimit(draft.unit) ? parseNumber(draft.maxQuantity) : null;
 
   const errors: Partial<Record<ServiceDraftField, string>> = {};
@@ -135,11 +163,16 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
   if (!draft.category) errors.category = 'Choose where it sits on your price list.';
   const unitProblem = chargeKindError(draft.unit, draft.category);
   if (unitProblem) errors.unit = unitProblem;
-  const priceProblem = priceError(price);
-  if (priceProblem) errors.price = priceProblem;
+  if (byTable && table.length === 0) {
+    errors.weightPrices = 'Add at least one row, like up to 8 kg ₱185.';
+  } else if (!byTable) {
+    const priceProblem = priceError(price);
+    if (priceProblem) errors.price = priceProblem;
+  }
   const minimumProblem = minimumError(minimum);
   if (minimumProblem) errors.minQuantity = minimumProblem;
-  const maximumProblem = loadSizeError(draft.unit, maximum) ?? maximumError(maximum, minimum);
+  const maximumProblem =
+    (byTable ? undefined : loadSizeError(draft.unit, maximum)) ?? maximumError(maximum, minimum);
   if (maximumProblem) errors.maxQuantity = maximumProblem;
 
   if (Object.keys(errors).length > 0 || !draft.category || !draft.unit || price === null) {
@@ -155,6 +188,7 @@ export function validateServiceDraft(draft: ServiceDraft): ServiceDraftResult {
       min_quantity: minimum ?? 0,
       max_quantity: maximum ?? 0,
       description: draft.description.trim(),
+      weight_prices: byTable ? [...table] : [],
     },
   };
 }
@@ -168,11 +202,18 @@ export function draftFromService(service: {
   min_quantity: number;
   max_quantity?: number | null;
   description: string | null;
+  weight_prices?: readonly WeightPrice[];
 }): ServiceDraft {
   const isKnown = (CATEGORY_ORDER as readonly string[]).includes(service.category);
+  const hasTable = (service.weight_prices?.length ?? 0) > 0;
   const isPerLoad =
     service.unit === 'flat' &&
-    isWeighed({ unit: service.unit, max_quantity: service.max_quantity ?? 0, category: service.category });
+    isWeighed({
+      unit: service.unit,
+      max_quantity: service.max_quantity ?? 0,
+      category: service.category,
+      weight_prices: service.weight_prices,
+    });
   return {
     name: service.name,
     category: isKnown ? (service.category as ServiceCategory) : 'other',
@@ -182,6 +223,7 @@ export function draftFromService(service: {
     minQuantity: service.min_quantity > 0 ? String(service.min_quantity) : '',
     maxQuantity: (service.max_quantity ?? 0) > 0 ? String(service.max_quantity) : '',
     description: service.description ?? '',
+    ...(hasTable && service.unit !== 'per_item' ? { priceBy: 'table' as const } : {}),
   };
 }
 

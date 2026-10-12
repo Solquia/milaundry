@@ -99,6 +99,15 @@ describe('overLoadNotice', () => {
     expect(overLoadNotice(perLoad, 9)).toMatch(/6 kg/);
   });
 
+  test('says how many loads the weight is charged as', () => {
+    expect(overLoadNotice(perLoad, 12)).toMatch(/12 kg is charged as 2 loads/);
+    expect(overLoadNotice(perLoad, 12.5)).toMatch(/3 loads/);
+  });
+
+  test('says nothing for a bedding piece limit', () => {
+    expect(overLoadNotice({ ...perLoad, category: 'special_items' }, 9)).toBeNull();
+  });
+
   test('says nothing for a per-kilo service or one with no load limit', () => {
     expect(overLoadNotice({ ...washFold(0), max_quantity: 6 }, 9)).toBeNull();
     expect(overLoadNotice({ ...perLoad, max_quantity: 0 }, 9)).toBeNull();

@@ -1,4 +1,4 @@
-import { estimateLineTotal, estimateOrderTotal, isWeighed, Service } from '../pricing';
+import { estimateLineTotal, estimateOrderTotal, isWeighed, loadsFor, Service } from '../pricing';
 
 const wash: Service = { id: 'svc-wash', name: 'Wash & Fold', unit: 'per_kg', price: 35 };
 const comforter: Service = { id: 'svc-comf', name: 'Comforter', unit: 'per_item', price: 180 };
@@ -112,7 +112,55 @@ describe('estimateLineTotal with a weight table', () => {
     expect(estimateLineTotal(pack, 10)).toBe(300);
   });
 
-  test('an empty table leaves the old pricing alone', () => {
-    expect(estimateLineTotal({ ...pack, weight_prices: [] }, 9)).toBe(185);
+  test('an empty table falls back to the per-load price', () => {
+    expect(estimateLineTotal({ ...pack, weight_prices: [] }, 8)).toBe(185);
+    expect(estimateLineTotal({ ...pack, weight_prices: [] }, 9)).toBe(370);
+  });
+});
+
+describe('per-load services', () => {
+  const fullService: Service = {
+    id: 'svc-full',
+    name: 'Full Service',
+    unit: 'flat',
+    price: 165,
+    max_quantity: 8,
+    category: 'wash_fold',
+  };
+
+  it('charges one load up to the load limit', () => {
+    expect(estimateLineTotal(fullService, 3)).toBe(165);
+    expect(estimateLineTotal(fullService, 8)).toBe(165);
+  });
+
+  it('charges another load for every load limit the weight passes', () => {
+    expect(estimateLineTotal(fullService, 8.5)).toBe(330);
+    expect(estimateLineTotal(fullService, 16)).toBe(330);
+    expect(estimateLineTotal(fullService, 16.5)).toBe(495);
+    expect(estimateLineTotal(fullService, 24)).toBe(495);
+  });
+
+  it('keeps a bedding piece limit as one charge per piece', () => {
+    const comforters: Service = { ...fullService, max_quantity: 4, category: 'special_items' };
+    expect(estimateLineTotal(comforters, 1)).toBe(165);
+  });
+
+  it('lets a weight table outrank the load count', () => {
+    const tabled: Service = {
+      ...fullService,
+      weight_prices: [
+        { up_to_kg: 8, price: 185 },
+        { up_to_kg: 16, price: 370 },
+      ],
+    };
+    expect(estimateLineTotal(tabled, 16)).toBe(370);
+  });
+
+  it('counts loads from the limit', () => {
+    expect(loadsFor(fullService, 0.5)).toBe(1);
+    expect(loadsFor(fullService, 8)).toBe(1);
+    expect(loadsFor(fullService, 8.5)).toBe(2);
+    expect(loadsFor(fullService, 16)).toBe(2);
+    expect(loadsFor({ ...fullService, max_quantity: 0 }, 16)).toBe(0);
   });
 });

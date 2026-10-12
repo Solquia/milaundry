@@ -34,6 +34,7 @@ describe('validateServiceDraft', () => {
         min_quantity: 5,
         max_quantity: 0,
         description: 'Regular clothes',
+        weight_prices: [],
       },
     });
   });
@@ -318,5 +319,60 @@ describe('loadSizeExample', () => {
 
   it('asks for the size while there is none', () => {
     expect(loadSizeExample({ ...EMPTY_SERVICE_DRAFT, maxQuantity: 'x' })).toMatch(/one load holds/);
+  });
+});
+
+describe('pricing by a weight table', () => {
+  const board = [
+    { up_to_kg: 8, price: 185 },
+    { up_to_kg: 8.5, price: 200 },
+  ];
+  const tableDraft: ServiceDraft = {
+    ...complete,
+    unit: 'per_load',
+    price: '',
+    minQuantity: '',
+    maxQuantity: '',
+    priceBy: 'table',
+  };
+
+  it('needs no single price or kg per load, and saves the table', () => {
+    const result = validateServiceDraft(tableDraft, board);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value).toMatchObject({ unit: 'flat', price: 185, max_quantity: 0, min_quantity: 0 });
+    expect(result.value.weight_prices).toEqual(board);
+  });
+
+  it('keeps kg per load as a label and takes the price from the table', () => {
+    const result = validateServiceDraft({ ...tableDraft, maxQuantity: '8', price: '999', minQuantity: '5' }, board);
+    expect(result.ok && result.value).toMatchObject({ price: 185, max_quantity: 8, min_quantity: 0 });
+  });
+
+  it('asks for a row when the table is empty', () => {
+    const result = validateServiceDraft(tableDraft, []);
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.errors.weightPrices).toMatch(/row/);
+  });
+
+  it('saves no table when the owner charges one price', () => {
+    const result = validateServiceDraft({ ...tableDraft, priceBy: 'one', price: '185', maxQuantity: '8' }, board);
+    expect(result.ok && result.value.weight_prices).toEqual([]);
+  });
+
+  it('opens a service with a table in table mode', () => {
+    const draft = draftFromService({
+      name: 'Package 1',
+      category: 'wash_fold',
+      unit: 'flat',
+      price: 185,
+      min_quantity: 0,
+      max_quantity: 8,
+      description: '',
+      weight_prices: board,
+    });
+    expect(draft.priceBy).toBe('table');
+    expect(draft.unit).toBe('per_load');
   });
 });

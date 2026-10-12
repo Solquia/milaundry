@@ -97,3 +97,26 @@ describe('a line with a weight table', () => {
     expect(quantityError(pack, 8.5)).toBeNull();
   });
 });
+
+describe('a line sold per load', () => {
+  const fullService: CheckLine = {
+    itemId: 'i-load',
+    name: 'Full Service',
+    unit: 'flat',
+    unitPrice: 165,
+    minQuantity: 0,
+    bookedQuantity: 16,
+    loadKg: 8,
+  };
+
+  test('is weighed on the scale', () => {
+    expect(isKgLine(fullService)).toBe(true);
+    expect(quantityError(fullService, 8.5)).toBeNull();
+  });
+
+  test('is charged once per load the weight fills', () => {
+    expect(checkLineSubtotal(fullService, 8)).toBe(165);
+    expect(checkLineSubtotal(fullService, 16)).toBe(330);
+    expect(checkLineSubtotal(fullService, 16.5)).toBe(495);
+  });
+});
