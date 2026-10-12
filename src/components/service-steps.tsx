@@ -13,7 +13,7 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { RADII, colors, fontFor, space, type } from './ui-kit';
+import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import {
   isFromPrice,
@@ -56,7 +56,10 @@ const PHOTOS: Record<ItemPhotoKey, ImageSource> = {
   basket: require('../../assets/images/services/basket.webp'),
 };
 
-const SIZE_BASIS: Record<number, `${number}%`> = { 1: '100%', 2: '48%', 3: '31.5%' };
+/** Tall enough that a two-line name and the photo never meet, as on the counter's tiles. */
+const BOARD_CARD_HEIGHT = 176;
+
+const SIZE_BASIS:Record<number, `${number}%`> = { 1: '100%', 2: '48%', 3: '31.5%' };
 
 /** Two across for two or four sizes (Basic/Deep, S–XL), three for the rest. */
 function sizeColumns(count: number): number {
@@ -119,20 +122,33 @@ function BoardCard<S extends GuideService>({
       accessibilityRole="button"
       accessibilityLabel={`${board.title}, ${items} ${items === 1 ? 'item' : 'items'}, from ${from}`}
       onPress={onOpen}
-      style={({ pressed }) => [styles.boardCard, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.boardCard, ticket > 0 && { borderColor: tint.fill }, pressed && styles.pressed]}
     >
-      <Stage source={photoFor(board.title, board.groups[0]?.name ?? '')} size={128} tint={tint} />
-      <View style={styles.boardWords}>
-        <Text style={styles.boardTitle} numberOfLines={1}>
+      {/* Laid out like the counter's service tiles: the name at the top left,
+          the thing itself big in the lower right running off the corner, and
+          the price at the foot on the left. */}
+      <View style={styles.boardArt} pointerEvents="none">
+        <Image
+          source={photoFor(board.title, board.groups[0]?.name ?? '')}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+          transition={120}
+        />
+      </View>
+      <View style={styles.boardHead}>
+        <Text style={styles.boardTitle} numberOfLines={3}>
           {board.title}
         </Text>
-        <Text style={styles.boardFrom} numberOfLines={1}>
-          <Text style={styles.fromWord}>from </Text>
-          {from}
-        </Text>
-      </View>
-      <View style={styles.cornerDot}>
         <TicketDot count={ticket} tint={tint} />
+      </View>
+      <View style={styles.boardFoot}>
+        <View style={[styles.fromPill, { backgroundColor: tint.surface }]}>
+          <Text style={[styles.fromPrice, { color: tint.ink }]} numberOfLines={1}>
+            <Text style={styles.fromWord}>from </Text>
+            {from}
+          </Text>
+        </View>
+        {items > 1 ? <Text style={styles.itemCount}>{`${items} items`}</Text> : null}
       </View>
     </Pressable>
   );
@@ -475,20 +491,43 @@ const styles = StyleSheet.create({
   boardCard: {
     flexBasis: '46%',
     flexGrow: 1,
-    maxWidth: 240,
-    borderRadius: RADII.card,
+    maxWidth: 260,
+    minHeight: BOARD_CARD_HEIGHT,
+    justifyContent: 'space-between',
+    ...CROWN,
     backgroundColor: colors.card,
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: colors.border,
     overflow: 'hidden',
+    ...elevation.rest,
   },
+  /** The photo, big and running off the lower right corner, as on the counter's tiles. */
+  boardArt: { position: 'absolute', right: '-10%', bottom: '-8%', width: '78%', aspectRatio: 1 },
+  boardHead: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.tight,
+    paddingHorizontal: space.cosy,
+    paddingTop: space.cosy,
+  },
+  boardTitle: {
+    flex: 1,
+    maxWidth: '78%',
+    ...type.label,
+    fontFamily: fontFor(800),
+    fontSize: 19,
+    lineHeight: 23,
+    letterSpacing: -0.2,
+    color: colors.text,
+  },
+  /** The foot sits over the photo's left edge, so it keeps to the left half. */
+  boardFoot: { alignItems: 'flex-start', gap: 3, maxWidth: '62%', paddingHorizontal: space.cosy, paddingBottom: space.cosy },
+  fromPill: { paddingHorizontal: space.snug, paddingVertical: 3, borderRadius: RADII.pill },
+  fromPrice: { ...type.caption, fontSize: 14, lineHeight: 18, fontFamily: fontFor(800), fontVariant: ['tabular-nums'] },
+  fromWord: { fontFamily: fontFor(600), fontSize: 11.5 },
+  itemCount: { ...type.caption, fontSize: 11.5, lineHeight: 15, fontFamily: fontFor(600), color: colors.subtle },
   stage: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
   stagePhoto: { width: '100%', height: '100%' },
-  boardWords: { paddingHorizontal: space.cosy, paddingTop: space.snug, paddingBottom: space.cosy, gap: 2 },
-  boardTitle: { ...type.label, fontSize: 15, color: colors.text },
-  boardFrom: { ...type.body, fontFamily: fontFor(700), color: colors.text, fontVariant: ['tabular-nums'] },
-  fromWord: { ...type.caption, fontFamily: fontFor(400), color: colors.subtle },
-  cornerDot: { position: 'absolute', top: space.snug, right: space.snug },
   dot: {
     minWidth: 22,
     height: 22,
