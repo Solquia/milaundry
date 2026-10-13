@@ -137,7 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadProfile]);
 
   const signOut = useCallback(async () => {
-    const { error } = await supabase.auth.signOut();
+    // Local scope: a shop's counter phones share one login, and the default
+    // (global) would sign every one of them out when one person taps Sign out.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw new Error(error.message);
   }, []);
 
