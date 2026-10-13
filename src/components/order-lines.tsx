@@ -14,6 +14,7 @@ import type { OrderWithDetails } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import { lineQuantity } from '@/lib/domain/price-label';
 import { shortOrderId } from '@/lib/domain/order-card';
+import { appliedReward } from '@/lib/domain/rewards';
 import type { OrderItemRow } from '@/lib/types';
 
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from './torn-edge';
@@ -38,6 +39,7 @@ export function OrderLines({ order, now }: { order: OrderWithDetails; now: Date 
   const total = order.final_total ?? order.estimated_total;
   const isEstimate = (order.final_total ?? null) === null;
   const isWeighed = order.actual_weight_kg !== null;
+  const reward = appliedReward(order);
 
   return (
     <View
@@ -80,6 +82,16 @@ export function OrderLines({ order, now }: { order: OrderWithDetails; now: Date 
             Weighed {order.actual_weight_kg} kg
             {order.weighed_at ? ` · ${formatWhen(order.weighed_at, now)}` : ''}
           </Text>
+        ) : null}
+        {/* The lines above add up to the bill before the reward, so the
+            reward is printed as its own line or the column would not add up. */}
+        {reward ? (
+          <View style={styles.totalRow}>
+            <Text style={styles.rewardLabel} numberOfLines={2}>
+              REWARD · {reward.label}
+            </Text>
+            <Text style={styles.rewardValue}>-{formatMoney(reward.discount)}</Text>
+          </View>
         ) : null}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>{isEstimate ? 'ESTIMATED TOTAL' : 'TOTAL'}</Text>
@@ -124,5 +136,7 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   totalLabel: { fontFamily: mono, fontSize: 12, letterSpacing: 0.8, color: colors.subtle },
   totalValue: { fontFamily: mono, fontSize: 20, fontWeight: '700', color: colors.text },
+  rewardLabel: { flexShrink: 1, fontFamily: mono, fontSize: 12, color: colors.moneyIn },
+  rewardValue: { fontFamily: mono, fontSize: 14, fontWeight: '700', color: colors.moneyIn },
   note: { fontFamily: mono, fontSize: 12, color: colors.subtle },
 });

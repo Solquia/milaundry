@@ -21,6 +21,7 @@ import { docketNumber, stampLabel } from './docket';
 import * as esc from './escpos';
 import { roundCentavos } from './money';
 import { formatQuantity, lineQuantity } from './price-label';
+import { appliedReward } from './rewards';
 import { buildOrderQr } from './qr';
 
 export type PaperColumns = 32 | 48;
@@ -108,7 +109,17 @@ function totals(order: OrderWithDetails, columns: number): ReceiptLine[] {
   const bill = actualBill(order);
   const label = bill.stage === 'estimated' ? 'ESTIMATED' : 'TOTAL';
   const amount = moneyPlain(order.final_total ?? order.estimated_total);
-  const lines: ReceiptLine[] = [text(twoColumn(label, amount, columns), { bold: true })];
+  // The items add up to the bill before the reward; without its own line the
+  // paper would not add up.
+  const reward = appliedReward(order);
+  // Thermal code pages have neither ₱ nor the middle dot.
+  const lines: ReceiptLine[] = reward
+    ? [
+        text(twoColumn('Reward', `-${moneyPlain(reward.discount)}`, columns)),
+        text(`  ${reward.label.replace(/₱/g, 'P').replace(/·/g, '-')}`),
+      ]
+    : [];
+  lines.push(text(twoColumn(label, amount, columns), { bold: true }));
   const stamp = stampLabel(bill.stage);
   if (stamp) lines.push(text(stamp, { align: 'center', bold: true, big: true }));
   return lines;

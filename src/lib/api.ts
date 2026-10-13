@@ -28,6 +28,13 @@ import { normalizePreferences, type LaundryPreferences } from './domain/laundry-
 import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
 import type { Expense, ExpenseInput } from './domain/expense-metrics';
 import type { RecurringExpense, RecurringInput } from './domain/expense-recurring';
+import {
+  parseShopStandings,
+  parseStanding,
+  type RewardStanding,
+  type ShopReward,
+  type ShopRewardStanding,
+} from './domain/rewards';
 import type { SavedClose } from './sales-store';
 import type { Fulfillment, PaymentMethod } from './domain/walk-in-order';
 import { parseGuestSessionResponse } from './domain/guest-identity';
@@ -470,6 +477,48 @@ export async function confirmOrderPrice(
     p_photo_path: photoPath,
   });
   return unwrap(result) as OrderRow;
+}
+
+// ── loyalty rewards (0046) ───────────────────────────────────────────────
+/** Every program the shop has set up, live or switched off. Owner's view. */
+export async function getShopRewards(shopId: string): Promise<ShopReward[]> {
+  const result = await supabase.from('shop_rewards').select('*').eq('shop_id', shopId);
+  const rows = unwrap(result) as (Omit<ShopReward, 'benefit_value'> & { benefit_value: number | string })[];
+  // numeric comes back as a string from PostgREST.
+  return rows.map((row) => ({ ...row, benefit_value: Number(row.benefit_value) }));
+}
+
+/** One program per kind per shop, so saving is an upsert on that pair. */
+export async function saveShopReward(
+  reward: Pick<ShopReward, 'shop_id' | 'kind' | 'visits_needed' | 'benefit' | 'benefit_value' | 'is_active'>
+): Promise<void> {
+  const { error } = await supabase.from('shop_rewards').upsert(reward, { onConflict: 'shop_id,kind' });
+  if (error) throw new Error(error.message);
+}
+
+/** What the customer on this order has earned. Counter's view. */
+export async function getOrderRewards(orderId: string): Promise<RewardStanding> {
+  const result = await supabase.rpc('get_order_rewards', { p_order_id: orderId });
+  return parseStanding(unwrap(result));
+}
+
+export async function applyOrderReward(orderId: string, rewardId: string): Promise<OrderRow> {
+  const result = await supabase.rpc('apply_order_reward', {
+    p_order_id: orderId,
+    p_reward_id: rewardId,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+export async function removeOrderReward(orderId: string): Promise<OrderRow> {
+  const result = await supabase.rpc('remove_order_reward', { p_order_id: orderId });
+  return unwrap(result) as OrderRow;
+}
+
+/** The signed-in customer's stamp cards, one per shop; narrowed by `shopId`. */
+export async function getMyRewards(shopId?: string): Promise<ShopRewardStanding[]> {
+  const result = await supabase.rpc('get_my_rewards', { p_shop_id: shopId ?? null });
+  return parseShopStandings(unwrap(result));
 }
 
 /**

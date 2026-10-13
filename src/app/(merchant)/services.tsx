@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { MerchantAddons } from '@/components/merchant-addons';
+import { MerchantRewards } from '@/components/merchant-rewards';
 import { PriceBoard } from '@/components/price-board';
 import { Segmented } from '@/components/segmented';
 import { ServiceForm, type ServiceFormOutcome } from '@/components/service-form';
@@ -31,7 +32,7 @@ import { STARTER_SERVICES } from '@/lib/domain/service-catalog';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
-type PricesMode = 'services' | 'addons';
+type PricesMode = 'services' | 'addons' | 'rewards';
 
 /**
  * Services or add-ons: the two price lists an owner keeps. Pinned above the
@@ -41,6 +42,7 @@ type PricesMode = 'services' | 'addons';
 const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
   { key: 'services', label: 'Services' },
   { key: 'addons', label: 'Add-ons' },
+  { key: 'rewards', label: 'Rewards' },
 ];
 
 type PricesView = { kind: 'list' } | { kind: 'add' } | { kind: 'edit'; service: ServiceRecord };
@@ -166,6 +168,9 @@ export default function MerchantServices() {
   }
 
   const isAddons = isOwner && mode === 'addons';
+  // Rewards are the owner's, like the add-on shelf: what a regular pays is a
+  // pricing decision, not a counter one.
+  const isRewards = isOwner && mode === 'rewards';
   const header = (
     <View style={styles.headerRow}>
       {isOwner ? (
@@ -175,9 +180,17 @@ export default function MerchantServices() {
       ) : (
         <Text style={styles.headerTitle}>Services</Text>
       )}
-      {isAddons ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
+      {isAddons || isRewards ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
     </View>
   );
+
+  if (isRewards) {
+    return (
+      <Screen key="rewards" header={header}>
+        <MerchantRewards shopId={shop.id} />
+      </Screen>
+    );
+  }
 
   if (isAddons) {
     return (

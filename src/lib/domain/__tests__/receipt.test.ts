@@ -24,6 +24,12 @@ const order: OrderWithDetails = {
   weighed_at: null,
   payment_proof_path: null,
   payment_reference: null,
+  reward_id: null,
+  reward_kind: null,
+  reward_benefit: null,
+  reward_value: null,
+  reward_discount: 0,
+  reward_estimate_discount: 0,
   updated_at: '2026-09-06T02:15:00.000Z',
   status: 'received',
   order_type: 'walk_in',
@@ -140,6 +146,26 @@ describe('buildReceipt', () => {
     // No app needed any more: the slip must say a phone camera will do.
     expect(after.some((l) => l.kind === 'text' && /camera/i.test(l.text))).toBe(true);
     expect(after[after.length - 1]).toEqual({ kind: 'cut' });
+  });
+
+  it('prints a used reward as its own line so the slip still adds up', () => {
+    const rewarded = buildReceipt(
+      {
+        ...order,
+        final_total: 222.5,
+        reward_kind: 'stamp_card',
+        reward_benefit: 'free',
+        reward_value: 150,
+        reward_discount: 150,
+      },
+      shop,
+      { columns: 32 }
+    );
+    const t = rewarded.filter((l) => l.kind === 'text').map((l) => (l as { text: string }).text);
+    const at = t.findIndex((x) => x.startsWith('Reward'));
+    expect(t[at]).toMatch(/-P150\.00$/);
+    expect(t[at + 1]).toBe('  Stamp card - Free wash (up to P150)');
+    expect(t[at + 2]).toMatch(/^TOTAL .*P222\.50$/);
   });
 
   it('prefers the final total and stamps PAID once payment is recorded', () => {

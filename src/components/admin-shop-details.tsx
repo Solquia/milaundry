@@ -21,7 +21,6 @@ import type { Shop } from '@/lib/types';
 /** What the platform will add next, in one quiet list instead of dead switches. */
 const ROADMAP = [
   'Promotions',
-  'Loyalty points',
   'Messenger updates',
   'GCash in-app',
   'SMS alerts',

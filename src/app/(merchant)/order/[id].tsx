@@ -8,6 +8,7 @@ import { CollectPayment, ProofReview } from '@/components/collect-payment';
 import { OrderHero } from '@/components/order-hero';
 import { OrderHolderCard } from '@/components/order-holder-card';
 import { OrderLines } from '@/components/order-lines';
+import { OrderRewardsCard } from '@/components/order-rewards-card';
 import { OrderTimeline } from '@/components/order-timeline';
 import { SentPrice, WeighModal, settleLead } from '@/components/price-handoff';
 import { TagPrintRow } from '@/components/tag-print-row';
@@ -245,6 +246,9 @@ export default function MerchantOrderDetail() {
           refresh();
         }}
       />
+
+      {/* Above the payment card: a reward changes what is collected. */}
+      <OrderRewardsCard order={order} />
 
       <Card>
         <Text style={styles.cardHeading}>Payment</Text>

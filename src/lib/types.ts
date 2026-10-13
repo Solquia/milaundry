@@ -2,6 +2,7 @@ import type { PreferredMethod } from './domain/customer-book';
 import type { OrderStatus } from './domain/order-status';
 import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
+import type { RewardBenefit, RewardKind } from './domain/rewards';
 import type { WeightPrice } from './domain/weight-prices';
 import type { ServiceCategory } from './domain/service-catalog';
 import type { ShopAccountRole } from './domain/shop-account';
@@ -156,6 +157,15 @@ export interface OrderRow {
   claim_token: string;
   claimed_at: string | null;
   notes: string;
+  /** The loyalty reward on this order, snapshotted when applied (0046). */
+  reward_id: string | null;
+  reward_kind: RewardKind | null;
+  reward_benefit: RewardBenefit | null;
+  reward_value: number | null;
+  /** Already taken off final_total; 0 until the order is priced. */
+  reward_discount: number;
+  /** Already taken off estimated_total. */
+  reward_estimate_discount: number;
   created_at: string;
   updated_at: string;
 }

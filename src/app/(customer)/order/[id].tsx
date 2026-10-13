@@ -32,6 +32,7 @@ import {
   updateOrderStatus,
 } from '@/lib/api';
 import { actualBill, type BillStage } from '@/lib/domain/actual-bill';
+import { appliedReward } from '@/lib/domain/rewards';
 import { bookingPaymentStage } from '@/lib/domain/booking-status';
 import { docketNumber, stampLabel } from '@/lib/domain/docket';
 import { resolveAccent } from '@/lib/domain/shop-branding';
@@ -141,6 +142,7 @@ export default function CustomerOrderDetail() {
 
   const stage = bookingPaymentStage(order);
   const bill = actualBill(order);
+  const reward = appliedReward(order);
   const shopName = order.shop?.name ?? 'Order';
 
   // The laundry's own tone — chosen by the shop, or its stable hash when it has
@@ -277,6 +279,11 @@ export default function CustomerOrderDetail() {
               <Text style={[styles.billAmount, { color: money.ink }]}>{bill.amount}</Text>
               {bill.difference ? (
                 <Text style={styles.billDifference}>{bill.difference}</Text>
+              ) : null}
+              {reward ? (
+                <Text style={styles.billReward}>
+                  {`Reward used: ${reward.label} · ${formatMoney(reward.discount)} off`}
+                </Text>
               ) : null}
             </View>
           </View>
@@ -643,6 +650,7 @@ const styles = StyleSheet.create({
   billAmount: { fontFamily: mono, fontSize: 24, fontWeight: '700' },
   // Amber, not red: a bigger bill is news to explain, not an error.
   billDifference: { fontSize: 13, fontWeight: '600', color: colors.moneyOut },
+  billReward: { fontSize: 13, fontWeight: '700', color: colors.moneyIn },
 
   evidence: { gap: space.tight, marginTop: space.tight },
   /** Near-square corners: a photo glued onto receipt paper, not a card. */

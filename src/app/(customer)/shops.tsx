@@ -10,13 +10,15 @@ import {
   Loading,
   Screen,
   Subtle,
+  TAG_TONES,
   colors,
   elevation,
   space,
   type,
 } from '@/components/ui-kit';
 import { ShopLogo } from '@/components/shop-logo';
-import { getRegisteredShops } from '@/lib/api';
+import { getMyRewards, getRegisteredShops } from '@/lib/api';
+import { customerNudge } from '@/lib/domain/rewards';
 import { assignBrandAccents } from '@/lib/domain/shop-branding';
 import { shopLogoUri } from '@/lib/domain/shop-cover';
 import { emptyDirectoryMessage } from '@/lib/domain/shop-directory';
@@ -37,6 +39,9 @@ export default function CustomerShops() {
     queryKey: ['registered-shops'],
     queryFn: getRegisteredShops,
   });
+
+  // One call for every card's reward line; a failure only costs the lines.
+  const { data: rewards } = useQuery({ queryKey: ['my-rewards'], queryFn: () => getMyRewards() });
 
   const mine = useMemo(() => registered ?? [], [registered]);
 
@@ -62,15 +67,33 @@ export default function CustomerShops() {
     <Screen>
       <Text style={styles.sectionTitle}>Your laundry shops</Text>
       {emptyMessage ? <EmptyState message={emptyMessage} /> : null}
-      {mine.map((shop, index) => (
-        <ShopCard
-          key={shop.id}
-          shop={shop}
-          accent={ACCENTS[mineAccents[index]]}
-          onPress={() => openShop(shop.id)}
-        />
-      ))}
+      {mine.map((shop, index) => {
+        const standing = rewards?.find((row) => row.shop_id === shop.id);
+        const nudge = standing ? customerNudge(standing) : null;
+        const isReady = Boolean(standing?.programs.some((program) => program.ready > 0));
+        return (
+          <ShopCard
+            key={shop.id}
+            shop={shop}
+            accent={ACCENTS[mineAccents[index]]}
+            onPress={() => openShop(shop.id)}
+          >
+            {nudge ? <RewardLine text={nudge} isReady={isReady} /> : null}
+          </ShopCard>
+        );
+      })}
     </Screen>
+  );
+}
+
+/** How close the next reward is, under the shop it is earned at. */
+function RewardLine({ text, isReady }: { text: string; isReady: boolean }) {
+  const tone = isReady ? TAG_TONES.settled : TAG_TONES.linked;
+  return (
+    <View style={[styles.reward, { backgroundColor: tone.bg }]}>
+      <Ionicons name="gift" size={16} color={tone.ink} />
+      <Text style={[styles.rewardText, { color: tone.ink }]}>{text}</Text>
+    </View>
   );
 }
 
@@ -138,4 +161,13 @@ const styles = StyleSheet.create({
   },
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   shopName: { ...type.label, fontSize: 16, color: colors.text },
+  reward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    paddingHorizontal: space.cosy,
+    paddingVertical: space.snug,
+    borderRadius: 10,
+  },
+  rewardText: { ...type.label, flex: 1 },
 });

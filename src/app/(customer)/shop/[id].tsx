@@ -24,6 +24,7 @@ import { ReviewShowcase } from '@/components/review-showcase';
 import { ShopMapCard } from '@/components/shop-map-card';
 import { ServiceShelf } from '@/components/service-shelf';
 import { ShopfrontHero } from '@/components/shopfront-hero';
+import { ShopRewardsCard } from '@/components/shop-rewards-card';
 import { ShopStatusPill } from '@/components/shop-status-pill';
 import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import {
@@ -281,6 +282,8 @@ export default function CustomerShopHome() {
     [myOrders, id]
   );
 
+  const rewards = id ? <ShopRewardsCard shopId={id} isRegistered={isRegistered} /> : null;
+
   // The same rule the home headline uses: ready outranks mid-cycle, then
   // whichever load is furthest along.
   const hereNow = useMemo(() => {
@@ -459,6 +462,7 @@ export default function CustomerShopHome() {
             />
           ) : null}
         </SpotlightBody>
+        {rewards}
         <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
         {ratings}
         {storeInfo}
@@ -514,6 +518,7 @@ export default function CustomerShopHome() {
             onPress={() => router.push(`/(customer)/order/${hereNow.id}` as never)}
           />
         ) : null}
+        {rewards}
         <MarketCatalog
           services={services ?? []}
           cart={basket.cart}
@@ -597,6 +602,10 @@ export default function CustomerShopHome() {
           }
         />
       )}
+
+      {/* The stamp card sits above the prices: how close the next free wash
+          is should be the reason to book here, read before the menu. */}
+      {rewards}
 
       {/* The shelf: every service the owner listed, in the order the owner
           grouped them, searchable once there are enough of them to hunt

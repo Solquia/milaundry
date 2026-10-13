@@ -24,6 +24,7 @@ import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotl
 import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
 import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
+import { ShopRewardsCard } from '@/components/shop-rewards-card';
 import { PriceList } from '@/components/web/price-list';
 import { ReviewList } from '@/components/web/review-list';
 import { ShopDetails, mapsLink } from '@/components/web/shop-details';
@@ -182,6 +183,7 @@ function MarketBody({ storefront }: { storefront: Storefront }) {
             onRemove={basket.remove}
             notice={basket.notice}
           />
+          <ShopRewardsCard shopId={shop.id} isRegistered={false} />
           <ShopPriceGuide shopId={shop.id} services={services} />
           {tracked ? null : trackBand}
           {reputation && reviews.length > 0 ? (
@@ -312,6 +314,7 @@ function SpotlightPage({ storefront }: { storefront: Storefront }) {
               onOpen={() => router.push(`/s/${shop.slug}/orders` as never)}
             />
           </SpotlightBody>
+          <ShopRewardsCard shopId={shop.id} isRegistered={false} />
           <ShopPriceGuide shopId={shop.id} services={services} />
           {reputation && reviews.length > 0 ? (
             <>
@@ -443,6 +446,7 @@ function ClassicBody({ storefront }: { storefront: Storefront }) {
           {/* The shelf carries its own heading, because on a shop with enough
               services it also carries the search under it — a page heading
               above that would be a second title for one region. */}
+          <ShopRewardsCard shopId={shop.id} isRegistered={false} />
           {hasPriceGuide(shop.id) ? (
             <ShopPriceGuide
               shopId={shop.id}
