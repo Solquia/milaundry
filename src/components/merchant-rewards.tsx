@@ -8,6 +8,7 @@
  * A preview of the customer's card sits on top, so the owner sees exactly
  * what their regulars will see.
  */
+import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { StyleSheet, Switch, Text, View } from 'react-native';
@@ -20,6 +21,7 @@ import {
   KIND_LABELS,
   REWARD_DEFAULTS,
   REWARD_KINDS,
+  programHeadline,
   validateRewardDraft,
   type RewardBenefit,
   type RewardKind,
@@ -208,7 +210,8 @@ export function MerchantRewards({ shopId }: { shopId: string }) {
         <Subtle>
           Every finished order counts as a visit, for app customers and for walk-ins whose phone
           number you type. Customers see their card on your shop page. When one has earned a
-          reward, it shows on their order here so you can apply it, and the bill drops by itself.
+          reward, a Rewards card shows on their order so you can apply it, and the bill drops by
+          itself.
         </Subtle>
       </Card>
 
@@ -235,8 +238,47 @@ export function MerchantRewards({ shopId }: { shopId: string }) {
   );
 }
 
+/**
+ * The same editor, folded into one card for Settings: what is live at a
+ * glance, and one tap to open the programs. Unfolded in the stack it would
+ * push every other setting three screens down.
+ */
+export function RewardsSettingsCard({ shopId }: { shopId: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const { data: rewards } = useQuery({
+    queryKey: ['shop-rewards', shopId],
+    queryFn: () => getShopRewards(shopId),
+  });
+  const live = (rewards ?? []).filter((reward) => reward.is_active);
+  const summary =
+    live.length === 0
+      ? 'No promos running. Give regulars a reason to come back: a free 10th wash, a first-visit discount, or a regulars’ discount.'
+      : `${live.length} running: ${live.map((reward) => programHeadline(reward)).join(' · ')}`;
+  const buttonTitle = isOpen ? 'Close promos' : live.length === 0 ? 'Set up promos' : 'Edit promos';
+
+  return (
+    <View style={styles.stack}>
+      <Card>
+        <View style={styles.settingsHead}>
+          <Ionicons name="gift" size={22} color={colors.actionInk} />
+          <Text style={[type.section, styles.settingsTitle]}>Promos & loyalty rewards</Text>
+        </View>
+        <Subtle>{summary}</Subtle>
+        <Button
+          title={buttonTitle}
+          variant={isOpen ? 'outline' : 'primary'}
+          onPress={() => setIsOpen((open) => !open)}
+        />
+      </Card>
+      {isOpen ? <MerchantRewards shopId={shopId} /> : null}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   stack: { gap: space.section },
+  settingsHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  settingsTitle: { flex: 1, color: colors.text },
   editorHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.cosy },
   editorTitle: { flex: 1, gap: space.tight },
   switchCol: { alignItems: 'center', gap: 2 },

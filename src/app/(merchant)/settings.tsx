@@ -4,6 +4,7 @@ import { Text, View } from 'react-native';
 import { BrandingCard } from '@/components/branding-card';
 import { DoorbellCard } from '@/components/doorbell-card';
 import { PaymentRailsCard } from '@/components/payment-rails-card';
+import { RewardsSettingsCard } from '@/components/merchant-rewards';
 import { PrinterCard } from '@/components/printer-card';
 import { ShopHoursCard } from '@/components/shop-hours-card';
 import { ShopLocationCard } from '@/components/shop-location-card';
@@ -66,17 +67,20 @@ export default function MerchantSettings() {
         <Subtle>{describeShopAccess(shopRole)}</Subtle>
       </Card>
 
+      {/* Promos first: owners looked for them here, not under Prices. */}
+      {shop && isOwner ? <RewardsSettingsCard key={`RewardsSettingsCard-${shop.id}`} shopId={shop.id} /> : null}
+
       {/* Branding before payment: this is the card an owner comes looking for,
           and the one they will change more than once. */}
       {/* Each form seeds its draft from `shop` once. Keyed on the shop, so a
           superadmin switching "view as" never saves one shop's draft onto
           another. */}
-      {shop && isOwner ? <BrandingCard key={shop.id} shop={shop} /> : null}
-      {shop && isOwner ? <StorefrontStyleCard key={shop.id} shop={shop} /> : null}
-      {shop && isOwner ? <ShopHoursCard key={shop.id} shop={shop} /> : null}
-      {shop && isOwner ? <WebPageCard key={shop.id} shop={shop} /> : null}
-      {shop && isOwner ? <ShopLocationCard key={shop.id} shop={shop} /> : null}
-      {shop && isOwner ? <PaymentRailsCard key={shop.id} shop={shop} /> : null}
+      {shop && isOwner ? <BrandingCard key={`BrandingCard-${shop.id}`} shop={shop} /> : null}
+      {shop && isOwner ? <StorefrontStyleCard key={`StorefrontStyleCard-${shop.id}`} shop={shop} /> : null}
+      {shop && isOwner ? <ShopHoursCard key={`ShopHoursCard-${shop.id}`} shop={shop} /> : null}
+      {shop && isOwner ? <WebPageCard key={`WebPageCard-${shop.id}`} shop={shop} /> : null}
+      {shop && isOwner ? <ShopLocationCard key={`ShopLocationCard-${shop.id}`} shop={shop} /> : null}
+      {shop && isOwner ? <PaymentRailsCard key={`PaymentRailsCard-${shop.id}`} shop={shop} /> : null}
       {shop ? <DoorbellCard /> : null}
       {shop ? <PrinterCard shop={shop} /> : null}
 
