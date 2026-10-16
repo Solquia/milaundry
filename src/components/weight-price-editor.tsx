@@ -13,6 +13,7 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { MAX_WEIGHT_ROWS, type WeightPrice, type WeightPriceDraft } from '@/lib/domain/weight-prices';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, useIsGlass } from './glass';
 import { RADII, colors, fontFor, space, type } from './ui-kit';
 
 /** A saved table, opened as editable text rows. */
@@ -33,6 +34,7 @@ export function WeightPriceEditor({
     onChange(rows.map((row, at) => (at === index ? { ...row, ...patch } : row)));
   const removeRow = (index: number) => onChange(rows.filter((_, at) => at !== index));
   const addRow = () => onChange([...rows, { upTo: '', price: '' }]);
+  const isGlass = useIsGlass();
 
   return (
     <View style={styles.wrap}>
@@ -57,7 +59,7 @@ export function WeightPriceEditor({
             placeholder="8"
             placeholderTextColor={colors.subtle}
             accessibilityLabel={`Row ${index + 1}, up to how many kilos`}
-            style={[styles.input, styles.weightCol]}
+            style={[styles.input, isGlass && styles.inputGlass, styles.weightCol]}
           />
           <TextInput
             value={row.price}
@@ -66,7 +68,7 @@ export function WeightPriceEditor({
             placeholder="185"
             placeholderTextColor={colors.subtle}
             accessibilityLabel={`Row ${index + 1}, price`}
-            style={[styles.input, styles.priceCol]}
+            style={[styles.input, isGlass && styles.inputGlass, styles.priceCol]}
           />
           <Pressable
             accessibilityRole="button"
@@ -98,7 +100,7 @@ const styles = StyleSheet.create({
   wrap: { gap: space.snug },
   help: { ...type.caption, color: colors.subtle },
   headRow: { flexDirection: 'row', gap: space.snug },
-  headText: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
+  headText: { ...type.caption, ...fontFor(600), color: colors.subtle },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   weightCol: { flex: 1 },
   priceCol: { flex: 1.3 },
@@ -115,6 +117,8 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
+  // Glass by hand: a TextInput style cannot take the View-only web blur.
+  inputGlass: { backgroundColor: GLASS_FILL_DENSE, borderColor: GLASS_EDGE },
   error: { ...type.caption, color: colors.dangerInk },
   add: {
     flexDirection: 'row',

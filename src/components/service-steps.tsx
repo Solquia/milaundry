@@ -13,6 +13,7 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import {
@@ -117,12 +118,18 @@ function BoardCard<S extends GuideService>({
 }) {
   const items = board.groups.length;
   const from = money(lowestPrice(board.groups));
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${board.title}, ${items} ${items === 1 ? 'item' : 'items'}, from ${from}`}
       onPress={onOpen}
-      style={({ pressed }) => [styles.boardCard, ticket > 0 && { borderColor: tint.fill }, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.boardCard,
+        isGlass && styles.boardCardGlass,
+        ticket > 0 && { borderColor: tint.fill },
+        pressed && styles.pressed,
+      ]}
     >
       {/* Laid out like the counter's service tiles: the name at the top left,
           the thing itself big in the lower right running off the corner, and
@@ -167,6 +174,7 @@ function StepHead({
   prompt: string;
   onBack: () => void;
 }) {
+  const isGlass = useIsGlass();
   return (
     <View style={styles.head}>
       <Pressable
@@ -174,7 +182,7 @@ function StepHead({
         accessibilityLabel="Back"
         onPress={onBack}
         hitSlop={8}
-        style={({ pressed }) => [styles.back, pressed && styles.pressed]}
+        style={({ pressed }) => [styles.back, isGlass && styles.backGlass, pressed && styles.pressed]}
       >
         <Ionicons name="chevron-back" size={20} color={colors.text} />
       </Pressable>
@@ -206,12 +214,18 @@ function ItemRow<S extends GuideService>({
   const sizes = group.options.length;
   const from = money(lowestPrice([group]));
   const detail = sizes > 1 ? `${sizes} sizes · from ${from}` : from;
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${group.name}, ${detail}`}
       onPress={onOpen}
-      style={({ pressed }) => [styles.itemRow, !isFirst && styles.ruled, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.itemRow,
+        !isFirst && styles.ruled,
+        !isFirst && isGlass && styles.ruledGlass,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={[styles.thumb, { backgroundColor: tint.surface }]}>
         <Image source={photoFor(group.name, board)} style={styles.thumbPhoto} contentFit="contain" />
@@ -252,6 +266,7 @@ function SizeCard<S extends GuideService>({
 }) {
   const isFrom = isFromPrice(service.description);
   const isOn = isChosen || count > 0;
+  const isGlass = useIsGlass();
   return (
     <View style={[styles.sizeSlot, { flexBasis: basis }]}>
       <Pressable
@@ -262,6 +277,7 @@ function SizeCard<S extends GuideService>({
         onPress={onPress}
         style={({ pressed }) => [
           styles.size,
+          isGlass && styles.sizeGlass,
           isOn && { borderColor: tint.fill, backgroundColor: tint.surface },
           pressed && styles.pressed,
         ]}
@@ -408,6 +424,7 @@ export function ServiceSteps<S extends GuideService>({
 }) {
   const [boardKey, setBoardKey] = useState<string | null>(sections.length === 1 ? sections[0].key : null);
   const [itemName, setItemName] = useState<string | null>(null);
+  const isGlass = useIsGlass();
   const board = sections.find((section) => section.key === boardKey) ?? null;
   const isSingleItem = board?.groups.length === 1;
   const item = board ? (isSingleItem ? board.groups[0] : board.groups.find((group) => group.name === itemName)) : null;
@@ -465,7 +482,7 @@ export function ServiceSteps<S extends GuideService>({
       {leaveBoard ? (
         <StepHead step={2} of={3} title={board.title} prompt="Which one?" onBack={leaveBoard} />
       ) : null}
-      <View style={styles.list}>
+      <View style={[styles.list, isGlass && styles.listGlass]}>
         {board.groups.map((group, index) => (
           <ItemRow
             key={group.name}
@@ -486,6 +503,7 @@ const styles = StyleSheet.create({
   wrap: { gap: space.cosy },
   pressed: { opacity: 0.75 },
   ruled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  ruledGlass: { borderTopColor: 'rgba(60, 60, 67, 0.12)' },
 
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.cosy },
   boardCard: {
@@ -501,6 +519,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...elevation.rest,
   },
+  boardCardGlass: { ...glassPane, borderWidth: 1.5 },
   /** The photo, big and running off the lower right corner, as on the counter's tiles. */
   boardArt: { position: 'absolute', right: '-10%', bottom: '-8%', width: '78%', aspectRatio: 1 },
   boardHead: {
@@ -514,7 +533,7 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: '78%',
     ...type.label,
-    fontFamily: fontFor(800),
+    ...fontFor(800),
     fontSize: 19,
     lineHeight: 23,
     letterSpacing: -0.2,
@@ -523,9 +542,9 @@ const styles = StyleSheet.create({
   /** The foot sits over the photo's left edge, so it keeps to the left half. */
   boardFoot: { alignItems: 'flex-start', gap: 3, maxWidth: '62%', paddingHorizontal: space.cosy, paddingBottom: space.cosy },
   fromPill: { paddingHorizontal: space.snug, paddingVertical: 3, borderRadius: RADII.pill },
-  fromPrice: { ...type.caption, fontSize: 14, lineHeight: 18, fontFamily: fontFor(800), fontVariant: ['tabular-nums'] },
-  fromWord: { fontFamily: fontFor(600), fontSize: 11.5 },
-  itemCount: { ...type.caption, fontSize: 11.5, lineHeight: 15, fontFamily: fontFor(600), color: colors.subtle },
+  fromPrice: { ...type.caption, fontSize: 14, lineHeight: 18, ...fontFor(800), fontVariant: ['tabular-nums'] },
+  fromWord: { ...fontFor(600), fontSize: 11.5 },
+  itemCount: { ...type.caption, fontSize: 11.5, lineHeight: 15, ...fontFor(600), color: colors.subtle },
   stage: { width: '100%', alignItems: 'center', justifyContent: 'flex-end', overflow: 'hidden' },
   stagePhoto: { width: '100%', height: '100%' },
   dot: {
@@ -536,7 +555,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotText: { ...type.caption, fontSize: 12, lineHeight: 16, fontFamily: fontFor(700), color: colors.onAccent },
+  dotText: { ...type.caption, fontSize: 12, lineHeight: 16, ...fontFor(700), color: colors.onAccent },
 
   head: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   back: {
@@ -547,6 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.sunken,
   },
+  backGlass: { ...glassChip },
   headWords: { flex: 1, minWidth: 0 },
   stepCount: { ...type.caption, fontSize: 11, lineHeight: 14, letterSpacing: 1, color: colors.subtle },
   headTitle: { ...type.section, color: colors.text },
@@ -558,11 +578,12 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingHorizontal: space.cosy,
   },
+  listGlass: { ...glassPane, paddingHorizontal: space.cosy },
   itemRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, paddingVertical: space.snug, minHeight: 68 },
   thumb: { width: 52, height: 52, borderRadius: RADII.control, overflow: 'hidden' },
   thumbPhoto: { width: '100%', height: '100%' },
   itemWords: { flex: 1, minWidth: 0, gap: 2 },
-  itemName: { ...type.body, fontFamily: fontFor(600), color: colors.text },
+  itemName: { ...type.body, ...fontFor(600), color: colors.text },
   itemDetail: { ...type.caption, color: colors.subtle, fontVariant: ['tabular-nums'] },
 
   sizeStep: { gap: space.cosy },
@@ -581,7 +602,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     justifyContent: 'space-between',
   },
-  sizeLabel: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
+  sizeGlass: { ...glassChip, borderWidth: 1.5 },
+  sizeLabel: { ...type.caption, ...fontFor(600), color: colors.subtle },
   sizePrice: { ...type.title, fontSize: 22, color: colors.text, fontVariant: ['tabular-nums'] },
   sizeNote: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   check: {
@@ -605,7 +627,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   less: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, minHeight: 32 },
-  lessText: { ...type.caption, fontFamily: fontFor(600) },
+  lessText: { ...type.caption, ...fontFor(600) },
 
   book: {
     flexDirection: 'row',

@@ -27,7 +27,7 @@ import {
   SlipTear,
   SlipTotal,
 } from '@/components/order-slip';
-import { ACCENTS, Loading, elevation, formatWhen, space, type } from '@/components/ui-kit';
+import { ACCENTS, Loading, elevation, fontFor, formatWhen, space, type } from '@/components/ui-kit';
 import { Reveal } from '@/components/reveal';
 import { WebShell } from '@/components/web/web-shell';
 import { getOrder, type OrderWithDetails } from '@/lib/api';
@@ -126,12 +126,13 @@ function Slip({ order }: { order: OrderWithDetails }) {
 const styles = StyleSheet.create({
   stage: { padding: space.room, gap: space.section, paddingTop: space.gulf },
   follow: {
-    minHeight: 52,
+    minHeight: 50,
     borderRadius: 14,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
     ...elevation.rest,
   },
-  followText: { ...type.label, fontSize: 16 },
+  followText: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600) },
   pressed: { opacity: 0.85 },
 });

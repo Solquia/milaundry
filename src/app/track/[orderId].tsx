@@ -15,7 +15,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
-import { ACCENTS, Loading, colors, elevation, formatMoney, formatWhen, space, type } from '@/components/ui-kit';
+import { ACCENTS, Loading, colors, elevation, fontFor, formatMoney, formatWhen, space, type } from '@/components/ui-kit';
 import { lineLabel } from '@/lib/domain/price-label';
 import { GuestForm } from '@/components/web/guest-form';
 import { PasswordCard } from '@/components/web/password-card';
@@ -244,7 +244,8 @@ const styles = StyleSheet.create({
    */
   ticket: {
     backgroundColor: colors.paper,
-    borderRadius: 20,
+    borderRadius: 22,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     ...elevation.lift,
   },
@@ -259,9 +260,9 @@ const styles = StyleSheet.create({
     paddingBottom: space.room,
     gap: space.snug,
   },
-  headBack: { ...type.caption, fontWeight: '600', opacity: 0.9 },
+  headBack: { ...type.body, fontSize: 17, opacity: 0.9 },
   headTitle: { ...type.title },
-  headMeta: { ...type.caption, opacity: 0.9 },
+  headMeta: { ...type.caption, fontSize: 15, lineHeight: 20, opacity: 0.85 },
   stub: {
     paddingHorizontal: space.room,
     paddingTop: space.room,
@@ -282,8 +283,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderCurve: 'continuous',
+    ...elevation.rest,
     padding: space.room,
     gap: space.snug,
   },
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
     paddingTop: space.cosy,
     marginTop: space.tight,
   },
-  totalLabel: { ...type.label, color: colors.text },
+  totalLabel: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   totalValue: { ...type.value, color: colors.text },
   detail: { gap: 2 },
   detailLabel: { ...type.caption, color: colors.subtle },

@@ -5,10 +5,11 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { GLASS_GROUND, glassPane } from '@/components/glass';
 import { LaundryTracker } from '@/components/laundry-tracker';
 import { PaySheet } from '@/components/pay-sheet';
 import { ShopLogo } from '@/components/shop-logo';
-import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from '@/components/torn-edge';
+import { TicketPerforation } from '@/components/torn-edge';
 import {
   ACCENTS,
   Button,
@@ -17,10 +18,10 @@ import {
   Field,
   Loading,
   Screen,
+  RADII,
   colors,
   formatMoney,
   formatWhen,
-  mono,
   space,
   type,
 } from '@/components/ui-kit';
@@ -41,6 +42,10 @@ import { canBookAgain, rebookHref } from '@/lib/domain/rebook';
 import { weighEvidence } from '@/lib/domain/weigh-evidence';
 import { lineLabel } from '@/lib/domain/price-label';
 import { supabase } from '@/lib/supabase';
+import { confirmAction } from '@/lib/confirm';
+import { canHideOrder, hideOrderPrompt } from '@/lib/domain/hidden-orders';
+import { useHiddenOrders } from '@/lib/use-hidden-orders';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /**
  * The mark at the head of the docket.
@@ -50,17 +55,17 @@ import { supabase } from '@/lib/supabase';
  * 80 the lettering is a smudge. Held at that floor: the tracker above now owns
  * the first screenful, and the receipt is the second thing read, not the first.
  */
-const LOGO_SIZE = 80;
+const LOGO_SIZE = 48;
 
 export default function CustomerOrderDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
   const [error, setError] = useState('');
+  const { hiddenIds, hide, unhide } = useHiddenOrders();
 
   // The torn edges are drawn in real pixels, so the docket has to be measured;
   // an SVG sized in percentages paints a fixed viewport in react-native-svg.
-  const [docketWidth, setDocketWidth] = useState(0);
 
   // Review prompt state (shown once the order is completed).
   const [rating, setRating] = useState(0);
@@ -140,6 +145,15 @@ export default function CustomerOrderDetail() {
 
   if (isLoading || !order) return <Loading />;
 
+  const isHidden = hiddenIds.has(order.id);
+  // Clearing lands the customer on home, where the order is now gone — the
+  // proof that the tap did what it said.
+  const handleRemoveFromHome = () =>
+    confirmAction(hideOrderPrompt(1), () => {
+      hide([order.id]);
+      router.replace('/(customer)/orders' as never);
+    });
+
   const stage = bookingPaymentStage(order);
   const bill = actualBill(order);
   const reward = appliedReward(order);
@@ -185,14 +199,7 @@ export default function CustomerOrderDetail() {
         across to the price, a double rule above the total, and a short number
         the customer can actually say out loud at the counter.
       */}
-      <View
-        style={styles.docket}
-        onLayout={(event) => {
-          const { width } = event.nativeEvent.layout;
-          setDocketWidth((current) => (current === width ? current : width));
-        }}
-      >
-        <TornEdge width={docketWidth} color={colors.bg} edge="top" />
+      <View style={styles.docket}>
 
         {/*
           The letterhead.
@@ -221,9 +228,14 @@ export default function CustomerOrderDetail() {
             accent={accent}
             shape="plate"
           />
-          <Text style={[styles.letterheadName, { color: accent.ink }]} numberOfLines={2}>
-            {shopName}
-          </Text>
+          <View style={styles.letterheadWords}>
+            <Text style={styles.letterheadName} numberOfLines={2}>
+              {shopName}
+            </Text>
+            <Text style={[styles.letterheadMeta, { color: accent.ink }]} numberOfLines={1}>
+              Order {docketNumber(order.id)}
+            </Text>
+          </View>
         </View>
 
         <View style={styles.ticketBody}>
@@ -252,7 +264,7 @@ export default function CustomerOrderDetail() {
 
         {/* The tear line. Above it is what the shop is doing; below it is what
             the customer owes — the seam a real ticket is actually torn on. */}
-        <TicketPerforation color={colors.bg} ruleColor={colors.paperRule} />
+        <TicketPerforation color={GLASS_GROUND} ruleColor="rgba(60, 60, 67, 0.12)" />
 
         {/* A settled stub takes the takings tint across its whole area — the
             one time colour is allowed to own a region here rather than a mark,
@@ -311,7 +323,6 @@ export default function CustomerOrderDetail() {
           <Text style={styles.docketNote}>{bill.note}</Text>
         </View>
 
-        <TornEdge width={docketWidth} color={colors.bg} edge="bottom" />
       </View>
 
       {/* Pickup & delivery schedule for delivery bookings.
@@ -323,7 +334,7 @@ export default function CustomerOrderDetail() {
           "pickup & delivery" part so no row has to repeat it. */}
       {order.fulfillment === 'delivery' && (
         <Card>
-          <Text style={styles.cardTitle}>Pickup &amp; delivery</Text>
+          <Text style={styles.cardTitle}>Pickup &amp; Delivery</Text>
           <DetailRow label="Address" value={order.delivery_address} />
           <DetailRow label="We collect" value={formatWhen(order.pickup_at)} />
           <DetailRow label="Back with you by" value={formatWhen(order.deliver_by)} />
@@ -361,7 +372,7 @@ export default function CustomerOrderDetail() {
                 <Ionicons
                   name={star <= rating ? 'star' : 'star-outline'}
                   size={28}
-                  color={star <= rating ? '#F59E0B' : colors.subtle}
+                  color={star <= rating ? '#FF9500' : '#C7C7CC'}
                 />
               </Pressable>
             ))}
@@ -444,6 +455,18 @@ export default function CustomerOrderDetail() {
             </Text>
           </Pressable>
         )}
+        {canHideOrder(order.status) && (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={isHidden ? 'Show this order on home again' : 'Remove this order from home'}
+            onPress={isHidden ? () => unhide([order.id]) : handleRemoveFromHome}
+            style={({ pressed }) => [styles.cancel, pressed && { opacity: 0.6 }]}
+          >
+            <Text style={isHidden ? styles.restoreText : styles.cancelText}>
+              {isHidden ? 'Show on home again' : 'Remove from home'}
+            </Text>
+          </Pressable>
+        )}
       </View>
     </Screen>
   );
@@ -499,100 +522,66 @@ function DetailRow({ label, value }: { label: string; value: string | null | und
 }
 
 const styles = StyleSheet.create({
-
   /**
-   * The paper.
-   *
-   * Square corners and no shadow, unlike every card around it: a receipt is a
-   * flat sheet lying on the page, not a panel floating above it. The extra
-   * vertical padding is the margin the torn edges eat into, so no line of the
-   * bill is ever printed across a tooth.
+   * The bill, set as a Wallet pass: one white card with the laundry's colour
+   * across its head, the punched notches of a pass between what the shop is
+   * doing and what is owed, and figures in tabular numerals so the prices
+   * column up the way a till's do.
    */
   docket: {
-    backgroundColor: colors.paper,
-    // No padding of its own: the letterhead bleeds to the ticket's edges and
-    // the punched notches are clipped by it, so each region pads itself. The
-    // top inset belongs to the letterhead rather than to the ticket, so the
-    // teeth are cut in the shop's colour and the tear runs *through* the
-    // brand — which is what the web ticket has always done.
-    paddingBottom: TORN_EDGE_HEIGHT,
+    ...glassPane,
+    borderRadius: RADII.card - 4,
+    paddingBottom: space.room,
     overflow: 'hidden',
   },
-  /**
-   * The head of the ticket, and the one region the laundry's own colour owns.
-   * Centred, because a letterhead is centred — and because a mark this size
-   * ranged left would leave a column of dead paper beside it.
-   */
+  /** The head of the pass, and the one region the laundry's own colour owns. */
   letterhead: {
+    flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
     paddingHorizontal: space.room,
-    // The teeth eat into this, so the mark clears them by a full room.
-    paddingTop: TORN_EDGE_HEIGHT + space.room,
-    paddingBottom: space.room,
+    paddingVertical: space.room,
   },
-  /** Every accent ink in the palette clears 5:1 on its own surface. */
-  letterheadName: { ...type.title, textAlign: 'center' },
-  ticketBody: { paddingHorizontal: space.room, paddingVertical: space.cosy, gap: space.snug },
-  /** Below the tear line: what the customer owes, and why. */
+  letterheadWords: { flex: 1, minWidth: 0, gap: 2 },
+  letterheadName: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.text },
+  letterheadMeta: { ...type.caption, ...fontFor(600), letterSpacing: 0.3 },
+  ticketBody: { paddingHorizontal: space.room, paddingVertical: space.cosy, gap: space.snug + 2 },
+  /** Below the notches: what the customer owes, and why. */
   stub: { paddingHorizontal: space.room, paddingTop: space.snug, gap: space.snug },
   stubRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  /**
-   * The stamp. Rotated, because a stamp is pressed by a hand and never lands
-   * square, and double-ruled the way an office stamp's ring is cut.
-   * Slightly transparent so the paper reads through it as ink rather than as a
-   * label printed with the rest of the ticket.
-   */
+  /** The state of the bill, as a capsule rather than a rubber stamp. */
   stamp: {
-    borderWidth: 2,
-    borderRadius: 6,
-    paddingHorizontal: space.snug,
-    paddingVertical: space.tight,
-    transform: [{ rotate: '-8deg' }],
-    opacity: 0.85,
+    borderWidth: 1.5,
+    borderRadius: RADII.pill,
+    paddingHorizontal: space.cosy,
+    paddingVertical: 3,
   },
-  stampText: { fontFamily: mono, fontSize: 15, fontWeight: '700', letterSpacing: 1.5 },
-  /** Reference left, time right — one printed line, not two stacked ones. */
+  stampText: { ...type.caption, fontSize: 12, ...fontFor(700), letterSpacing: 0.6 },
+  /** Reference left, time right — one line, not two stacked ones. */
   docketMetaRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
     justifyContent: 'space-between',
     gap: space.cosy,
   },
-  /** The slip's own small print: reference and time, the way a till prints it. */
-  docketMeta: {
-    fontFamily: mono,
-    fontSize: 11,
-    letterSpacing: 0.6,
-    color: colors.subtle,
-  },
+  docketMeta: { ...type.caption, color: colors.subtle, fontVariant: ['tabular-nums'] },
   dottedRule: {
-    borderBottomWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.paperRule,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(60, 60, 67, 0.12)',
   },
   itemLine: { flexDirection: 'row', alignItems: 'baseline', gap: space.snug },
-  itemName: { fontFamily: mono, fontSize: 13, color: colors.text },
+  itemName: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.text, flexShrink: 1 },
   /** Fills whatever gap is left between the name and its figure. */
-  leader: {
-    flex: 1,
-    borderBottomWidth: 1,
-    borderStyle: 'dotted',
-    borderColor: colors.paperRule,
-    // Sits on the text's baseline rather than under the row's box.
-    marginBottom: 3,
+  leader: { flex: 1 },
+  itemPrice: {
+    ...type.body,
+    fontSize: 15,
+    lineHeight: 20,
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
   },
-  itemPrice: { fontFamily: mono, fontSize: 13, color: colors.text },
-  /** The one thing on the paper set in the app's own voice, so it stays quick
-      to read. */
-  docketNote: { ...type.caption, fontSize: 13, color: colors.subtle },
+  docketNote: { ...type.caption, fontSize: 14, lineHeight: 19, color: colors.subtle },
 
-  /**
-   * The heading on each card below the ticket. These were four inline
-   * `fontWeight: '600'` literals at three different sizes, so the same role
-   * was drawn differently on four adjacent cards; `section` is the token the
-   * rest of the app gives a card heading.
-   */
   cardTitle: { ...type.section, color: colors.text },
 
   /** Label left, fact right — scannable as a column without a table. */
@@ -603,24 +592,14 @@ const styles = StyleSheet.create({
     gap: space.room,
   },
   detailLabel: { ...type.body, color: colors.subtle },
-  // The fact outweighs its label, and wraps rather than truncating: a long
-  // address is the whole point of the row.
+  // The fact outweighs its label, and wraps rather than truncating.
   detailValue: {
     flexShrink: 1,
     ...type.body,
-    fontFamily: type.label.fontFamily,
     color: colors.text,
     textAlign: 'right',
   },
 
-  /**
-   * The actions, set apart from the reading.
-   *
-   * `Screen` already puts `space.cosy` between its children, so this margin
-   * takes the gap to `space.gulf` — the app's "the work above is finished, a
-   * decision follows" interval. Inside the region the two actions sit `snug`,
-   * which is what says they are one set of choices and not two more cards.
-   */
   actions: { marginTop: space.section, gap: space.snug },
   /** Text-weight, but never smaller than a thumb. */
   cancel: {
@@ -629,43 +608,26 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
   },
-  cancelText: { fontSize: 16, fontWeight: '600', color: colors.dangerInk },
+  cancelText: { ...type.body, fontSize: 17, color: colors.dangerInk },
+  restoreText: { ...type.body, fontSize: 17, color: colors.actionInk },
 
-  // The total, right-aligned against the stamp so the two read as one line:
-  // the mark on the left, the amount it refers to on the right.
+  // The total, right-aligned against the status so the two read as one line.
   billLine: { flex: 1, alignItems: 'flex-end' },
-  // Tracked caps, as a till prints a total line. `textTransform` rather than
-  // capitals in the string, so a screen reader still receives "Estimated total"
-  // and does not spell it out letter by letter.
-  billHeading: {
-    fontFamily: mono,
-    fontSize: 12,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    color: colors.subtle,
-  },
-  // The one figure this card exists to deliver, in the monospace that makes a
-  // column of prices line up on their decimal points. Its colour is the bill's
-  // stage and arrives inline from `BILL_TONES`.
-  billAmount: { fontFamily: mono, fontSize: 24, fontWeight: '700' },
+  billHeading: { ...type.caption, ...fontFor(600), color: colors.subtle },
+  billAmount: { ...type.title, fontVariant: ['tabular-nums'] },
   // Amber, not red: a bigger bill is news to explain, not an error.
-  billDifference: { fontSize: 13, fontWeight: '600', color: colors.moneyOut },
-  billReward: { fontSize: 13, fontWeight: '700', color: colors.moneyIn },
+  billDifference: { ...type.caption, ...fontFor(600), color: colors.moneyOut },
+  billReward: { ...type.caption, ...fontFor(600), color: colors.moneyIn },
 
   evidence: { gap: space.tight, marginTop: space.tight },
-  /** Near-square corners: a photo glued onto receipt paper, not a card. */
   evidenceFrame: {
     height: 180,
-    borderRadius: 4,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     backgroundColor: colors.sunken,
   },
   evidencePhoto: { width: '100%', height: '100%' },
   /** In the slip's own small print, as a caption under a pasted photo. */
-  evidenceCaption: {
-    fontFamily: mono,
-    fontSize: 11,
-    letterSpacing: 0.6,
-    color: colors.subtle,
-  },
+  evidenceCaption: { ...type.caption, color: colors.subtle },
 });

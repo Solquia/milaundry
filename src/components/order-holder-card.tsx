@@ -24,7 +24,8 @@ import {
   type HolderAccount,
 } from '@/lib/domain/order-holder';
 
-import { ACCENTS, RADII, colors, elevation, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { ACCENTS, RADII, colors, space, type } from './ui-kit';
 
 interface OrderHolderCardProps {
   order: HeldOrder;
@@ -84,11 +85,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.cosy,
     padding: space.room,
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.rest,
   },
   pressed: { opacity: 0.85 },
   avatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },

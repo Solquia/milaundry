@@ -34,6 +34,7 @@ import {
 } from '@/lib/domain/service-showcase';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { SERVICE_CUTOUTS } from './service-photo';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
@@ -105,8 +106,9 @@ function Step({
  */
 function CareTag({ look }: { look: ServiceLook }) {
   const wear = COLORWAYS[look.colorway];
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.tag, { borderColor: wear.accent }]}>
+    <View style={[styles.tag, { borderColor: wear.accent }, isGlass && styles.tagGlass]}>
       <View style={styles.tagDyes}>
         {wear.dyes.slice(0, 3).map((dye, i) => (
           <View key={i} style={[styles.tagDye, { backgroundColor: dye }]} />
@@ -180,6 +182,7 @@ export function ServiceTileCard({
   onRemove,
 }: ServiceTileCardProps) {
   const [isHovered, setIsHovered] = React.useState(false);
+  const isGlass = useIsGlass();
   const [isPressed, setIsPressed] = React.useState(false);
   const isReduced = useReducedMotion();
 
@@ -248,9 +251,11 @@ export function ServiceTileCard({
       // style, which once dropped every card style and collapsed the grid.
       style={[
         styles.card,
+        isGlass && styles.cardGlass,
         isHovered && isBookable && styles.cardHovered,
         isPressed && isBookable && styles.cardPressed,
-        held > 0 && { borderColor: bookTone.bg },
+        // Selected: a ring in the shop's colour, as iOS rings a chosen photo.
+        held > 0 && { borderWidth: 2, borderColor: bookTone.bg },
       ]}
     >
       <CornerArt service={service} look={look} lift={lift} />
@@ -334,8 +339,6 @@ const styles = StyleSheet.create({
     minHeight: CARD_HEIGHT,
     ...CROWN,
     backgroundColor: colors.card,
-    borderWidth: 1.5,
-    borderColor: colors.border,
     overflow: 'hidden',
     justifyContent: 'space-between',
     ...elevation.rest,
@@ -348,8 +351,9 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
+  cardGlass: { ...glassPane },
   cardHovered: { ...elevation.lift, transform: [{ translateY: -3 }] },
-  cardPressed: { transform: [{ scale: 0.985 }] },
+  cardPressed: { transform: [{ scale: 0.97 }] },
 
   /** The object, big and running off the lower right corner. */
   art: {
@@ -374,10 +378,10 @@ const styles = StyleSheet.create({
     flex: 1,
     maxWidth: '72%',
     ...type.label,
-    fontFamily: fontFor(800),
-    fontSize: 19,
-    lineHeight: 23,
-    letterSpacing: -0.2,
+    ...fontFor(700),
+    fontSize: 18,
+    lineHeight: 22,
+    letterSpacing: -0.4,
     color: colors.text,
   },
   readout: {
@@ -386,7 +390,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: RADII.pill,
   },
-  readoutText: { ...type.caption, fontSize: 12, lineHeight: 15, fontFamily: fontFor(800), fontVariant: ['tabular-nums'] },
+  readoutText: { ...type.caption, fontSize: 12, lineHeight: 15, ...fontFor(700), fontVariant: ['tabular-nums'] },
 
   /** The foot sits over the art's left edge, so it keeps to the left half. */
   foot: {
@@ -405,7 +409,7 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontSize: 13,
     lineHeight: 17,
-    fontFamily: fontFor(800),
+    ...fontFor(700),
     fontVariant: ['tabular-nums'],
   },
   /**
@@ -413,25 +417,26 @@ const styles = StyleSheet.create({
    * no peso glyph, so the platform substitutes another face; at full weight
    * that substitution reads as a mistake rather than as a mark.
    */
-  peso: { fontFamily: fontFor(600), fontSize: 11.5 },
-  unit: { fontFamily: fontFor(600), fontSize: 11.5 },
+  peso: { ...fontFor(600), fontSize: 11.5 },
+  unit: { ...fontFor(600), fontSize: 11.5 },
   /** The rule, set down and greyed: it qualifies the rate, it is not the rate. */
-  rule: { ...type.caption, fontSize: 11.5, lineHeight: 15, fontFamily: fontFor(600), color: colors.subtle },
+  rule: { ...type.caption, fontSize: 11.5, lineHeight: 15, ...fontFor(600), color: colors.subtle },
 
   tagRow: { flexDirection: 'row', maxWidth: '92%', paddingHorizontal: space.cosy, marginTop: space.tight, marginBottom: 'auto' },
-  /** Cream label, stitched edge: reads as sewn into the garment, not as a button. */
+  /** A quiet grey capsule: a fact about the service, never a button. */
   tag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
     maxWidth: '100%',
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    backgroundColor: '#FFFDF7',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: RADII.pill,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
+  tagGlass: { ...glassChip, borderRadius: RADII.pill },
   tagDyes: { flexDirection: 'row', gap: 1.5 },
   tagDye: {
     width: 5,
@@ -443,12 +448,11 @@ const styles = StyleSheet.create({
   tagText: {
     ...type.caption,
     flexShrink: 1,
-    fontSize: 10.5,
-    lineHeight: 13,
-    fontFamily: fontFor(800),
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-    color: colors.text,
+    fontSize: 11,
+    lineHeight: 14,
+    ...fontFor(600),
+    letterSpacing: 0,
+    color: colors.subtle,
   },
 
   stepper: {
@@ -460,7 +464,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   step: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
-  stepCount: { ...type.label, fontFamily: fontFor(700), minWidth: 18, textAlign: 'center' },
+  stepCount: { ...type.label, ...fontFor(700), minWidth: 18, textAlign: 'center' },
   scaleChip: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -469,7 +473,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     marginLeft: -1,
   },
-  scaleText: { ...type.label, fontFamily: fontFor(700), color: colors.onAccent },
+  scaleText: { ...type.label, ...fontFor(700), color: colors.onAccent },
   stepText: { ...type.section, fontSize: 18 },
   pressed: { opacity: 0.6 },
 });

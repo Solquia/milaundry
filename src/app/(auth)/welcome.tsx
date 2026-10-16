@@ -27,6 +27,7 @@ import {
 import { RADII } from '@/lib/domain/design-scale';
 import { useHaptic } from '@/lib/use-app-settings';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /**
  * The front door.
@@ -420,7 +421,7 @@ const styles = StyleSheet.create({
   /** Two lines, one voice: the greeting leads, the fact follows it. */
   ledeStrong: {
     ...type.body,
-    fontFamily: type.label.fontFamily,
+    ...fontFor(600),
     fontSize: 17,
     color: ON_FIELD,
     textAlign: 'center',
@@ -513,7 +514,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.action,
     ...elevation.rest,
   },
-  commitLabel: { ...type.body, fontFamily: type.label.fontFamily, fontSize: 17, color: ON_FIELD },
+  commitLabel: { ...type.body, ...fontFor(600), fontSize: 17, color: ON_FIELD },
 
   /**
    * The fast lane. Square rather than a second pill, and in the hero's deep

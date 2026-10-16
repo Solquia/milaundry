@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DoorbellBanner } from '@/components/doorbell-banner';
+import { GLASS_TRAY, GlassProvider } from '@/components/glass';
 import { SettingsButton } from '@/components/header-button';
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
 import { Loading, colors, space, type } from '@/components/ui-kit';
@@ -81,6 +82,7 @@ export default function MerchantLayout() {
   };
 
   return (
+    <GlassProvider>
     <View style={styles.shell}>
       <ShopDoorbellHost />
       {isViewingAs && viewAsShop && (
@@ -107,6 +109,9 @@ export default function MerchantLayout() {
           // read as its own band rather than an extension of the system bar.
           headerStatusBarHeight: insets.top + space.section,
           headerTitleStyle: styles.headerTitle,
+          // The glass ground, so the bar and the page under it are one light.
+          headerStyle: { backgroundColor: GLASS_TRAY },
+          headerShadowVisible: false,
           // The grey circle in the header was the Expo dev-client button, which
           // does not ship in a production build — until now the app had no
           // account affordance at all beyond a text link in the order list.
@@ -142,6 +147,7 @@ export default function MerchantLayout() {
         />
       </Tabs>
     </View>
+    </GlassProvider>
   );
 }
 

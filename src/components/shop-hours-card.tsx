@@ -14,6 +14,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, glassChip, glassPane } from './glass';
+import { GlyphTile } from './stage-glyph';
 import { Button, ErrorText, colors, space, type } from './ui-kit';
 import { setShopSchedule } from '@/lib/api';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
@@ -39,6 +41,7 @@ import {
 import { invalidateShopSurfaces } from '@/lib/query-keys';
 import type { Shop } from '@/lib/types';
 import { useNow } from '@/lib/use-now';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /** Monday first on screen, the way a shop's week reads; stored Sunday first. */
 const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0] as const;
@@ -110,9 +113,7 @@ export function ShopHoursCard({ shop }: { shop: Shop }) {
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <View style={styles.mark}>
-          <Ionicons name="time-outline" size={20} color={colors.actionInk} />
-        </View>
+        <GlyphTile icon="time" color={colors.action} size={40} isLifted={false} />
         <View style={styles.words}>
           <Text style={styles.title}>Opening hours</Text>
           <Text style={styles.caption}>
@@ -139,7 +140,7 @@ export function ShopHoursCard({ shop }: { shop: Shop }) {
             />
           ))}
           <Pressable accessibilityRole="button" onPress={copyMondayToAll} style={styles.link}>
-            <Text style={styles.linkText}>Use Monday's hours every day</Text>
+            <Text style={styles.linkText}>{"Use Monday's hours every day"}</Text>
           </Pressable>
         </View>
       ) : null}
@@ -312,30 +313,20 @@ function Arrow({
 
 const styles = StyleSheet.create({
   card: {
+    ...glassPane,
     borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, padding: space.cosy },
-  mark: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.actionSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   words: { flex: 1, gap: 2 },
-  title: { ...type.body, fontWeight: '600', color: colors.text },
+  title: { ...type.body, ...fontFor(600), color: colors.text },
   subTitle: { ...type.label, color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
   body: {
     gap: space.snug,
     padding: space.room,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   day: { flexDirection: 'row', alignItems: 'center', gap: space.snug, minHeight: 40 },
   dayName: { ...type.label, width: 36, color: colors.text },
@@ -360,8 +351,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.snug,
     padding: space.snug,
+    ...glassChip,
     borderRadius: 10,
-    backgroundColor: colors.bg,
   },
   closureText: { ...type.body, fontSize: 14, color: colors.text, flex: 1 },
   dates: { flexDirection: 'row', gap: space.cosy },
@@ -372,7 +363,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: colors.text,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: GLASS_EDGE,
+    backgroundColor: GLASS_FILL_DENSE,
     borderRadius: 12,
     paddingHorizontal: space.cosy,
     paddingVertical: space.snug,
@@ -381,7 +373,7 @@ const styles = StyleSheet.create({
     gap: space.snug,
     padding: space.room,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   pressed: { opacity: 0.6 },
 });

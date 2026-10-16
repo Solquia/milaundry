@@ -17,13 +17,13 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useBrandTint } from './brand-tint';
+import { glassChip, glassPane, useIsGlass } from './glass';
 import {
-  BLUE_FIELD,
   ErrorText,
   Field,
   RADII,
   colors,
-  elevation,
+  fontFor,
   space,
   type,
   useTint,
@@ -97,7 +97,7 @@ export function AddressBook({
             <Ionicons
               name={row.is_default ? 'location' : 'location-outline'}
               size={18}
-              color={row.is_default ? colors.onAccent : BLUE_FIELD.mid}
+              color={row.is_default ? colors.onAccent : colors.action}
             />
           </View>
 
@@ -192,7 +192,8 @@ export function AddressChips({
   onPick: (saved: SavedAddress) => void;
 }) {
   // A shop's own colour inside its checkout; the address book's blue elsewhere.
-  const chipColor = useBrandTint()?.fill ?? BLUE_FIELD.mid;
+  const chipColor = useBrandTint()?.fill ?? colors.action;
+  const isGlass = useIsGlass();
   if (addresses.length === 0) return null;
   const rows = sortAddresses(addresses);
 
@@ -209,6 +210,7 @@ export function AddressChips({
             onPress={() => onPick(row)}
             style={({ pressed }) => [
               styles.chip,
+              isGlass && styles.chipGlass,
               isActive && [styles.chipActive, { backgroundColor: chipColor, borderColor: chipColor }],
               pressed && styles.pressed,
             ]}
@@ -426,14 +428,12 @@ function OpenAddressSheet({
 }
 
 const styles = StyleSheet.create({
+  // The book itself lives only in Settings, so it is always on glass.
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
+    borderRadius: 18,
     padding: space.room,
     gap: space.cosy,
-    ...elevation.rest,
   },
   cardHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
   cardTitle: { ...type.section, color: colors.text },
@@ -447,18 +447,19 @@ const styles = StyleSheet.create({
     paddingVertical: space.snug,
   },
   /** A hairline, not a border: these are rows of one list, not stacked cards. */
-  rowSeam: { borderTopWidth: 1, borderTopColor: colors.border },
+  rowSeam: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(60, 60, 67, 0.12)' },
   pin: {
     width: 36,
     height: 36,
-    borderRadius: RADII.control,
+    borderRadius: 8,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  pinDefault: { backgroundColor: BLUE_FIELD.mid },
+  pinDefault: { backgroundColor: colors.action },
   rowWords: { flex: 1, gap: 2 },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  rowLabel: { ...type.label, fontSize: 16, color: colors.text, flexShrink: 1 },
+  rowLabel: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text, flexShrink: 1 },
   defaultChip: {
     paddingHorizontal: space.snug,
     paddingVertical: 1,
@@ -486,11 +487,12 @@ const styles = StyleSheet.create({
     minHeight: 36,
     paddingHorizontal: space.cosy,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderWidth: 0,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
-  chipActive: { backgroundColor: BLUE_FIELD.mid, borderColor: BLUE_FIELD.mid },
+  chipGlass: { ...glassChip },
+  chipActive: { backgroundColor: colors.action },
   chipText: { ...type.label, fontSize: 13, color: colors.text, flexShrink: 1 },
   chipTextActive: { color: colors.onAccent },
 
@@ -500,28 +502,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: 14,
-    backgroundColor: BLUE_FIELD.mid,
+    borderCurve: 'continuous',
+    backgroundColor: colors.action,
   },
-  addText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  addText: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent },
 
-  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(11, 27, 43, 0.45)' },
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.4)' },
   scrim: { flex: 1 },
   sheet: {
     backgroundColor: colors.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderCurve: 'continuous',
     paddingHorizontal: space.room,
     paddingTop: space.snug,
     maxHeight: '86%',
   },
   grip: {
     alignSelf: 'center',
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
+    width: 36,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#C7C7CC',
     marginBottom: space.cosy,
   },
   sheetBody: { gap: space.snug, paddingBottom: space.room },
@@ -530,14 +534,15 @@ const styles = StyleSheet.create({
   pairWide: { flex: 3 },
   sheetTitle: { ...type.title, color: colors.text, marginBottom: space.tight },
   save: {
-    minHeight: 52,
+    minHeight: 50,
     borderRadius: 14,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BLUE_FIELD.mid,
+    backgroundColor: colors.action,
     marginTop: space.cosy,
   },
-  saveText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  saveText: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent },
 
   pressed: { opacity: 0.7 },
 });

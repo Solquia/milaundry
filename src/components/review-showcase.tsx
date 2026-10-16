@@ -17,13 +17,14 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
+import { glassPane, useIsGlass } from '@/components/glass';
 import { Reveal, REVEAL_STAGGER_MS } from '@/components/reveal';
-import { ServiceScene } from '@/components/service-scene';
 import { LIFT_MARK, LightSweep } from '@/components/storefront-flourishes';
-import { colors, elevation, space, type } from '@/components/ui-kit';
+import { RADII, colors, elevation, space, type } from '@/components/ui-kit';
 import { ratingBreakdown, type Reputation } from '@/lib/domain/storefront';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 const MAX_STARS = 5;
 /** Long enough to read as counting, short enough that nobody waits for it. */
@@ -51,13 +52,14 @@ export function ReviewShowcase({
   theme,
   showNames = false,
 }: ReviewShowcaseProps) {
+  const isGlass = useIsGlass();
   if (!reputation) return null;
   const bands = ratingBreakdown(reviews);
   const spoken = reviews.filter((review) => (review.comment ?? '').trim().length > 0);
 
   return (
     <View style={styles.stack}>
-      <View style={[styles.verdictCard, { backgroundColor: theme.brandSoft }]} {...LIFT_MARK}>
+      <View style={[styles.verdictCard, isGlass && styles.cardGlass]} {...LIFT_MARK}>
         <View style={styles.verdict}>
           <View style={styles.verdictWords}>
             <View style={styles.scoreLine}>
@@ -71,12 +73,6 @@ export function ReviewShowcase({
                 : `from ${reputation.count} completed orders`}
             </Text>
           </View>
-          {/* The thing the reviews are about: a stack of somebody's washing,
-              done. Drawn by the same engine as the price grid's tiles, so the
-              page keeps one hand from top to bottom. */}
-          <View style={styles.scene} accessibilityElementsHidden>
-            <ServiceScene scene="stack" brand={theme.brand} surface="white" />
-          </View>
         </View>
 
         <View style={styles.ladder}>
@@ -84,7 +80,7 @@ export function ReviewShowcase({
             <View key={band.stars} style={styles.rung}>
               <Text style={styles.rungLabel}>{band.stars}</Text>
               <Ionicons name="star" size={11} color={theme.brand} />
-              <View style={[styles.track, { backgroundColor: colors.card }]}>
+              <View style={[styles.track, isGlass && styles.trackGlass]}>
                 <GrowingBar share={band.share} colour={theme.brand} delay={index * 70} />
               </View>
               <Text style={styles.rungCount}>{band.count}</Text>
@@ -127,10 +123,12 @@ interface QuoteCardProps {
 
 function QuoteCard({ review, theme, showName, tinted }: QuoteCardProps) {
   const name = review.reviewerName?.trim();
+  const isGlass = useIsGlass();
   return (
     <View
       style={[
         styles.quoteCard,
+        isGlass && styles.cardGlass,
         tinted ? { backgroundColor: theme.brandSoft, borderColor: theme.brandSoft } : null,
       ]}
       {...LIFT_MARK}
@@ -338,8 +336,11 @@ function GrowingBar({ share, colour, delay }: { share: number; colour: string; d
 
 const styles = StyleSheet.create({
   stack: { gap: space.cosy },
+  /** Set the way the App Store sets Ratings & Reviews: the figure, the stars, the bars. */
   verdictCard: {
-    borderRadius: 22,
+    backgroundColor: colors.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     padding: space.room,
     gap: space.room,
     overflow: 'hidden',
@@ -348,20 +349,15 @@ const styles = StyleSheet.create({
   verdict: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   /** The figure and the stars on one line, the way a verdict is read aloud. */
   scoreLine: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  /**
-   * The drawn object, sized to the block of words beside it rather than to the
-   * card, so a long verdict line never squeezes it into a smudge.
-   */
-  scene: { width: 96, height: 96, marginVertical: -space.snug },
-  score: { ...type.hero, fontSize: 46, lineHeight: 50, color: colors.text, fontVariant: ['tabular-nums'] },
+  score: { ...type.hero, fontSize: 52, lineHeight: 56, letterSpacing: -1.5, color: colors.text, fontVariant: ['tabular-nums'] },
   verdictWords: { flex: 1, gap: space.tight },
-  verdictTitle: { ...type.section, fontSize: 17, color: colors.text },
+  verdictTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   count: { ...type.caption, color: colors.subtle },
   ladder: { gap: space.snug },
   rung: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   rungLabel: { ...type.caption, color: colors.subtle, fontVariant: ['tabular-nums'] },
-  track: { flex: 1, height: 9, borderRadius: 5, overflow: 'hidden' },
-  bar: { height: 9, borderRadius: 5, overflow: 'hidden' },
+  track: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: '#E5E5EA' },
+  bar: { height: 4, borderRadius: 2, overflow: 'hidden' },
   rungCount: {
     ...type.caption,
     color: colors.subtle,
@@ -369,12 +365,14 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     fontVariant: ['tabular-nums'],
   },
+  cardGlass: { ...glassPane },
+  trackGlass: { backgroundColor: 'rgba(60, 60, 67, 0.12)' },
   quoteCard: {
     backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     padding: space.room,
+    ...elevation.rest,
     gap: space.snug,
   },
   /** The words are the point of the card, so they are set above body size. */
@@ -393,7 +391,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: 999,
   },
-  badgeText: { ...type.caption, fontSize: 11, fontWeight: '600' },
+  badgeText: { ...type.caption, fontSize: 11, ...fontFor(600) },
   stars: { flexDirection: 'row', gap: 2 },
   byline: { ...type.caption, color: colors.subtle, marginTop: space.tight },
 });

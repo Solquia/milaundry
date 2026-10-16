@@ -15,6 +15,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
 import { useBrandTint, type BrandTint } from './brand-tint';
+import { GlassBackdrop, glassPane, useIsGlass } from './glass';
 import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
 import { CROWN, RADII, TYPE_ROLES, fontFor } from '@/lib/domain/design-scale';
 import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
@@ -40,19 +41,19 @@ export const colors = {
    * The brand blue: splash, the raised FAB, the active tab. Large marks only —
    * as 16px text or a button label on white it is 3.5:1 and fails AA.
    */
-  primary: '#208AEF',
-  primaryDark: '#1668B5',
+  primary: '#0A84FF',
+  primaryDark: '#0062CC',
   /** Filled actions and selection. One step deeper so a white label clears 5.9:1. */
-  action: '#1370CE',
+  action: '#0071E3',
   /** Blue as text on white: links, disclosures, inline controls. 6.2:1. */
-  actionInk: '#1263AF',
+  actionInk: '#0066CC',
   /** Soft blue field for a selected row or a tinted surface. */
-  actionSurface: '#E8F1FC',
+  actionSurface: '#E8F2FD',
   /** Blue at rule-mark weight: ruler ticks, tracks, inactive scale marks. */
-  actionMuted: '#B6D4F2',
+  actionMuted: '#B3D4F5',
 
   // Surfaces ---------------------------------------------------------------
-  bg: '#EDF2F8',
+  bg: '#F2F2F7',
   card: '#FFFFFF',
   /**
    * Receipt stock. Every surface in this app is cool — a blue-grey field under
@@ -65,38 +66,38 @@ export const colors = {
   /** The dotted rules and leader lines printed on that stock. */
   paperRule: '#D9D3C6',
   /** Inputs, wells — recessed against a card rather than the same white. */
-  sunken: '#F7F9FC',
+  sunken: '#F2F2F7',
 
   // Ink --------------------------------------------------------------------
-  text: '#14212E',
+  text: '#1D1D1F',
   /** 5.5:1 on white; the old #64748B sat at 4.7:1 and failed on tinted chips. */
-  subtle: '#5A6B7D',
+  subtle: '#6E6E73',
   onAccent: '#FFFFFF',
 
   // Lines ------------------------------------------------------------------
-  border: '#DCE4EE',
-  borderStrong: '#C3CFDE',
+  border: '#E5E5EA',
+  borderStrong: '#D1D1D6',
 
   // Money ------------------------------------------------------------------
   /** Collected, change to hand back, paid. 5.4:1 on white. */
-  moneyIn: '#0B7A45',
+  moneyIn: '#248A3D',
   /** Owed to the shop: receivables, the amount to collect, unpaid tags. 5.4:1. */
-  moneyOut: '#9A5B06',
+  moneyOut: '#B25000',
   /** The field behind the day's takings — the one region colour owns outright. */
-  takingsSurface: '#EFF7F2',
-  takingsBorder: '#CDE8DA',
+  takingsSurface: '#EAF6EC',
+  takingsBorder: '#C9E7CF',
 
   // Semantics --------------------------------------------------------------
   /** Filled destructive buttons. White 16px on it clears 4.8:1. */
-  danger: '#DC2626',
+  danger: '#E5372C',
   /**
    * Red as text on a surface: a destructive action that is *offered* rather
    * than urged. The same split the blues already make — `danger` fills,
    * `dangerInk` reads. #DC2626 as 16px text on the app field is 4.4:1 and
    * fails AA; one step deeper is 5.9:1 there and 6.5:1 on a card.
    */
-  dangerInk: '#B91C1C',
-  success: '#0B7A45',
+  dangerInk: '#C9221A',
+  success: '#248A3D',
 };
 
 /**
@@ -104,11 +105,11 @@ export const colors = {
  * only one that carries colour; origin and fulfilment stay neutral.
  */
 export const TAG_TONES = {
-  neutral: { bg: '#E9EEF5', ink: '#43536B' },
-  owed: { bg: '#FDF0D2', ink: '#8A4F05' },
-  settled: { bg: '#DEF3E7', ink: '#0B6238' },
+  neutral: { bg: '#EFEFF4', ink: '#48484A' },
+  owed: { bg: '#FFF1DE', ink: '#9A4A00' },
+  settled: { bg: '#E3F5E6', ink: '#1E6F33' },
   /** A ticket an account now holds — a fact worth a glance, not an alert. */
-  linked: { bg: '#E8F1FC', ink: '#1263AF' },
+  linked: { bg: '#E8F2FD', ink: '#0066CC' },
 } as const;
 
 /**
@@ -139,25 +140,25 @@ export const space = {
 export const elevation = {
   /** A card resting on the field. */
   rest: {
-    shadowColor: '#0B1B2B',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
+    shadowOpacity: 0.04,
+    shadowRadius: 6,
     elevation: 1,
   },
   /** A card you can act on. */
   lift: {
-    shadowColor: '#0B1B2B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.09,
-    shadowRadius: 16,
-    elevation: 4,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 24,
+    elevation: 3,
   },
   /** The one surface that owns the screen. */
   hero: {
-    shadowColor: '#0A3E75',
+    shadowColor: '#002F6C',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.28,
+    shadowOpacity: 0.22,
     shadowRadius: 24,
     elevation: 12,
   },
@@ -177,7 +178,7 @@ export const elevation = {
  * this surface can go and still carry body text anywhere on it. Every stop
  * clears AA, so the ramp can be re-angled without re-checking contrast.
  */
-export const HERO_GRADIENT = ['#0B48BE', '#1060D2', '#1272DF'] as const;
+export const HERO_GRADIENT = ['#003E9E', '#0058C9', '#0071E3'] as const;
 
 /**
  * The field a home page stands on: `blue-field.tsx`.
@@ -192,14 +193,14 @@ export const HERO_GRADIENT = ['#0B48BE', '#1060D2', '#1272DF'] as const;
  */
 export const BLUE_FIELD = {
   /** The ground, and the colour behind the status bar. */
-  deep: '#05205C',
-  mid: '#0B3FA8',
+  deep: '#002A6E',
+  mid: '#0048AE',
   /** The lit corner. */
-  lit: '#1466D8',
-  /** The high light. */
-  bloom: '#3E9BFF',
-  /** The low one, a half-step toward violet so the field has a temperature. */
-  glow: '#5B5BF0',
+  lit: '#0071E3',
+  /** The high light — a cool sky, kept faint. */
+  bloom: '#47A6FF',
+  /** The low one: the same blue a step deeper, never violet. */
+  glow: '#0058C9',
 } as const;
 
 /**
@@ -280,15 +281,15 @@ export { CROWN, RADII, fontFor };
  * were the same badge. Every value carries white 12px text at ≥4.5:1.
  */
 export const STATUS_COLORS: Record<OrderStatus, string> = {
-  pending: '#5A6B7D',
-  received: '#1370CE',
-  sorting: '#4F46E5',
-  washing: '#6D3FD4',
-  drying: '#C2410C',
-  folded: '#0E7490',
-  ready: '#0B7A45',
-  completed: '#64748B',
-  cancelled: '#B91C1C',
+  pending: '#6E6E73',
+  received: '#0071E3',
+  sorting: '#5856D6',
+  washing: '#3A5BD9',
+  drying: '#C45100',
+  folded: '#0A7C8C',
+  ready: '#248A3D',
+  completed: '#8E8E93',
+  cancelled: '#C9221A',
 };
 
 /** The one status that means somebody is standing at the counter. */
@@ -346,6 +347,7 @@ export function Screen({
   isBottomBare,
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
+  const isGlass = useIsGlass();
   const content = scroll ? (
     // `handled` matters at a counter: after typing a customer name, the first
     // tap on a stepper used to be swallowed dismissing the keyboard, and the
@@ -369,13 +371,16 @@ export function Screen({
     // Only the side edges: the stack header already clears the notch and the
     // raised tab bar already applies the bottom inset, so claiming all four
     // here padded the screen twice.
-    <SafeAreaView style={styles.screen} edges={['left', 'right']}>
+    <SafeAreaView style={[styles.screen, isGlass && styles.screenGlass]} edges={['left', 'right']}>
+      {/* The customer app's light: the panes on this screen frost over it. */}
+      {isGlass ? <GlassBackdrop /> : null}
       {header ? <View style={styles.screenHeader}>{header}</View> : null}
       {content}
       {footer ? (
         <View
           style={[
             styles.screenFooter,
+            isGlass && styles.screenFooterGlass,
             isBottomBare && { paddingBottom: space.cosy + insets.bottom },
           ]}
         >
@@ -417,7 +422,18 @@ export function Card({
   children: React.ReactNode;
   compact?: boolean;
 }) {
-  return <View style={[styles.card, compact && styles.cardCompact]}>{children}</View>;
+  const isGlass = useIsGlass();
+  return (
+    <View
+      style={[
+        styles.card,
+        isGlass && styles.cardGlass,
+        compact && styles.cardCompact,
+      ]}
+    >
+      {children}
+    </View>
+  );
 }
 
 type FieldProps = TextInputProps & { label: string };
@@ -605,7 +621,7 @@ export function StatusBadge({ status }: { status: OrderStatus }) {
 export function Loading() {
   return (
     <View style={styles.loading}>
-      <ActivityIndicator size="large" color={colors.primary} />
+      <ActivityIndicator size="large" color={colors.subtle} />
     </View>
   );
 }
@@ -664,6 +680,7 @@ export function ErrorState({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.bg },
+  screenGlass: { backgroundColor: '#EEF0FA' },
   screenContent: { padding: space.room, gap: space.cosy },
   // `flexGrow` rather than `flex`: the content still grows past the viewport
   // and scrolls when it is taller, instead of being squeezed to fit.
@@ -683,9 +700,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  screenFooterGlass: {
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
+    borderTopColor: 'rgba(255, 255, 255, 0.95)',
+  },
   title: { ...type.title, color: colors.text },
-  subtle: { ...type.label, fontFamily: fontFor(400), color: colors.subtle },
-  error: { ...type.label, fontFamily: fontFor(400), color: colors.danger, marginVertical: 4 },
+  subtle: { ...type.label, ...fontFor(400), color: colors.subtle },
+  error: { ...type.label, ...fontFor(400), color: colors.danger, marginVertical: 4 },
   /**
    * A card, with the head rounded further than the foot so it reads as
    * something resting on the page rather than as a container. The 1px outline
@@ -699,14 +720,17 @@ const styles = StyleSheet.create({
     gap: 10,
     ...elevation.rest,
   },
-  cardCompact: { padding: 14, gap: 8, borderRadius: RADII.card },
+  /** The customer app's card: a pane of frosted glass instead of white paper. */
+  cardGlass: { ...glassPane },
+  cardCompact: { padding: 14, gap: 8, borderRadius: RADII.control + 4, borderCurve: 'continuous' },
   field: { gap: 4 },
   fieldLabel: { ...type.label, color: colors.subtle },
   input: {
     backgroundColor: colors.sunken,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: RADII.control,
+    borderColor: 'transparent',
+    borderRadius: RADII.control - 2,
+    borderCurve: 'continuous',
     paddingHorizontal: 14,
     paddingVertical: 12,
     ...type.body,
@@ -717,8 +741,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.sunken,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: RADII.control,
+    borderColor: 'transparent',
+    borderRadius: RADII.control - 2,
+    borderCurve: 'continuous',
     paddingLeft: 14,
   },
   rowInput: {
@@ -734,13 +759,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: colors.sunken,
     borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: RADII.control,
+    borderColor: 'transparent',
+    borderRadius: RADII.control - 2,
+    borderCurve: 'continuous',
     paddingLeft: 14,
   },
   phonePrefix: {
     ...type.body,
-    fontFamily: fontFor(600),
+    ...fontFor(600),
     color: colors.subtle,
     marginRight: 8,
   },
@@ -752,13 +778,16 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   button: {
-    borderRadius: RADII.pill,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
+    minHeight: 50,
     paddingVertical: 14,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  buttonOutline: { borderWidth: 1, borderColor: colors.borderStrong },
-  buttonOutlineText: { color: colors.text },
-  buttonText: { color: '#FFFFFF', ...type.body, fontFamily: fontFor(700) },
+  buttonOutline: { borderWidth: 0, backgroundColor: 'rgba(118, 118, 128, 0.12)' },
+  buttonOutlineText: { color: colors.actionInk },
+  buttonText: { color: '#FFFFFF', ...type.body, fontSize: 17, ...fontFor(600) },
   badge: {
     alignSelf: 'flex-start',
     borderRadius: 999,
@@ -772,7 +801,7 @@ const styles = StyleSheet.create({
     // green it makes "Ready for pickup" the one badge that finds the eye.
     paddingHorizontal: 12,
   },
-  badgeText: { color: colors.onAccent, ...type.caption, fontFamily: fontFor(700) },
+  badgeText: { color: colors.onAccent, ...type.caption, ...fontFor(700) },
   tag: {
     alignSelf: 'flex-start',
     borderRadius: RADII.chip,
@@ -780,18 +809,19 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   // Colour comes from TAG_TONES; every pair clears 5.7:1 on its own chip.
-  tagText: { ...type.caption, fontFamily: fontFor(700) },
+  tagText: { ...type.caption, ...fontFor(700) },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   empty: { alignItems: 'center', padding: space.gulf, gap: space.cosy },
   emptyText: { textAlign: 'center' },
   emptyAction: { alignSelf: 'stretch' },
   errorState: {
-    backgroundColor: '#FEF2F2',
-    borderWidth: 1,
-    borderColor: '#FECACA',
-    borderRadius: 12,
+    backgroundColor: '#FFF0EF',
+    borderWidth: 0,
+    borderColor: 'transparent',
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     padding: space.room,
     gap: space.cosy,
   },
-  errorStateText: { fontSize: 14, color: '#991B1B' },
+  errorStateText: { ...type.body, fontSize: 15, color: colors.dangerInk },
 });

@@ -9,6 +9,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip } from './glass';
 import { colors, elevation, space, type } from './ui-kit';
 
 type SegmentedProps<T extends string> = {
@@ -54,9 +55,7 @@ const styles = StyleSheet.create({
     gap: space.tight,
     padding: space.tight,
     borderRadius: 999,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
   },
   option: {
     flex: 1,
@@ -66,7 +65,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.snug,
     borderRadius: 999,
   },
-  optionOn: { backgroundColor: colors.card, ...elevation.rest },
+  optionOn: { backgroundColor: colors.card, ...elevation.rest, shadowOpacity: 0.1 },
   text: { ...type.label, color: colors.subtle },
   textOn: { color: colors.actionInk },
 });

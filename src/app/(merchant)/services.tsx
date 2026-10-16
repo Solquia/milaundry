@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { NoShopState } from '@/components/no-shop-state';
 import { MerchantAddons } from '@/components/merchant-addons';
 import { MerchantRewards } from '@/components/merchant-rewards';
 import { PriceBoard } from '@/components/price-board';
@@ -11,7 +12,6 @@ import { ServiceForm, type ServiceFormOutcome } from '@/components/service-form'
 import {
   Button,
   Card,
-  EmptyState,
   ErrorState,
   ErrorText,
   Loading,
@@ -121,7 +121,7 @@ export default function MerchantServices() {
   if (isShopLoading || isLoading) return <Loading />;
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -225,7 +225,7 @@ export default function MerchantServices() {
 const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   switch: { flex: 1 },
-  headerTitle: { ...type.label, fontFamily: fontFor(600), color: colors.text, flex: 1 },
+  headerTitle: { ...type.label, ...fontFor(600), color: colors.text, flex: 1 },
   add: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.action,
   },
   addPressed: { opacity: 0.85 },
-  addText: { ...type.label, fontFamily: fontFor(600), color: colors.onAccent },
+  addText: { ...type.label, ...fontFor(600), color: colors.onAccent },
 
   notice: { paddingHorizontal: space.cosy, paddingVertical: space.snug, borderRadius: RADII.control },
   noticeText: { ...type.caption },

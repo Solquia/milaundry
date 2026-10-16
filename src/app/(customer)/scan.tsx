@@ -100,5 +100,5 @@ export default function ScanQr() {
 }
 
 const styles = StyleSheet.create({
-  camera: { flex: 1, borderRadius: 12, overflow: 'hidden' },
+  camera: { flex: 1, borderRadius: 22, borderCurve: 'continuous', overflow: 'hidden' },
 });

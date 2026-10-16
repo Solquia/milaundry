@@ -15,6 +15,8 @@ import { looksLikePrinter, printerCopy, type PrinterPaper, type ScannedDevice } 
 import type { Shop } from '@/lib/types';
 import { usePrinter } from '@/lib/use-printer';
 
+import { glassChip, glassPane } from './glass';
+import { GlyphTile } from './stage-glyph';
 import { Button, colors, space, type } from './ui-kit';
 
 const PAPERS: PrinterPaper[] = ['58mm', '80mm'];
@@ -57,9 +59,7 @@ export function PrinterCard({ shop }: { shop: Shop }) {
         onPress={() => setOpen((open) => !open)}
         style={styles.row}
       >
-        <View style={styles.mark}>
-          <Ionicons name="print-outline" size={20} color={colors.actionInk} />
-        </View>
+        <GlyphTile icon="print" color={colors.action} size={40} isLifted={false} />
         <View style={styles.words}>
           <Text style={styles.title}>{copy.title}</Text>
           <Text style={styles.caption}>{copy.caption}</Text>
@@ -117,21 +117,11 @@ export function PrinterCard({ shop }: { shop: Shop }) {
 
 const styles = StyleSheet.create({
   card: {
+    ...glassPane,
     borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, padding: space.cosy },
-  mark: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.actionSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   words: { flex: 1, gap: 2 },
   title: { ...type.body, fontWeight: '600', color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
@@ -140,15 +130,14 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     padding: space.room,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   papers: { flexDirection: 'row', gap: space.tight },
   paper: {
     flex: 1,
     paddingVertical: space.tight,
+    ...glassChip,
     borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
     alignItems: 'center',
   },
   paperOn: { backgroundColor: colors.actionSurface, borderColor: colors.actionInk },
@@ -160,7 +149,7 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     paddingVertical: space.tight,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   deviceName: { ...type.body, color: colors.text },
 });

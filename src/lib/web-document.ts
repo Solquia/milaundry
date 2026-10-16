@@ -15,14 +15,12 @@
  */
 import { Platform } from 'react-native';
 
-import { FONT } from './domain/design-scale';
-
-/** The deep navy the splash opens on, and the field around the phone column. */
-const BACKDROP = '#04203F';
+/** The iOS grouped-background grey: the field around the phone column. */
+const BACKDROP = '#F2F2F7';
 /** Blue at rule-mark weight, and blue as a filled action. From `ui-kit`. */
-const RULE = '#B6D4F2';
-const ACTION = '#1370CE';
-const INK = '#0B1B2B';
+const RULE = '#B3D4F5';
+const ACTION = '#0071E3';
+const INK = '#1D1D1F';
 
 const STYLE_ID = 'milaundry-document';
 
@@ -35,33 +33,15 @@ const STYLE_ID = 'milaundry-document';
 const VIEWPORT = 'width=device-width, initial-scale=1, viewport-fit=cover';
 
 /**
- * The peso sign, borrowed.
- *
- * Figtree ships no ₱ (U+20B1) in any cut. A phone falls back to its system
- * sans on its own, but a browser falls back to its *default* face, which is a
- * serif — so every price on the web wore a Times peso beside Figtree digits.
- * A second face under each Figtree family name, limited to that one code
- * point, hands the sign to a local sans of about the same weight instead.
+ * Inter, for every browser that is not on an Apple device. Apple devices read
+ * San Francisco through `-apple-system` at the head of the stack and never
+ * download this; everyone else gets the nearest open face to it rather than
+ * Arial. `display=swap` keeps text visible while it arrives.
  */
-const PESO_FACES: Record<string, readonly string[]> = {
-  [FONT.regular]: ['Segoe UI', 'SegoeUI', 'Roboto', 'Helvetica Neue', 'Arial'],
-  [FONT.medium]: ['Segoe UI Semibold', 'SegoeUI-Semibold', 'Roboto Medium', 'Roboto', 'Arial'],
-  [FONT.semibold]: ['Segoe UI Semibold', 'SegoeUI-Semibold', 'Roboto Medium', 'Arial'],
-  [FONT.bold]: ['Segoe UI Bold', 'SegoeUI-Bold', 'Roboto Bold', 'Roboto-Bold', 'Arial Bold'],
-  [FONT.extrabold]: ['Segoe UI Black', 'SegoeUI-Black', 'Segoe UI Bold', 'Roboto Black', 'Arial Black'],
-};
-
-const PESO_STYLE = Object.entries(PESO_FACES)
-  .map(
-    ([family, locals]) =>
-      `@font-face { font-family: '${family}'; src: ${locals
-        .map((name) => `local('${name}')`)
-        .join(', ')}; unicode-range: U+20B1; }`
-  )
-  .join('\n');
+const INTER_CSS =
+  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap';
 
 const DOCUMENT_STYLE = `
-${PESO_STYLE}
 html, body, #root { height: 100%; }
 body {
   background-color: ${BACKDROP};
@@ -89,7 +69,7 @@ body {
 }
 [data-lift]:hover {
   transform: translateY(-4px);
-  box-shadow: 0 16px 32px rgba(11, 27, 43, 0.15);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.10);
 }
 @media (prefers-reduced-motion: reduce) {
   [data-lift]:hover { transform: none; }
@@ -143,4 +123,9 @@ export function claimWebDocument(): void {
   sheet.id = STYLE_ID;
   sheet.textContent = DOCUMENT_STYLE;
   document.head.appendChild(sheet);
+
+  const font = document.createElement('link');
+  font.rel = 'stylesheet';
+  font.href = INTER_CSS;
+  document.head.appendChild(font);
 }

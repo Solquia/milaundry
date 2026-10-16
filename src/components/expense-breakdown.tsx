@@ -13,7 +13,8 @@ import { CATEGORY_LOOKS } from '@/lib/domain/expense-categories';
 import type { CategoryShare } from '@/lib/domain/expense-metrics';
 import { formatMoney } from '@/lib/domain/money';
 
-import { RADII, colors, elevation, space, type } from './ui-kit';
+import { vibrantPane } from './glass';
+import { RADII, colors, space, type } from './ui-kit';
 
 export function ExpenseBreakdown({ shares }: { shares: readonly CategoryShare[] }) {
   const largest = shares[0]?.amount ?? 0;
@@ -46,11 +47,9 @@ export function ExpenseBreakdown({ shares }: { shares: readonly CategoryShare[] 
 
 const styles = StyleSheet.create({
   card: {
+    ...vibrantPane(colors.moneyOut),
     gap: space.cosy,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   row: { gap: 6 },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.snug },

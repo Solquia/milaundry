@@ -13,6 +13,14 @@ import { formatMoneyCompact, roundCentavos } from './money';
 export type RewardKind = 'stamp_card' | 'welcome' | 'regular';
 export type RewardBenefit = 'free' | 'percent' | 'amount';
 
+/**
+ * What an order's reward can be: one of the programs, or free laundry the
+ * owner or staff gave on their own say-so (0048).
+ */
+export type OrderRewardKind = RewardKind | 'courtesy';
+
+export const FREE_LAUNDRY_LABEL = 'Free laundry · on the house';
+
 export const REWARD_KINDS: readonly RewardKind[] = ['stamp_card', 'welcome', 'regular'];
 const BENEFITS: readonly RewardBenefit[] = ['free', 'percent', 'amount'];
 
@@ -218,7 +226,7 @@ export function validateRewardDraft(draft: RewardDraft): DraftResult {
 }
 
 export interface RewardedOrder {
-  reward_kind: RewardKind | null;
+  reward_kind: OrderRewardKind | null;
   reward_benefit: RewardBenefit | null;
   reward_value: number | null;
   reward_discount: number;
@@ -230,6 +238,7 @@ export interface RewardedOrder {
 export function appliedReward(order: RewardedOrder): { label: string; discount: number } | null {
   if (!order.reward_kind || !order.reward_benefit) return null;
   const discount = order.final_total === null ? order.reward_estimate_discount : order.reward_discount;
+  if (order.reward_kind === 'courtesy') return { label: FREE_LAUNDRY_LABEL, discount: Number(discount) };
   const gift = benefitLabel(order.reward_benefit, Number(order.reward_value ?? 0));
   return { label: `${KIND_LABELS[order.reward_kind]} · ${gift}`, discount: Number(discount) };
 }

@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { BLUE_FIELD, ErrorText, Field, RADII, colors, elevation, space, type } from './ui-kit';
+import { glassChip, glassPane } from './glass';
+import { ErrorText, Field, RADII, colors, fontFor, space, type } from './ui-kit';
 import {
   PREFERRED_METHODS,
   methodName,
@@ -125,7 +126,7 @@ export function PaymentPreferenceCard({
                 <Ionicons
                   name={METHOD_ICONS[option] as never}
                   size={18}
-                  color={isActive ? colors.onAccent : BLUE_FIELD.mid}
+                  color={isActive ? colors.onAccent : colors.action}
                 />
               </View>
               <View style={styles.methodWords}>
@@ -135,7 +136,7 @@ export function PaymentPreferenceCard({
                 <Text style={styles.methodNote}>{METHOD_NOTES[option]}</Text>
               </View>
               {isActive ? (
-                <Ionicons name="checkmark-circle" size={20} color={BLUE_FIELD.mid} />
+                <Ionicons name="checkmark-circle" size={20} color={colors.action} />
               ) : null}
             </Pressable>
           );
@@ -175,13 +176,10 @@ export function PaymentPreferenceCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
+    borderRadius: 18,
     padding: space.room,
     gap: space.cosy,
-    ...elevation.rest,
   },
   title: { ...type.section, color: colors.text },
   note: { ...type.caption, color: colors.subtle },
@@ -194,36 +192,37 @@ const styles = StyleSheet.create({
     minHeight: 60,
     paddingHorizontal: space.cosy,
     paddingVertical: space.snug,
+    ...glassChip,
     borderRadius: RADII.control,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
-  methodActive: { borderColor: BLUE_FIELD.mid, backgroundColor: colors.actionSurface },
+  methodActive: { borderColor: colors.action, backgroundColor: colors.actionSurface },
   glyph: {
     width: 36,
     height: 36,
-    borderRadius: RADII.control,
+    borderRadius: 8,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.actionSurface,
+    backgroundColor: colors.card,
   },
-  glyphActive: { backgroundColor: BLUE_FIELD.mid },
+  glyphActive: { backgroundColor: colors.action },
   methodWords: { flex: 1, gap: 1 },
-  methodName: { ...type.label, fontSize: 16, color: colors.text },
+  methodName: { ...type.body, fontSize: 17, ...fontFor(500), color: colors.text },
   methodNameActive: { color: colors.actionInk },
-  methodNote: { ...type.caption, fontSize: 12, color: colors.subtle },
+  methodNote: { ...type.caption, color: colors.subtle },
 
   handleBlock: { gap: space.snug },
   save: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: 14,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BLUE_FIELD.mid,
+    backgroundColor: colors.action,
   },
   saveOff: { opacity: 0.45 },
-  saveText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  saveText: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent },
 
   pressed: { opacity: 0.7 },
 });

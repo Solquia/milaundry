@@ -18,6 +18,7 @@ import { capacityLabel, minimumLabel } from '@/lib/domain/price-label';
 import { CATEGORY_LABELS } from '@/lib/domain/service-catalog';
 import { showcaseBlurb, showcaseTitle } from '@/lib/domain/service-showcase';
 import { spotlightPrice, type ServiceFrame, type SpotlightService } from '@/lib/domain/spotlight';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -176,7 +177,7 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.8 },
   body: { padding: space.room, gap: space.snug },
   chip: { alignSelf: 'flex-start', paddingHorizontal: space.snug, paddingVertical: 3, borderRadius: RADII.pill },
-  chipText: { ...type.caption, fontWeight: '700' },
+  chipText: { ...type.caption, ...fontFor(700) },
   title: { ...type.title, color: colors.text },
   blurb: { ...type.body, color: colors.subtle },
   fact: { flexDirection: 'row', alignItems: 'flex-start', gap: space.snug },

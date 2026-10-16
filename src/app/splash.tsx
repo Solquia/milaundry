@@ -23,7 +23,7 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
  * what you wait through. This is a lockup that arrives, rests, and hands over.
  */
 
-const FIELD = ['#04203F', '#0A3A73', '#1370CE'] as const;
+const FIELD = ['#002A6E', '#0048AE', '#0071E3'] as const;
 const ICON = require('../../assets/images/icon.png');
 
 const LOGO_MS = 780;

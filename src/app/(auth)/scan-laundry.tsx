@@ -20,7 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PhotoCodeButton } from '@/components/photo-code-button';
 import { REVEAL_STAGGER_MS, Reveal } from '@/components/reveal';
 import { TypedCodeForm } from '@/components/typed-code-form';
-import { ACCENTS, Button, colors, elevation, space, type } from '@/components/ui-kit';
+import { ACCENTS, Button, colors, elevation, fontFor, space, type } from '@/components/ui-kit';
 import { peekScan } from '@/lib/api';
 import { shopInitials } from '@/lib/domain/connected-shops';
 import { parseQrPayload } from '@/lib/domain/qr';
@@ -499,7 +499,8 @@ function FoundCard({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#04203F' },
+  // Black, as the iOS camera is: the viewfinder is the only colour on screen.
+  root: { flex: 1, backgroundColor: '#000000' },
   pressed: { opacity: 0.6 },
 
   scrim: { flex: 1, backgroundColor: SCRIM },
@@ -519,9 +520,9 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.18)',
   },
-  topTitle: { ...type.section, color: colors.onAccent, flex: 1, textAlign: 'center' },
+  topTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent, flex: 1, textAlign: 'center' },
 
   bracket: {
     position: 'absolute',
@@ -534,28 +535,28 @@ const styles = StyleSheet.create({
     left: 0,
     borderTopWidth: BRACKET_STROKE,
     borderLeftWidth: BRACKET_STROKE,
-    borderTopLeftRadius: 8,
+    borderTopLeftRadius: 14,
   },
   bracketTR: {
     top: 0,
     right: 0,
     borderTopWidth: BRACKET_STROKE,
     borderRightWidth: BRACKET_STROKE,
-    borderTopRightRadius: 8,
+    borderTopRightRadius: 14,
   },
   bracketBL: {
     bottom: 0,
     left: 0,
     borderBottomWidth: BRACKET_STROKE,
     borderLeftWidth: BRACKET_STROKE,
-    borderBottomLeftRadius: 8,
+    borderBottomLeftRadius: 14,
   },
   bracketBR: {
     bottom: 0,
     right: 0,
     borderBottomWidth: BRACKET_STROKE,
     borderRightWidth: BRACKET_STROKE,
-    borderBottomRightRadius: 8,
+    borderBottomRightRadius: 14,
   },
   sweep: {
     position: 'absolute',
@@ -564,9 +565,9 @@ const styles = StyleSheet.create({
     top: BRACKET_STROKE,
     height: 2,
     borderRadius: 1,
-    backgroundColor: '#8FD3FF',
-    shadowColor: '#8FD3FF',
-    shadowOpacity: 0.9,
+    backgroundColor: 'rgba(255,255,255,0.9)',
+    shadowColor: '#FFFFFF',
+    shadowOpacity: 0.6,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 0 },
   },
@@ -584,7 +585,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.dangerInk,
   },
   problem: { ...type.label, color: colors.onAccent, flexShrink: 1 },
-  link: { ...type.label, color: colors.onAccent, opacity: 0.85, textDecorationLine: 'underline' },
+  link: { ...type.body, fontSize: 17, color: '#64D2FF' },
 
   ask: { paddingHorizontal: space.section },
   askBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: space.room },
@@ -607,6 +608,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
     paddingHorizontal: space.section,
     paddingTop: space.cosy,
@@ -616,22 +618,23 @@ const styles = StyleSheet.create({
   cardHandle: {
     alignSelf: 'center',
     width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.borderStrong,
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: '#C7C7CC',
   },
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   mark: {
     width: 56,
     height: 56,
-    borderRadius: 18,
+    borderRadius: 14,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   markText: { ...type.section, fontSize: 20, letterSpacing: 0.5 },
   shopCopy: { flex: 1, gap: 2 },
-  shopName: { ...type.section, fontSize: 18, color: colors.text },
+  shopName: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   shopMeta: { ...type.caption, fontSize: 13, color: colors.subtle },
   foundBadge: {
     flexDirection: 'row',
@@ -641,7 +644,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
   },
-  foundBadgeText: { ...type.caption, fontWeight: '700' },
+  foundBadgeText: { ...type.caption, ...fontFor(600) },
 
   welcome: { gap: space.tight },
   welcomeHeading: { ...type.title, color: colors.text },
@@ -649,5 +652,5 @@ const styles = StyleSheet.create({
 
   cardActions: { gap: space.cosy },
   again: { alignSelf: 'center', paddingVertical: space.tight },
-  againText: { ...type.label, color: colors.subtle },
+  againText: { ...type.body, fontSize: 17, color: colors.actionInk },
 });

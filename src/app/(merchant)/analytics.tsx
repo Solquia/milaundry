@@ -5,10 +5,12 @@ import { StyleSheet, View } from "react-native";
 
 import { CloseDaySheet } from "@/components/close-day-sheet";
 import { ExpenseSheet } from "@/components/expense-sheet";
+import { GLASS_GROUND, glassPane } from "@/components/glass";
 import { GoalBar } from "@/components/goal-bar";
 import { GoalBurst } from "@/components/goal-burst";
 import { GoalSheet } from "@/components/goal-sheet";
 import { LiveToast } from "@/components/live-toast";
+import { NoShopState } from "@/components/no-shop-state";
 import { PaymentsSheet } from "@/components/payments-sheet";
 import {
   AnalyticsLink,
@@ -19,12 +21,8 @@ import {
 } from "@/components/sales-glance";
 import { SalesSkeleton } from "@/components/sales-skeleton";
 import {
-  EmptyState,
   ErrorState,
-  RADII,
   Screen,
-  colors,
-  elevation,
   space,
 } from "@/components/ui-kit";
 import { getShopOrders } from "@/lib/api";
@@ -112,7 +110,7 @@ export default function MerchantSales() {
   }
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -264,11 +262,9 @@ export default function MerchantSales() {
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: colors.bg },
+  shell: { flex: 1, backgroundColor: GLASS_GROUND },
   goal: {
+    ...glassPane,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
 });

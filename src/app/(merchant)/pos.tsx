@@ -30,10 +30,20 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { NoShopState } from '@/components/no-shop-state';
 import { AddonShelf } from '@/components/addon-shelf';
 import { BrandButton } from '@/components/brand-button';
 import { CheckoutForm } from '@/components/checkout-form';
+import { FreeLaundryToggle } from '@/components/free-laundry-toggle';
 import { CounterBand } from '@/components/counter-band';
+import {
+  GLASS_EDGE,
+  GLASS_FILL_DENSE,
+  GLASS_GROUND,
+  GlassBackdrop,
+  glassChip,
+  glassPane,
+} from '@/components/glass';
 import { Odometer } from '@/components/odometer';
 import {
   SlipCode,
@@ -70,6 +80,7 @@ import {
   getServices,
   getShopAddonGroups,
   getShopAddons,
+  giveFreeLaundry,
   placeOrder,
   type PlaceOrderOptions,
 } from '@/lib/api';
@@ -161,9 +172,10 @@ function TillShell({
 }) {
   return (
     <SafeAreaView style={styles.shell} edges={['left', 'right']}>
+      <GlassBackdrop />
       {band}
       <KeyboardAvoidingView
-        style={styles.shell}
+        style={styles.fill}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {scroll ? (
@@ -227,6 +239,8 @@ export default function Pos() {
   const [saveError, setSaveError] = useState('');
   const [lastOrder, setLastOrder] = useState<OrderRow | null>(null);
   const [addonPicks, setAddonPicks] = useState<Record<string, number>>({});
+  const [isFree, setIsFree] = useState(false);
+  const [freeError, setFreeError] = useState('');
 
   const shopId = shop?.id;
   const { data: services, isLoading: isLoadingServices } = useQuery({
@@ -293,12 +307,23 @@ export default function Pos() {
   };
 
   const mutation = useMutation({
-    mutationFn: (options: PlaceOrderOptions) =>
-      placeOrder(
+    mutationFn: async (options: PlaceOrderOptions) => {
+      // A free ticket is saved unpaid, then the whole bill comes off it: the
+      // server will not take money off an order already marked paid.
+      const order = await placeOrder(
         shopId!,
         selectedItems.map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
-        { ...options, addons: addonPayload(pickedAddons) }
-      ),
+        { ...options, isPaid: isFree ? false : options.isPaid, addons: addonPayload(pickedAddons) }
+      );
+      if (!isFree) return order;
+      try {
+        return await giveFreeLaundry(order.id);
+      } catch {
+        // The order is saved either way; saying so stops a second ticket.
+        setFreeError('Saved, but free laundry did not go on. Open this order and tap Give free laundry.');
+        return order;
+      }
+    },
     onSuccess: async (order) => {
       haptic('success');
       await queryClient.invalidateQueries({ queryKey: ['shop-orders', shopId] });
@@ -407,6 +432,8 @@ export default function Pos() {
     setLastOrder(null);
     setQuantities({});
     setAddonPicks({});
+    setIsFree(false);
+    setFreeError('');
     setIntake(EMPTY_INTAKE);
     setFieldErrors({});
     setSaveError('');
@@ -427,7 +454,7 @@ export default function Pos() {
   }
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -441,12 +468,13 @@ export default function Pos() {
     const bill = actualBill(lastOrder);
     return (
       <SafeAreaView style={styles.shell} edges={['top', 'left', 'right']}>
+        <GlassBackdrop />
         <ScrollView contentContainerStyle={styles.savedContent}>
           <Reveal>
             {/* The same slip a customer's own booking prints, filled in by the
                 counter: the shop is about to hand this order over, and both
                 sides of the counter should be looking at one object. */}
-            <SlipPaper>
+            <SlipPaper ground={GLASS_GROUND}>
               <SlipCrown
                 scene={placedScene(lastOrder.fulfillment)}
                 brand={theme.brand}
@@ -455,7 +483,7 @@ export default function Pos() {
                 note={savedSlipNote(lastOrder.fulfillment)}
               />
 
-              <SlipTear />
+              <SlipTear ground={GLASS_GROUND} />
 
               <SlipStub>
                 <SlipRow label="Order" value={docketNumber(lastOrder.id)} isCode />
@@ -520,6 +548,7 @@ export default function Pos() {
                 <Text style={styles.receiptNote}>{receiptSetupNote(false)}</Text>
               ) : null}
               {printer.state.kind === 'error' ? <ErrorText>{printer.state.message}</ErrorText> : null}
+              <ErrorText>{freeError}</ErrorText>
               <BrandButton
                 title="Next customer"
                 onPress={startNext}
@@ -669,6 +698,7 @@ export default function Pos() {
           onChange={(patch) => setIntake((prev) => ({ ...prev, ...patch }))}
           tone={tone}
         />
+        <FreeLaundryToggle isOn={isFree} total={estimate.total} onChange={setIsFree} />
         <ErrorText>{saveError}</ErrorText>
 
         {scaleSheet}
@@ -690,7 +720,7 @@ export default function Pos() {
               <BrandButton
                 title="Clear"
                 onPress={confirmClear}
-                fill={colors.sunken}
+                fill={GLASS_FILL_DENSE}
                 ink={colors.dangerInk}
                 flex={1}
               />
@@ -765,23 +795,20 @@ export default function Pos() {
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: colors.bg },
+  shell: { flex: 1, backgroundColor: GLASS_GROUND },
+  fill: { flex: 1 },
   addonCard: {
+    ...glassPane,
     gap: space.cosy,
     padding: space.room,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   addonCardTitle: { ...type.section, color: colors.text },
   addonLines: {
+    ...glassChip,
     gap: space.tight,
     padding: space.room,
     borderRadius: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   addonHead: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: space.tight },
   addonTitle: { ...type.label, color: colors.text },
@@ -795,9 +822,10 @@ const styles = StyleSheet.create({
     paddingTop: space.cosy,
     paddingBottom: space.cosy,
     gap: space.snug,
-    backgroundColor: colors.card,
+    // The same frosted footer `Screen` pins under its glass.
+    backgroundColor: 'rgba(255, 255, 255, 0.78)',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: GLASS_EDGE,
   },
   totalRow: {
     flexDirection: 'row',

@@ -29,6 +29,7 @@ import {
   type ShopReward,
 } from '@/lib/domain/rewards';
 
+import { glassPane, vibrantPane } from './glass';
 import { Segmented } from './segmented';
 import { StampCard } from './stamp-card';
 import {
@@ -118,7 +119,7 @@ function RewardEditor({
   };
 
   return (
-    <Card>
+    <View style={[styles.pane, isActive && styles.paneLive]}>
       <View style={styles.editorHead}>
         <View style={styles.editorTitle}>
           <Text style={type.section}>{KIND_LABELS[kind]}</Text>
@@ -172,7 +173,7 @@ function RewardEditor({
         onPress={() => submit(true, 'Saved. Customers see the new terms now.')}
         disabled={isSaving}
       />
-    </Card>
+    </View>
   );
 }
 
@@ -258,7 +259,7 @@ export function RewardsSettingsCard({ shopId }: { shopId: string }) {
 
   return (
     <View style={styles.stack}>
-      <Card>
+      <View style={styles.promoPane}>
         <View style={styles.settingsHead}>
           <Ionicons name="gift" size={22} color={colors.actionInk} />
           <Text style={[type.section, styles.settingsTitle]}>Promos & loyalty rewards</Text>
@@ -269,7 +270,7 @@ export function RewardsSettingsCard({ shopId }: { shopId: string }) {
           variant={isOpen ? 'outline' : 'primary'}
           onPress={() => setIsOpen((open) => !open)}
         />
-      </Card>
+      </View>
       {isOpen ? <MerchantRewards shopId={shopId} /> : null}
     </View>
   );
@@ -277,6 +278,10 @@ export function RewardsSettingsCard({ shopId }: { shopId: string }) {
 
 const styles = StyleSheet.create({
   stack: { gap: space.section },
+  // Card's glass, by hand: a live program and the promo entry glow in their colour.
+  pane: { ...glassPane, padding: 18, gap: 10 },
+  paneLive: { ...vibrantPane(colors.moneyIn), padding: 18, gap: 10 },
+  promoPane: { ...vibrantPane(colors.action), padding: 18, gap: 10 },
   settingsHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   settingsTitle: { flex: 1, color: colors.text },
   editorHead: { flexDirection: 'row', alignItems: 'flex-start', gap: space.cosy },

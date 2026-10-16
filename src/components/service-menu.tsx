@@ -23,6 +23,7 @@ import { categoryIcon } from '@/lib/domain/shop-home';
 import { gridRows } from '@/lib/domain/web-layout';
 import type { ServiceRow } from '@/lib/types';
 
+import { glassChip } from './glass';
 import { APP_TONE, type QuantityTone } from './quantity-picker';
 import { ServiceTileCard } from './service-tile-card';
 import { RADII, colors, space, type } from './ui-kit';
@@ -151,10 +152,8 @@ const styles = StyleSheet.create({
     // The control a counter thumb hits most: never under the 44pt target.
     height: 44,
     paddingHorizontal: 14,
+    ...glassChip,
     borderRadius: RADII.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   chipText: { ...type.label, color: colors.text },
   chipTextActive: { color: colors.onAccent },

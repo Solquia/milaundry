@@ -163,21 +163,21 @@ const styles = StyleSheet.create({
   photo: { width: THUMB, height: THUMB },
 
   words: { flex: 1, minWidth: 0, gap: 2 },
-  name: { ...type.label, fontFamily: fontFor(700), fontSize: 16, lineHeight: 21, color: colors.text },
+  name: { ...type.label, ...fontFor(700), fontSize: 16, lineHeight: 21, color: colors.text },
   blurb: { ...type.caption, fontSize: 13, lineHeight: 18, color: colors.subtle },
 
   /** The price, right-aligned so a column of them can be compared at a glance. */
   cost: { alignItems: 'flex-end', gap: 2, maxWidth: '38%' },
   price: {
-    fontFamily: fontFor(800),
+    ...fontFor(800),
     fontSize: 17,
     lineHeight: 22,
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
   /** Figtree has no peso glyph; set down, the substitute reads as a mark, not a mistake. */
-  peso: { fontFamily: fontFor(600), fontSize: 14 },
-  unit: { fontFamily: fontFor(600), fontSize: 13, color: colors.subtle },
+  peso: { ...fontFor(600), fontSize: 14 },
+  unit: { ...fontFor(600), fontSize: 13, color: colors.subtle },
   /** The minimum sits under the rate it changes — the one a customer is caught by. */
-  minimum: { ...type.caption, fontSize: 12, lineHeight: 16, fontFamily: fontFor(600), color: colors.moneyOut },
+  minimum: { ...type.caption, fontSize: 12, lineHeight: 16, ...fontFor(600), color: colors.moneyOut },
 });

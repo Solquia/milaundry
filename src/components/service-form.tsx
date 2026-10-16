@@ -38,6 +38,7 @@ import {
 } from '@/lib/domain/weight-prices';
 import type { ServiceRow } from '@/lib/types';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { Segmented } from './segmented';
 import { ServiceScene } from './service-scene';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
@@ -114,6 +115,7 @@ function CategoryChoice({
   value: ServiceCategory | null;
   onChange: (category: ServiceCategory) => void;
 }) {
+  const isGlass = useIsGlass();
   return (
     <View style={styles.tileGrid} accessibilityRole="radiogroup">
       {CATEGORY_ORDER.map((category) => {
@@ -127,6 +129,7 @@ function CategoryChoice({
             onPress={() => onChange(category)}
             style={({ pressed }) => [
               styles.tile,
+              isGlass && styles.tileGlass,
               isSelected && styles.tileSelected,
               pressed && styles.pressed,
             ]}
@@ -162,8 +165,9 @@ function PriceInput({
   onChange: (price: string) => void;
 }) {
   const suffix = unitSuffix(unit);
+  const isGlass = useIsGlass();
   return (
-    <View style={styles.priceBox}>
+    <View style={[styles.priceBox, isGlass && styles.priceBoxGlass]}>
       <Text style={styles.pricePeso}>₱</Text>
       <TextInput
         accessibilityLabel={priceLabel(unit)}
@@ -181,8 +185,9 @@ function PriceInput({
 
 /** A white panel on the page field, so the recessed inputs inside read as inputs. */
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
+  const isGlass = useIsGlass();
   return (
-    <View style={styles.panel}>
+    <View style={[styles.panel, isGlass && styles.panelGlass]}>
       <Text style={styles.panelTitle}>{title}</Text>
       {children}
     </View>
@@ -472,7 +477,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  panelTitle: { ...type.label, fontFamily: fontFor(700), color: colors.text },
+  panelGlass: { ...glassPane, borderRadius: RADII.card },
+  panelTitle: { ...type.label, ...fontFor(700), color: colors.text },
 
   priceBox: {
     flexDirection: 'row',
@@ -486,7 +492,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.sunken,
   },
-  pricePeso: { ...type.value, fontFamily: fontFor(600), color: colors.subtle },
+  priceBoxGlass: { ...glassChip },
+  pricePeso: { ...type.value, ...fontFor(600), color: colors.subtle },
   priceText: {
     flex: 1,
     minWidth: 0,
@@ -514,10 +521,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
+  tileGlass: { ...glassChip, borderWidth: 1.5 },
   tileSelected: { borderColor: colors.action, backgroundColor: colors.actionSurface },
   /** The same drawings the customer's price board uses, so each section looks like its own shelf. */
   tileArt: { width: 56, height: 56 },
-  tileText: { ...type.caption, fontFamily: fontFor(600), color: colors.text, textAlign: 'center' },
+  tileText: { ...type.caption, ...fontFor(600), color: colors.text, textAlign: 'center' },
   tileTextSelected: { color: colors.actionInk },
 
   hint: {

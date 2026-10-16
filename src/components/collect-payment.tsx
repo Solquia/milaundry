@@ -21,6 +21,7 @@ import { merchantProofCopy } from '@/lib/domain/payment-proof';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import type { PaymentMethod } from '@/lib/domain/walk-in-order';
 
+import { glassChip } from './glass';
 import { Button, Field, RADII, Subtle, colors, formatMoney, space, type } from './ui-kit';
 
 /**
@@ -195,9 +196,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 14,
     paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    ...glassChip,
   },
   tenderChipSelected: { borderColor: colors.action, backgroundColor: colors.action },
   tenderChipText: { ...type.label, color: colors.text },
@@ -209,11 +208,9 @@ const styles = StyleSheet.create({
 
   /** The customer's receipt, boxed apart from the shop's own controls. */
   proofBlock: {
+    ...glassChip,
     gap: space.snug,
-    borderWidth: 1,
-    borderColor: colors.border,
     borderRadius: RADII.card,
-    backgroundColor: colors.sunken,
     padding: space.cosy,
   },
   proofTitle: { fontSize: 15, fontWeight: '700', color: colors.text },

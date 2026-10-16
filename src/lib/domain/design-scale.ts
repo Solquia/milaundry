@@ -1,81 +1,100 @@
 /**
  * The type and the shapes, decided once.
  *
- * Two things made the product feel boxy and formal. The type scale ran
- * 17 / 15 / 14 / 12 with no line heights, so three roles sat within three
- * pixels of each other and every screen quietly overrode them — there was a
- * de-facto 16 / 15 / 14 / 13 scale operating underneath the declared one. And
- * there was no radius token at all, so thirteen different corner radii were
- * in use, a card and the control inside it one step apart, which reads as no
- * step at all.
- *
- * Both now live here as data, which is why they can be tested: a scale whose
- * steps are too small to see is a bug, not a matter of taste.
+ * The product is set the way an Apple app is set: the system face on an
+ * iPhone, the iOS text-style sizes, tracking that tightens as type grows, and
+ * one continuous corner on every card. Both live here as data, which is why
+ * they can be tested: a scale whose steps are too small to see is a bug, not a
+ * matter of taste.
  */
+import { Platform, type TextStyle } from 'react-native';
 
 /**
- * Figtree, a warm geometric face with open counters and friendly numerals.
+ * Inter, for the platforms that do not ship San Francisco.
  *
- * React Native picks a weight by *family*, not by `fontWeight` — asking for
- * 700 on a custom face gets a synthesised bold on Android and nothing at all
- * on some devices. So every weight is its own family, and roles name theirs.
+ * Android selects a custom face by *family*, not by `fontWeight` — asking for
+ * 700 on a custom face gets a synthesised bold, or nothing. So every weight is
+ * its own family there. Inter was drawn for the same job SF was — UI text at
+ * small sizes — and it is the nearest open face to it.
  */
-export const FONT = {
-  regular: 'Figtree_400Regular',
-  medium: 'Figtree_500Medium',
-  semibold: 'Figtree_600SemiBold',
-  bold: 'Figtree_700Bold',
-  extrabold: 'Figtree_800ExtraBold',
+export const INTER = {
+  400: 'Inter_400Regular',
+  500: 'Inter_500Medium',
+  600: 'Inter_600SemiBold',
+  700: 'Inter_700Bold',
+  800: 'Inter_800ExtraBold',
 } as const;
 
-export type FontFamily = (typeof FONT)[keyof typeof FONT];
-
-const CUTS: readonly (readonly [number, FontFamily])[] = [
-  [400, FONT.regular],
-  [500, FONT.medium],
-  [600, FONT.semibold],
-  [700, FONT.bold],
-  [800, FONT.extrabold],
-];
+export type Cut = keyof typeof INTER;
+const CUTS: readonly Cut[] = [400, 500, 600, 700, 800];
 
 /**
- * The family for a weight, rounded to the nearest cut the face ships.
- *
- * A weight exactly between two cuts takes the heavier one. Text that lands a
- * step bolder than asked still reads; a step lighter can disappear against a
- * tinted surface.
+ * The browser's face: San Francisco on every Apple device, Inter (loaded by
+ * `web-document.ts`) everywhere else, then each platform's own UI face.
  */
-export function fontFor(weight: number): FontFamily {
+export const WEB_FONT_STACK =
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+
+/** The nearest weight the faces ship; a tie takes the heavier cut. */
+export function nearestCut(weight: number): Cut {
   let best = CUTS[0];
   for (const cut of CUTS) {
-    if (Math.abs(cut[0] - weight) <= Math.abs(best[0] - weight)) best = cut;
+    if (Math.abs(cut - weight) <= Math.abs(best - weight)) best = cut;
   }
-  return best[1];
+  return best;
 }
 
-export interface TypeRole {
+export interface FontStyle {
+  fontFamily: string;
+  fontWeight?: TextStyle['fontWeight'];
+}
+
+/** The face for a weight on a given platform. Pure, so every branch is testable. */
+export function fontForPlatform(weight: number, os: string): FontStyle {
+  const cut = nearestCut(weight);
+  const fontWeight = String(cut) as TextStyle['fontWeight'];
+  if (os === 'ios') return { fontFamily: 'System', fontWeight };
+  if (os === 'android') return { fontFamily: INTER[cut] };
+  return { fontFamily: WEB_FONT_STACK, fontWeight };
+}
+
+/** The face for a weight on this device. Spread it: `{ ...fontFor(600) }`. */
+export function fontFor(weight: number): FontStyle {
+  return fontForPlatform(weight, Platform.OS);
+}
+
+export interface TypeRole extends FontStyle {
   fontSize: number;
   lineHeight: number;
   letterSpacing: number;
-  fontFamily: FontFamily;
+}
+
+function role(fontSize: number, lineHeight: number, letterSpacing: number, weight: number): TypeRole {
+  return { fontSize, lineHeight, letterSpacing, ...fontFor(weight) };
 }
 
 /**
- * Seven roles, each a step you can see.
+ * Seven roles, on the iOS text styles.
  *
- * Sizes run 34 / 26 / 22 / 19 / 16 / 14 / 13. Body sits at 16 because that is
- * the reading floor, and `section` moved up to 19 so a heading is unmistakably
- * a heading beside it. Tracking tightens as the size grows, which is how a
- * geometric face keeps its colour at display sizes, and never passes -0.04em.
+ *   hero    34 bold      Large Title — the one line a screen exists to say
+ *   title   28 bold      Title 1
+ *   value   22 semibold  Title 2 — a figure: a price, a total
+ *   section 20 bold      Title 3 — the heading over a group
+ *   body    16 regular   Callout
+ *   label   14 semibold  a row's name, a button
+ *   caption 13 regular   Footnote
+ *
+ * Tracking follows apple.com's: slightly negative at reading sizes and
+ * tighter as the size grows, so display type holds together as a word.
  */
 export const TYPE_ROLES = {
-  hero: { fontSize: 34, lineHeight: 40, letterSpacing: -1, fontFamily: FONT.extrabold },
-  title: { fontSize: 26, lineHeight: 31, letterSpacing: -0.6, fontFamily: FONT.bold },
-  value: { fontSize: 22, lineHeight: 26, letterSpacing: -0.4, fontFamily: FONT.bold },
-  section: { fontSize: 19, lineHeight: 24, letterSpacing: -0.3, fontFamily: FONT.bold },
-  body: { fontSize: 16, lineHeight: 23, letterSpacing: 0, fontFamily: FONT.regular },
-  label: { fontSize: 14, lineHeight: 18, letterSpacing: 0.1, fontFamily: FONT.semibold },
-  caption: { fontSize: 13, lineHeight: 17, letterSpacing: 0.1, fontFamily: FONT.regular },
+  hero: role(34, 41, -0.9, 700),
+  title: role(28, 34, -0.6, 700),
+  value: role(22, 28, -0.45, 600),
+  section: role(20, 25, -0.4, 700),
+  body: role(16, 22, -0.25, 400),
+  label: role(14, 19, -0.1, 600),
+  caption: role(13, 18, -0.05, 400),
 } as const satisfies Record<string, TypeRole>;
 
 export type RoleName = keyof typeof TYPE_ROLES;
@@ -83,32 +102,22 @@ export type RoleName = keyof typeof TYPE_ROLES;
 /** Largest to smallest, so the scale can be checked for ties. */
 export const ROLE_ORDER = ['hero', 'title', 'value', 'section', 'body', 'label', 'caption'] as const;
 
-/**
- * One radius scale, generous at every step.
- *
- * The old set had a card at 14 and the control inside it at 12, a difference
- * nobody can see. Each step here is worth making, and the smallest is still
- * round enough that nothing on screen has a corner.
- */
+/** One radius scale. The card step matches an iOS widget's corner. */
 export const RADII = {
   hair: 6,
   chip: 10,
   control: 14,
-  card: 20,
-  sheet: 26,
+  card: 22,
+  sheet: 28,
   pill: 999,
 } as const;
 
 /**
- * The crown: a sheet rounded more at the head than at the foot.
- *
- * A rectangle with four equal corners is a box however round they are. Taking
- * the top two further than the bottom two gives the shape a direction — it
- * reads as something drawn, resting on the page, rather than as a container.
+ * A card's corner: even all round, and drawn as a continuous curve — the
+ * squircle iOS uses for icons and cards — wherever the platform can draw one.
+ * Platforms without it fall back to the plain arc at the same radius.
  */
 export const CROWN = {
-  borderTopLeftRadius: 30,
-  borderTopRightRadius: 30,
-  borderBottomLeftRadius: 20,
-  borderBottomRightRadius: 20,
+  borderRadius: RADII.card,
+  borderCurve: 'continuous',
 } as const;

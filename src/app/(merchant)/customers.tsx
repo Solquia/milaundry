@@ -4,10 +4,12 @@ import { Redirect, useRouter } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { NoShopState } from '@/components/no-shop-state';
 import { ChipRow } from '@/components/chip-row';
 import { CustomerPulse } from '@/components/customer-pulse';
 import { CustomerRow } from '@/components/customer-row';
 import { SearchField } from '@/components/search-field';
+import { GLASS_EDGE, GLASS_FILL_DENSE } from '@/components/glass';
 import { ShopQrButton } from '@/components/shop-qr-button';
 import {
   EmptyState,
@@ -116,7 +118,7 @@ export default function MerchantCustomers() {
   }
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -226,13 +228,25 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.7 },
   // Rows sit in one grouped surface: the card belongs to the list, not to
   // each person, so eleven customers read as one book instead of eleven slabs.
-  slot: { backgroundColor: colors.card, overflow: 'hidden' },
-  slotFirst: { borderTopLeftRadius: RADII.card, borderTopRightRadius: RADII.card },
-  slotLast: { borderBottomLeftRadius: RADII.card, borderBottomRightRadius: RADII.card },
-  dividerSlot: { backgroundColor: colors.card },
+  // One frosted group: each slot carries its share of the glass edge.
+  slot: {
+    backgroundColor: GLASS_FILL_DENSE,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: GLASS_EDGE,
+    overflow: 'hidden',
+  },
+  slotFirst: { borderTopWidth: 1, borderTopLeftRadius: RADII.card, borderTopRightRadius: RADII.card },
+  slotLast: { borderBottomWidth: 1, borderBottomLeftRadius: RADII.card, borderBottomRightRadius: RADII.card },
+  dividerSlot: {
+    backgroundColor: GLASS_FILL_DENSE,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: GLASS_EDGE,
+  },
   divider: {
     height: StyleSheet.hairlineWidth,
     marginLeft: DIVIDER_INSET,
-    backgroundColor: colors.border,
+    backgroundColor: 'rgba(60, 60, 67, 0.12)',
   },
 });

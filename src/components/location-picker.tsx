@@ -16,6 +16,7 @@ import type { AppleMaps, GoogleMaps } from 'expo-maps';
 import React, { useEffect, useRef } from 'react';
 import { Platform, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip } from '@/components/glass';
 import { Subtle, colors, space, type } from '@/components/ui-kit';
 import { androidMapsKey } from '@/lib/maps-config';
 import { loadNativeMaps } from '@/lib/maps-native';
@@ -124,11 +125,9 @@ function placeholderHint(hasNativeMaps: boolean): string {
 
 const styles = StyleSheet.create({
   frame: {
+    ...glassChip,
     borderRadius: 18,
     overflow: 'hidden',
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   placeholder: {
     alignItems: 'center',

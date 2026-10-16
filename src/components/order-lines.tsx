@@ -17,6 +17,7 @@ import { shortOrderId } from '@/lib/domain/order-card';
 import { appliedReward } from '@/lib/domain/rewards';
 import type { OrderItemRow } from '@/lib/types';
 
+import { GLASS_GROUND } from './glass';
 import { TORN_EDGE_HEIGHT, TicketPerforation, TornEdge } from './torn-edge';
 import { colors, formatMoney, formatWhen, mono, space } from './ui-kit';
 
@@ -49,7 +50,7 @@ export function OrderLines({ order, now }: { order: OrderWithDetails; now: Date 
         setWidth((current) => (current === next ? current : next));
       }}
     >
-      <TornEdge width={width} color={colors.bg} edge="top" />
+      <TornEdge width={width} color={GLASS_GROUND} edge="top" />
 
       <View style={styles.body}>
         <View style={styles.headRow}>
@@ -74,7 +75,7 @@ export function OrderLines({ order, now }: { order: OrderWithDetails; now: Date 
         ))}
       </View>
 
-      <TicketPerforation color={colors.bg} ruleColor={colors.paperRule} />
+      <TicketPerforation color={GLASS_GROUND} ruleColor={colors.paperRule} />
 
       <View style={styles.stub}>
         {isWeighed ? (
@@ -102,7 +103,7 @@ export function OrderLines({ order, now }: { order: OrderWithDetails; now: Date 
         ) : null}
       </View>
 
-      <TornEdge width={width} color={colors.bg} edge="bottom" />
+      <TornEdge width={width} color={GLASS_GROUND} edge="bottom" />
     </View>
   );
 }

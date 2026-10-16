@@ -18,7 +18,8 @@ import type { PeriodFrame } from '@/lib/domain/sales-period';
 import { GoalBar } from './goal-bar';
 import { MetricSwitcher } from './metric-switcher';
 import { SalesChart } from './sales-chart';
-import { CROWN, RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { glassChip, vibrantPane } from './glass';
+import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 const PACE_TONES: Record<PaceTone, { bg: string; ink: string; icon: string }> = {
   up: { ...TAG_TONES.settled, icon: 'trending-up' },
@@ -152,13 +153,9 @@ export function SalesHero({
 
 const styles = StyleSheet.create({
   hero: {
+    ...vibrantPane(colors.moneyIn),
     gap: space.room,
     padding: space.room,
-    ...CROWN,
-    backgroundColor: colors.takingsSurface,
-    borderWidth: 1,
-    borderColor: colors.takingsBorder,
-    ...elevation.rest,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
   step: {
@@ -167,7 +164,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    ...glassChip,
   },
   stepOff: { opacity: 0.3 },
   periodPill: {
@@ -177,9 +174,8 @@ const styles = StyleSheet.create({
     maxWidth: 170,
     paddingHorizontal: space.cosy,
     height: 32,
+    ...glassChip,
     borderRadius: RADII.pill,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   periodText: { ...type.label, color: colors.text, flexShrink: 1 },
   spacer: { flex: 1 },

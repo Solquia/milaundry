@@ -15,7 +15,8 @@ import { dayLabel } from '@/lib/domain/expense-metrics';
 import { ordinalDay, type DueBill, type RecurringExpense } from '@/lib/domain/expense-recurring';
 import { formatMoney } from '@/lib/domain/money';
 
-import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { glassPane, vibrantPane } from './glass';
+import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 const billName = (bill: RecurringExpense): string => bill.note || CATEGORY_LOOKS[bill.category].label;
 
@@ -106,13 +107,11 @@ export function MonthlyBillList({
 
 const styles = StyleSheet.create({
   card: {
+    ...glassPane,
     gap: space.snug,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
-  dueCard: { backgroundColor: TAG_TONES.owed.bg },
+  dueCard: { ...vibrantPane(TAG_TONES.owed.ink) },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, paddingVertical: space.tight },
   words: { flex: 1, gap: 2 },
   title: { ...type.label, color: colors.text },

@@ -188,3 +188,51 @@ describe('doorbellBanner', () => {
     expect(banner.orderId).toBe('o1');
   });
 });
+
+describe('payment news', () => {
+  it('rings when a known order sends a cash choice', () => {
+    const before = nextDoorbell(null, [order()], true).seen;
+    const next = nextDoorbell(
+      before,
+      [order({ payment_method: 'cash', payment_choice_sent_at: '2026-10-14T10:00:00Z' })],
+      true
+    );
+
+    expect(next.chimes).toHaveLength(1);
+    expect(next.chimes[0].title).toBe('Paying in cash');
+    expect(next.chimes[0].body).toBe('Maria Santos will pay cash at pickup.');
+  });
+
+  it('rings when a receipt lands, and not again on the next look', () => {
+    const sent = order({ payment_method: 'gcash', payment_proof_path: 'o1/proof.jpg' });
+    const before = nextDoorbell(null, [order()], true).seen;
+    const first = nextDoorbell(before, [sent], true);
+    const again = nextDoorbell(first.seen, [sent], true);
+
+    expect(first.chimes[0].body).toBe('Maria Santos sent a GCash receipt. Check it and confirm.');
+    expect(again.chimes).toEqual([]);
+  });
+
+  it('does not ring for payment news already there when the shop opened', () => {
+    const sent = order({ payment_method: 'cash', payment_choice_sent_at: '2026-10-14T10:00:00Z' });
+    const opened = nextDoorbell(null, [sent], true);
+
+    expect(nextDoorbell(opened.seen, [sent], true).chimes).toEqual([]);
+  });
+
+  it('counts mixed news as updates, not new orders', () => {
+    const before = nextDoorbell(null, [order()], true).seen;
+    const notice = doorbellHeadline(
+      nextDoorbell(
+        before,
+        [
+          order({ payment_method: 'cash', payment_choice_sent_at: '2026-10-14T10:00:00Z' }),
+          order({ id: 'o2', customer_name: 'Juan' }),
+        ],
+        true
+      ).chimes
+    );
+
+    expect(notice?.title).toBe('2 order updates');
+  });
+});

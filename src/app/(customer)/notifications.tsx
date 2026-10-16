@@ -12,10 +12,11 @@ import {
   Loading,
   Screen,
   colors,
-  elevation,
   space,
   type,
 } from '@/components/ui-kit';
+import { glassPane } from '@/components/glass';
+import { fontFor } from '@/lib/domain/design-scale';
 import { getMyOrders, type OrderWithDetails } from '@/lib/api';
 import { formatOrderTime } from '@/lib/domain/order-card';
 import {
@@ -36,9 +37,11 @@ import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
  * a long feed still has exactly one thing at the top worth reacting to.
  */
 const TONES: Record<NotificationTone, { surface: string; ink: string }> = {
-  action: { surface: '#FCEFD6', ink: '#8A5606' },
-  progress: { surface: colors.actionSurface, ink: colors.actionInk },
-  quiet: { surface: colors.bg, ink: colors.subtle },
+  // Solid tiles with a white glyph, the way iOS draws an app's icon beside its
+  // notification: orange for money, the app's blue for progress, grey for news.
+  action: { surface: '#FF9500', ink: colors.onAccent },
+  progress: { surface: colors.action, ink: colors.onAccent },
+  quiet: { surface: '#8E8E93', ink: colors.onAccent },
 };
 
 function toNotifiable(order: OrderWithDetails) {
@@ -144,7 +147,7 @@ export default function CustomerNotifications() {
     <Screen>
       {needsYou.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>NEEDS YOU</Text>
+          <Text style={styles.sectionLabel}>Needs You</Text>
           {needsYou.map((notification, index) => (
             <Reveal key={notification.id} delay={index * REVEAL_STAGGER_MS}>
               <NotificationRow
@@ -158,7 +161,7 @@ export default function CustomerNotifications() {
 
       {updates.length > 0 && (
         <>
-          <Text style={styles.sectionLabel}>UPDATES</Text>
+          <Text style={styles.sectionLabel}>Updates</Text>
           {updates.map((notification, index) => (
             <Reveal
               key={notification.id}
@@ -204,12 +207,11 @@ function NotificationRow({
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
-        notification.needsAction && styles.rowAction,
-        pressed && { opacity: 0.85 },
+        pressed && styles.rowPressed,
       ]}
     >
       <View style={[styles.icon, { backgroundColor: tone.surface }]}>
-        <Ionicons name={notification.icon as never} size={19} color={tone.ink} />
+        <Ionicons name={notification.icon as never} size={18} color={tone.ink} />
       </View>
 
       <View style={styles.body}>
@@ -224,46 +226,46 @@ function NotificationRow({
         <Text style={styles.detail}>{notification.body}</Text>
       </View>
 
-      <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
+      {notification.needsAction ? <View style={styles.unread} /> : null}
+      <Ionicons name="chevron-forward" size={16} color="#C7C7CC" />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  /** Tracked caps: a quiet index mark, so the rows carry the weight. */
+  /** A group's title, the way Notification Centre titles a stack. */
   sectionLabel: {
-    ...type.caption,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    color: colors.subtle,
-    marginTop: space.snug,
+    ...type.section,
+    color: colors.text,
+    marginTop: space.cosy,
+    marginLeft: space.tight,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.room,
-    ...elevation.rest,
+    paddingVertical: space.cosy + 2,
+    paddingLeft: space.room,
+    paddingRight: space.cosy,
   },
-  // A row that wants something is lifted and edged, so it is separable from
-  // the news below it without relying on the icon's colour alone.
-  rowAction: { borderColor: '#EBD3A6', ...elevation.lift },
+  rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.6)' },
   icon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 38,
+    height: 38,
+    borderRadius: 9,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
   body: { flex: 1, gap: 2 },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.snug },
-  title: { ...type.label, fontSize: 16, color: colors.text, flexShrink: 1 },
+  title: { ...type.body, fontSize: 15, lineHeight: 20, ...fontFor(600), color: colors.text, flexShrink: 1 },
   time: { ...type.caption, color: colors.subtle, marginLeft: 'auto' },
-  detail: { ...type.caption, fontSize: 13, color: colors.subtle, lineHeight: 18 },
+  detail: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.text },
+  /** The unread dot iOS sets on a row that still wants something. */
+  unread: { width: 9, height: 9, borderRadius: 5, backgroundColor: colors.action },
   footnote: { marginTop: space.section, gap: space.cosy },
   footnoteText: { ...type.caption, color: colors.subtle, textAlign: 'center' },
 });

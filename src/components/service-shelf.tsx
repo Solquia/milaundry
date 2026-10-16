@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassPane, useIsGlass } from './glass';
 import { SearchField } from './search-field';
 import { SectionHeading } from './section-heading';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
@@ -127,6 +128,7 @@ export function ServiceShelf<T extends ShowcaseCardService>({
   footnote,
 }: ServiceShelfProps<T>) {
   const [query, setQuery] = React.useState('');
+  const isGlass = useIsGlass();
   const hasSearch = entries.length >= SEARCH_FLOOR;
   const shown = React.useMemo(
     () => (hasSearch ? filterShelf(entries, query) : [...entries]),
@@ -170,7 +172,7 @@ export function ServiceShelf<T extends ShowcaseCardService>({
       <SectionHeading title={title} caption={caption} />
 
       {shown.length === 0 ? (
-        <View style={styles.empty}>
+        <View style={[styles.empty, isGlass && styles.emptyGlass]}>
           <Text style={styles.emptyText}>{shelfEmptyNote(query)}</Text>
           {query.trim() ? (
             <Pressable
@@ -240,6 +242,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.card,
     backgroundColor: colors.card,
   },
+  emptyGlass: { ...glassPane },
   footnote: {
     ...type.caption,
     fontSize: 13,
@@ -258,6 +261,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
-  clearText: { ...type.label, fontFamily: fontFor(700), color: colors.actionInk },
+  clearText: { ...type.label, ...fontFor(700), color: colors.actionInk },
   pressed: { opacity: 0.6 },
 });

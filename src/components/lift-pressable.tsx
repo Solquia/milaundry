@@ -1,11 +1,11 @@
 /**
- * A Pressable that lifts: the home page's one piece of motion.
+ * A Pressable that answers the way an iOS card does.
  *
- * Under a pointer, or under a thumb while it is held down, the card rises a
- * few points and settles back when let go — the same answer from every card
- * on the page, so the whole sheet feels like one set of objects rather than a
- * mix of rows that dim and rows that do nothing. Under Reduce Motion it is a
- * plain Pressable.
+ * Under a thumb the card gives a little — it settles to 97% and springs back
+ * when let go, the press App Store and Wallet cards make. Under a pointer on
+ * the web it rises a few points instead, since a hover is an invitation, not
+ * a press. The same answer from every card, so the page feels like one set of
+ * objects. Under Reduce Motion it is a plain Pressable.
  *
  * The rise lives on a wrapper rather than on the Pressable's own style so a
  * caller's `style` — including the `({ pressed }) => …` form — passes through
@@ -25,8 +25,10 @@ import {
 
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 
-/** How far a card rises, in points. */
-const LIFT = 5;
+/** How far a card rises under a pointer, in points. */
+const LIFT = 4;
+/** How far a card gives under a thumb. */
+const PRESSED_SCALE = 0.97;
 // The native driver is not available on the web; there it would only warn.
 const USE_NATIVE = Platform.OS !== 'web';
 
@@ -45,19 +47,23 @@ export function LiftPressable({
 }: LiftPressableProps) {
   const isReduced = useReducedMotion();
   const [lift] = useState(() => new Animated.Value(0));
+  const [press] = useState(() => new Animated.Value(0));
 
-  const to = (value: number) => {
+  const to = (driver: Animated.Value, value: number) => {
     if (isReduced) return;
-    Animated.spring(lift, {
+    Animated.spring(driver, {
       toValue: value,
-      speed: 20,
-      bounciness: value === 1 ? 8 : 4,
+      speed: 28,
+      bounciness: value === 1 ? 0 : 6,
       useNativeDriver: USE_NATIVE,
     }).start();
   };
 
   const motion = {
-    transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -LIFT] }) }],
+    transform: [
+      { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -LIFT] }) },
+      { scale: press.interpolate({ inputRange: [0, 1], outputRange: [1, PRESSED_SCALE] }) },
+    ],
   };
 
   return (
@@ -65,19 +71,19 @@ export function LiftPressable({
       <Pressable
         {...props}
         onHoverIn={(event: MouseEvent) => {
-          to(1);
+          to(lift, 1);
           onHoverIn?.(event);
         }}
         onHoverOut={(event: MouseEvent) => {
-          to(0);
+          to(lift, 0);
           onHoverOut?.(event);
         }}
         onPressIn={(event: GestureResponderEvent) => {
-          to(1);
+          to(press, 1);
           onPressIn?.(event);
         }}
         onPressOut={(event: GestureResponderEvent) => {
-          to(0);
+          to(press, 0);
           onPressOut?.(event);
         }}
       />

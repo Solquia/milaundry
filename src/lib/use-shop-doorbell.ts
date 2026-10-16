@@ -119,6 +119,10 @@ export function useShopDoorbellWatch(): void {
       order_type: row.order_type,
       status: row.status,
       customer_name: row.customer_name,
+      payment_method: row.payment_method,
+      fulfillment: row.fulfillment,
+      payment_choice_sent_at: row.payment_choice_sent_at,
+      payment_proof_path: row.payment_proof_path,
     }));
     const next = nextDoorbell(seen, orders, snapshot.enabled);
     seen = next.seen;

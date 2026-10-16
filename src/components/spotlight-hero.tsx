@@ -23,6 +23,7 @@ import { ServicePhoto } from './service-photo';
 import { ACCENTS, RADII, colors, elevation, space, type } from './ui-kit';
 import type { SpotlightBanner } from '@/lib/domain/spotlight';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -158,8 +159,10 @@ const PHOTO = 132;
 
 const styles = StyleSheet.create({
   wrap: { gap: space.snug },
-  card: { height: CARD_HEIGHT, borderRadius: RADII.sheet, overflow: 'hidden' },
-  halo: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.08)' },
+  card: { height: CARD_HEIGHT, borderRadius: RADII.card, borderCurve: 'continuous', overflow: 'hidden' },
+  // The rings once drawn behind the photo are retired: the banner is the
+  // shop's colour and its picture, nothing laid over for effect.
+  halo: { display: 'none' },
   haloOuter: { width: 230, height: 230, right: -70, top: -25 },
   haloInner: { width: 176, height: 176, right: -42, top: 2 },
   photo: {
@@ -168,9 +171,8 @@ const styles = StyleSheet.create({
     top: (CARD_HEIGHT - PHOTO) / 2,
     width: PHOTO,
     height: PHOTO,
-    borderRadius: PHOTO / 2,
-    borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.9)',
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
   },
   copy: {
     flex: 1,
@@ -191,30 +193,29 @@ const styles = StyleSheet.create({
   },
   kickerText: {
     ...type.caption,
-    fontSize: 10.5,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
+    fontSize: 12,
+    ...fontFor(600),
+    letterSpacing: 0,
     color: colors.onAccent,
   },
-  headline: { ...type.section, fontSize: 21, lineHeight: 24, color: colors.onAccent },
-  detail: { ...type.caption, fontSize: 12.5, color: 'rgba(255,255,255,0.88)' },
+  headline: { ...type.section, fontSize: 22, lineHeight: 26, letterSpacing: -0.5, color: colors.onAccent },
+  detail: { ...type.caption, color: 'rgba(255,255,255,0.85)' },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: space.snug,
     marginTop: 4,
-    paddingLeft: space.cosy,
+    paddingLeft: space.cosy + 2,
     paddingRight: 5,
-    height: 34,
-    borderRadius: RADII.pill,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: colors.card,
   },
-  ctaText: { ...type.label, fontSize: 13 },
+  ctaText: { fontSize: 15, lineHeight: 20, letterSpacing: -0.2, ...fontFor(700) },
   ctaArrow: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   pressed: { opacity: 0.85, transform: [{ scale: 0.97 }] },
   dots: { flexDirection: 'row', justifyContent: 'center', gap: 5 },
-  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.borderStrong },
-  dotOn: { width: 18 },
+  dot: { width: 7, height: 7, borderRadius: 3.5, backgroundColor: 'rgba(60, 60, 67, 0.3)' },
+  dotOn: { backgroundColor: colors.text },
 });

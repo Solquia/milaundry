@@ -16,6 +16,7 @@ import {
 import type { OrderStatus } from '@/lib/domain/order-status';
 import { cycleStanding, washCycleProgress, type WashCycleStep } from '@/lib/domain/wash-cycle';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -224,26 +225,27 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     paddingHorizontal: space.room,
     paddingVertical: space.cosy + 2,
-    borderRadius: RADII.card,
-    borderWidth: 1,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
+    borderWidth: StyleSheet.hairlineWidth,
     backgroundColor: colors.card,
-    ...elevation.lift,
+    ...elevation.rest,
   },
   // Resting is a fact, not an object to act on: flat on the field with an
   // outline, so a live load is the only strip that ever lifts off the page.
   stripResting: {
-    backgroundColor: 'transparent',
-    borderColor: colors.border,
+    backgroundColor: 'rgba(118, 118, 128, 0.08)',
+    borderColor: 'transparent',
     shadowOpacity: 0,
     elevation: 0,
   },
-  pressed: { opacity: 0.85, transform: [{ scale: 0.99 }] },
+  pressed: { opacity: 0.9, transform: [{ scale: 0.97 }] },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   words: { flex: 1, gap: 1 },
   titleRow: { flexDirection: 'row', alignItems: 'baseline', gap: space.snug },
-  status: { ...type.section, fontSize: 17, color: colors.text, flexShrink: 1 },
+  status: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.text, flexShrink: 1 },
   statusResting: { color: colors.subtle },
-  standing: { ...type.caption, fontFamily: type.label.fontFamily },
+  standing: { ...type.caption, ...fontFor(600) },
   caption: { ...type.caption, color: colors.subtle },
   track: {
     flexDirection: 'row',

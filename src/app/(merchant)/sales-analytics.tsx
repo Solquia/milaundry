@@ -7,8 +7,10 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BestsellerRail } from "@/components/bestseller-rail";
 import { CollectLanes } from "@/components/collect-lanes";
 import { DrawerCard } from "@/components/drawer-card";
+import { GLASS_GROUND, glassPane } from "@/components/glass";
 import { GoalSheet } from "@/components/goal-sheet";
 import { NudgeSheet } from "@/components/nudge-sheet";
+import { NoShopState } from "@/components/no-shop-state";
 import { PaymentsSheet } from "@/components/payments-sheet";
 import { PeriodSheet } from "@/components/period-sheet";
 import { RushHeatmap } from "@/components/rush-heatmap";
@@ -16,13 +18,10 @@ import { SalesHero } from "@/components/sales-hero";
 import { SalesSkeleton } from "@/components/sales-skeleton";
 import { SectionHeading } from "@/components/section-heading";
 import {
-  EmptyState,
   ErrorState,
   ErrorText,
-  RADII,
   Screen,
   colors,
-  elevation,
   space,
   type,
 } from "@/components/ui-kit";
@@ -111,7 +110,7 @@ export default function MerchantSalesAnalytics() {
   }
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -257,7 +256,7 @@ export default function MerchantSalesAnalytics() {
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: colors.bg },
+  shell: { flex: 1, backgroundColor: GLASS_GROUND },
   back: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start" },
   backText: { ...type.label, color: colors.actionInk },
   customers: {
@@ -265,9 +264,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: space.cosy,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
+    ...glassPane,
   },
   customersWords: { flex: 1, gap: 2 },
   customersTitle: { ...type.label, color: colors.text },

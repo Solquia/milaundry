@@ -17,16 +17,17 @@ import { Animated, Easing, StyleSheet, Text, View, type ViewStyle } from 'react-
 import { colors, type } from './ui-kit';
 import type { ShopState, ShopStatus } from '@/lib/domain/shop-availability';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 const LIGHT_SIZE = 8;
 const BREATH_MS = 1600;
 
 export const STATUS_TONES: Record<ShopState, { light: string; ink: string }> = {
-  open: { light: '#16A34A', ink: colors.moneyIn },
-  'closing-soon': { light: '#F59E0B', ink: colors.moneyOut },
-  closed: { light: '#94A3B8', ink: colors.subtle },
-  paused: { light: '#E11D48', ink: '#A32B52' },
-  holiday: { light: '#E11D48', ink: '#A32B52' },
+  open: { light: '#34C759', ink: colors.moneyIn },
+  'closing-soon': { light: '#FF9F0A', ink: colors.moneyOut },
+  closed: { light: '#AEAEB2', ink: colors.subtle },
+  paused: { light: '#FF3B30', ink: colors.dangerInk },
+  holiday: { light: '#FF3B30', ink: colors.dangerInk },
 };
 
 export function ShopStatusPill({
@@ -111,7 +112,8 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 999,
     // Solid enough to read over any photo, a busy flyer included.
-    backgroundColor: 'rgba(255,255,255,0.95)',
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderCurve: 'continuous',
     maxWidth: '100%',
   },
   lightBox: {
@@ -127,5 +129,5 @@ const styles = StyleSheet.create({
     borderRadius: LIGHT_SIZE / 2,
   },
   light: { width: LIGHT_SIZE, height: LIGHT_SIZE, borderRadius: LIGHT_SIZE / 2 },
-  text: { ...type.caption, fontSize: 11, lineHeight: 14, fontFamily: type.label.fontFamily, flexShrink: 1 },
+  text: { ...type.caption, fontSize: 11, lineHeight: 14, ...fontFor(600), flexShrink: 1 },
 });

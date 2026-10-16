@@ -18,7 +18,8 @@ import {
   type CustomerSegment,
 } from '@/lib/domain/customer-insights';
 
-import { RADII, TAG_TONES, colors, elevation, formatMoney, space, type } from './ui-kit';
+import { glassPane, vibrantPane } from './glass';
+import { RADII, TAG_TONES, colors, formatMoney, space, type } from './ui-kit';
 
 const people = (count: number): string => `${count} ${count === 1 ? 'person' : 'people'}`;
 
@@ -121,9 +122,8 @@ const styles = StyleSheet.create({
   strip: {
     flexDirection: 'row',
     alignItems: 'stretch',
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   cell: {
     flex: 1,
@@ -133,7 +133,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.cosy,
     borderRadius: RADII.card,
   },
-  rule: { width: StyleSheet.hairlineWidth, marginVertical: space.cosy, backgroundColor: colors.border },
+  rule: { width: StyleSheet.hairlineWidth, marginVertical: space.cosy, backgroundColor: 'rgba(60, 60, 67, 0.12)' },
   pressed: { opacity: 0.7 },
   value: { ...type.value, fontSize: 20, letterSpacing: -0.3 },
   label: { ...type.caption, color: colors.subtle },
@@ -143,8 +143,8 @@ const styles = StyleSheet.create({
     gap: space.snug,
     minHeight: 40,
     paddingHorizontal: space.cosy,
+    ...vibrantPane(colors.moneyOut),
     borderRadius: RADII.card,
-    backgroundColor: TAG_TONES.owed.bg,
   },
   nudgeText: { flex: 1, ...type.caption, fontWeight: '600', color: TAG_TONES.owed.ink },
   nudgeAction: { ...type.caption, fontWeight: '700', color: TAG_TONES.owed.ink },

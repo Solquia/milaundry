@@ -13,6 +13,7 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 
+import { glassChip } from './glass';
 import { colors, space } from './ui-kit';
 
 export interface ChipOption<K extends string> {
@@ -104,9 +105,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: space.room,
     borderRadius: 999,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
   },
   chipSelected: { backgroundColor: colors.action, borderColor: colors.action },
   chipGhost: {

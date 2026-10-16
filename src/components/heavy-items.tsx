@@ -33,6 +33,7 @@ import type { ServiceRow } from '@/lib/types';
 import { guideServicePhoto } from './guide-photos';
 import { ServiceScene } from './service-scene';
 import { sceneFor, type SceneKey } from '@/lib/domain/service-scene';
+import { glassChip, useIsGlass } from './glass';
 import { Card, RADII, colors, elevation, fontFor, space, type, useTint } from './ui-kit';
 
 /** Every extra is in `looks`; this only satisfies the map's lookup type. */
@@ -211,6 +212,7 @@ function ExtraTile({
   tint: string;
   onChange: (next: number) => void;
 }) {
+  const isGlass = useIsGlass();
   const { title, variant } = extraLabel(extra.name);
   const isAdded = quantity > 0;
   const price = extraTilePrice(extra, quantity);
@@ -282,7 +284,7 @@ function ExtraTile({
       accessibilityRole="button"
       accessibilityLabel={spoken}
       onPress={add}
-      style={({ pressed }) => [styles.tile, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.tile, isGlass && styles.tileGlass, pressed && styles.pressed]}
     >
       <View style={[styles.mini, styles.corner, { borderColor: tint, backgroundColor: tint }]}>
         <Ionicons name="add" size={16} color={colors.onAccent} />
@@ -370,6 +372,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     overflow: 'hidden',
   },
+  tileGlass: { ...glassChip, borderWidth: 1.5 },
   // Every cut-out leaves its top third empty, so the box tucks up into the
   // tile's padding and the name sits close under the object.
   art: { alignSelf: 'center', width: '78%', aspectRatio: 1, marginTop: '-20%', marginBottom: '-9%' },
@@ -387,7 +390,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     backgroundColor: colors.card,
   },
-  price: { ...type.label, fontFamily: fontFor(700), color: colors.text },
+  price: { ...type.label, ...fontFor(700), color: colors.text },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -406,7 +409,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.card,
   },
-  count: { ...type.label, fontFamily: fontFor(700), minWidth: 16, textAlign: 'center', color: colors.text },
+  count: { ...type.label, ...fontFor(700), minWidth: 16, textAlign: 'center', color: colors.text },
   pressed: { opacity: 0.7 },
   disabled: { opacity: 0.35 },
 });

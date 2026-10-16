@@ -13,18 +13,27 @@
 
 import type { OrderStatus } from './order-status';
 import type { OrderType } from './order-tags';
+import { PAYMENT_LABELS } from './payment-summary';
+import type { Fulfillment, PaymentMethod } from './walk-in-order';
 
 export interface DoorbellOrder {
   id: string;
   order_type: OrderType;
   status: OrderStatus;
   customer_name: string;
+  /** The payment news the bell also rings for, once the order is known. */
+  payment_method?: PaymentMethod;
+  fulfillment?: Fulfillment;
+  payment_choice_sent_at?: string | null;
+  payment_proof_path?: string | null;
 }
 
 export interface DoorbellChime {
   orderId: string;
   title: string;
   body: string;
+  /** A booking unless it is payment news. */
+  kind?: 'payment';
 }
 
 export interface DoorbellNotice {
@@ -88,6 +97,42 @@ function chimeFor(order: DoorbellOrder): DoorbellChime | null {
 }
 
 /**
+ * The customer telling the shop how they are paying: a cash choice sent from
+ * the pay card, or a receipt uploaded. Each keyed by its own stamp, so sending
+ * again rings again and a refresh does not.
+ */
+function paymentNews(order: DoorbellOrder): { key: string; chime: DoorbellChime }[] {
+  if (order.order_type !== 'online' || order.status === 'cancelled') return [];
+  const name = guestName(order.customer_name);
+  const news: { key: string; chime: DoorbellChime }[] = [];
+  if (order.payment_proof_path) {
+    const method = order.payment_method ? PAYMENT_LABELS[order.payment_method] : 'payment';
+    news.push({
+      key: `proof:${order.id}:${order.payment_proof_path}`,
+      chime: {
+        orderId: order.id,
+        title: 'Payment sent',
+        body: `${name} sent a ${method} receipt. Check it and confirm.`,
+        kind: 'payment',
+      },
+    });
+  }
+  if (order.payment_choice_sent_at && order.payment_method === 'cash') {
+    const when = order.fulfillment === 'delivery' ? 'on delivery' : 'at pickup';
+    news.push({
+      key: `choice:${order.id}:${order.payment_choice_sent_at}`,
+      chime: {
+        orderId: order.id,
+        title: 'Paying in cash',
+        body: `${name} will pay cash ${when}.`,
+        kind: 'payment',
+      },
+    });
+  }
+  return news;
+}
+
+/**
  * What just arrived, and the ids the next look should treat as already seen.
  *
  * `seen === null` is the first look after opening the shop: seed the set,
@@ -99,14 +144,24 @@ export function nextDoorbell(
   orders: readonly DoorbellOrder[],
   enabled: boolean
 ): { seen: Set<string>; chimes: DoorbellChime[] } {
-  const nextSeen = new Set(orders.map((order) => order.id));
+  const nextSeen = new Set<string>();
+  for (const order of orders) {
+    nextSeen.add(order.id);
+    for (const news of paymentNews(order)) nextSeen.add(news.key);
+  }
   if (seen === null || !enabled) return { seen: nextSeen, chimes: [] };
 
   const chimes: DoorbellChime[] = [];
   for (const order of orders) {
-    if (seen.has(order.id)) continue;
-    const chime = chimeFor(order);
-    if (chime) chimes.push(chime);
+    if (!seen.has(order.id)) {
+      // A brand-new order rings as a booking; its payment is news for later.
+      const chime = chimeFor(order);
+      if (chime) chimes.push(chime);
+      continue;
+    }
+    for (const news of paymentNews(order)) {
+      if (!seen.has(news.key)) chimes.push(news.chime);
+    }
   }
   return { seen: nextSeen, chimes };
 }
@@ -118,6 +173,13 @@ export function doorbellHeadline(chimes: readonly DoorbellChime[]): DoorbellNoti
 
   const first = chimes[0];
   const others = chimes.length - 1;
+  if (chimes.some((chime) => chime.kind === 'payment')) {
+    return {
+      orderId: first.orderId,
+      title: `${chimes.length} order updates`,
+      body: `${first.body} And ${others} more.`,
+    };
+  }
   const who = guestName(first.body.replace(/ booked online\.$/, ''));
   return {
     orderId: first.orderId,
@@ -148,7 +210,7 @@ export function doorbellCard(enabled: boolean): DoorbellCardCopy {
   return {
     title: 'New-order bell',
     caption: enabled
-      ? 'This phone rings when a customer books online.'
+      ? 'This phone rings when a customer books online or sends a payment.'
       : 'The shop stays quiet. New orders still appear in the list.',
     testLabel: 'Ring the shop',
     testCaption: 'Hear it now, without waiting for a customer.',

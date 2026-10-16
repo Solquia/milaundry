@@ -17,6 +17,7 @@ import {
   space,
   type as typeScale,
 } from '@/components/ui-kit';
+import { GLASS_EDGE, GLASS_FILL, glassChip, glassPane } from '@/components/glass';
 import { getServices, placeOrder, type PlaceOrderOptions } from '@/lib/api';
 import {
   PAYMENT_LABELS,
@@ -538,6 +539,9 @@ export function ServiceOrderForm({ shopId, submitLabel, mode = 'customer', onSuc
   );
 }
 
+/** A rule on glass: the iOS separator, lighter than the kit's border. */
+const GLASS_HAIRLINE = 'rgba(60, 60, 67, 0.12)';
+
 const styles = StyleSheet.create({
   /**
    * The service picker: a heading, a line of instruction, and the doors.
@@ -555,10 +559,8 @@ const styles = StyleSheet.create({
 
   /** One category. Ruled inside, like the owner's price list next door. */
   door: {
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   doorOpen: { borderColor: colors.actionMuted },
@@ -585,7 +587,7 @@ const styles = StyleSheet.create({
   doorSummaryTaken: { color: colors.actionInk, fontWeight: '600' },
 
   /** One service inside an open category. */
-  line: { borderTopWidth: 1, borderTopColor: colors.border, paddingBottom: space.snug },
+  line: { borderTopWidth: 1, borderTopColor: GLASS_HAIRLINE, paddingBottom: space.snug },
   // The first row meets the header, which already has a rule of its own.
   lineFirst: { borderTopWidth: 0 },
   lineChosen: { backgroundColor: colors.actionSurface },
@@ -622,11 +624,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
+    ...glassChip,
     borderColor: colors.actionMuted,
-    backgroundColor: colors.card,
   },
-  stepperKeyOff: { borderColor: colors.border, backgroundColor: colors.sunken },
+  stepperKeyOff: { borderColor: GLASS_EDGE, backgroundColor: GLASS_FILL },
   // Takes the middle so the two keys stay pinned to a fixed distance apart —
   // a thumb learns where they are and stops aiming.
   stepperValue: {
@@ -650,10 +651,8 @@ const styles = StyleSheet.create({
    * the merchant can fold a category away because nothing folds away with it.
    */
   basket: {
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: space.room,
     gap: space.cosy,
   },
@@ -669,7 +668,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: space.cosy,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: GLASS_HAIRLINE,
     paddingTop: space.cosy,
   },
   totalLabel: { ...typeScale.label, color: colors.subtle },

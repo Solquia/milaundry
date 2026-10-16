@@ -18,6 +18,7 @@ import { MAX_SCALE_KG } from '@/lib/domain/weigh-order';
 import type { ServiceRow } from '@/lib/types';
 
 import { BrandButton } from './brand-button';
+import { GLASS_TRAY, glassChip } from './glass';
 import { APP_TONE, WeightScale, type QuantityTone } from './quantity-picker';
 import { RADII, colors, space, type } from './ui-kit';
 
@@ -153,7 +154,8 @@ const styles = StyleSheet.create({
   },
   scrim: { flex: 1 },
   sheet: {
-    backgroundColor: colors.card,
+    // Solid tray, not see-through glass: over the dark scrim a clear pane reads grey.
+    backgroundColor: GLASS_TRAY,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: space.room,
@@ -178,7 +180,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.card,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    ...glassChip,
   },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
@@ -188,10 +190,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.cosy,
     alignItems: 'center',
     justifyContent: 'center',
+    ...glassChip,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
   },
   chipText: { fontSize: 16, fontWeight: '700', color: colors.text },
   chipTextActive: { color: colors.onAccent },

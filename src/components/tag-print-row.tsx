@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip } from '@/components/glass';
 import { Button, colors, space, type } from '@/components/ui-kit';
 import { MAX_TAGS, clampTagCount } from '@/lib/domain/tag';
 
@@ -68,8 +69,7 @@ const styles = StyleSheet.create({
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
     borderRadius: 999,
     paddingHorizontal: space.snug,
     minHeight: 48,

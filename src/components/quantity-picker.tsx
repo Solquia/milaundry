@@ -28,8 +28,10 @@ import {
   weightForOffset,
 } from '@/lib/domain/quantity-input';
 
+import { glassChip, useIsGlass } from './glass';
 import { Odometer } from './odometer';
 import { RADII, colors, space, type } from './ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 
 const TICK_HEIGHTS = { major: 26, minor: 17, micro: 10 } as const;
 
@@ -274,7 +276,7 @@ export function WeightScale({
                     <Text
                       style={[
                         styles.tickLabel,
-                        lit > 0.25 && { color: tone.ink, fontFamily: type.label.fontFamily },
+                        lit > 0.25 && { color: tone.ink, ...fontFor(600) },
                       ]}
                     >
                       {kg}
@@ -386,6 +388,7 @@ function PiecePill({
   onPress: () => void;
 }) {
   const isReduced = useReducedMotion();
+  const isGlass = useIsGlass();
   const [press] = useState(() => new Animated.Value(1));
 
   const springTo = (toValue: number) => {
@@ -412,6 +415,7 @@ function PiecePill({
         onPress={onPress}
         style={[
           styles.pill,
+          isGlass && styles.pillGlass,
           compact && styles.pillCompact,
           // "None" carries a word, so it needs room a digit does not.
           count === 0 && styles.pillWide,
@@ -456,14 +460,14 @@ const styles = StyleSheet.create({
   readoutValue: {
     fontSize: 44,
     lineHeight: 50,
-    fontFamily: type.hero.fontFamily,
+    ...fontFor(700),
     letterSpacing: -1.4,
     color: colors.text,
   },
   readoutInput: {
     fontSize: 44,
     lineHeight: 50,
-    fontFamily: type.hero.fontFamily,
+    ...fontFor(700),
     letterSpacing: -1.4,
     color: colors.text,
     minWidth: 96,
@@ -520,6 +524,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
+  pillGlass: { ...glassChip },
   pillCompact: { minWidth: 44, height: 44 },
   pillWide: { paddingHorizontal: space.room },
   /** Chosen, and lifted off the row by its own colour rather than only filled. */
@@ -529,7 +534,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 4,
   },
-  pillText: { fontSize: 18, fontFamily: type.value.fontFamily, color: colors.text },
+  pillText: { fontSize: 18, ...fontFor(600), color: colors.text },
   pillTextCompact: { fontSize: 17 },
   pillTextSelected: { color: colors.onAccent },
 });

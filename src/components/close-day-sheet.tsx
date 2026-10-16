@@ -20,6 +20,7 @@ import { formatMoney } from '@/lib/domain/money';
 import { usePrinter } from '@/lib/use-printer';
 
 import { SalesSheet } from './sales-sheet';
+import { glassChip } from './glass';
 import { Button, ErrorText, Field, RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 const VERDICT: Record<DrawerClose['tone'], { bg: string; ink: string; icon: string; word: string }> = {
@@ -149,7 +150,7 @@ export function CloseDaySheet({
 }
 
 const styles = StyleSheet.create({
-  summary: { gap: 4, padding: space.cosy, borderRadius: RADII.control, backgroundColor: colors.sunken },
+  summary: { ...glassChip, gap: 4, padding: space.cosy, borderRadius: RADII.control },
   line: { flexDirection: 'row', justifyContent: 'space-between', gap: space.snug },
   lineLabel: { ...type.caption, color: colors.subtle },
   lineValue: { ...type.caption, color: colors.text },

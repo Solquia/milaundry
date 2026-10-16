@@ -12,7 +12,9 @@ import {
   View,
 } from 'react-native';
 
+import { NoShopState } from '@/components/no-shop-state';
 import { DoorSign } from '@/components/door-sign';
+import { vibrantPane } from '@/components/glass';
 import { HeaderButton, SettingsButton } from '@/components/header-button';
 import { PaymentsLedger } from '@/components/payments-ledger';
 import { QueueRow } from '@/components/queue-row';
@@ -47,6 +49,7 @@ import {
 import type { OrderStatus } from '@/lib/domain/order-status';
 import { useActiveShop } from '@/lib/use-active-shop';
 import { useHaptic } from '@/lib/use-app-settings';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /**
  * The view survives a trip to another tab. An owner working through Ready
@@ -302,7 +305,7 @@ export default function MerchantOrders() {
   if (isShopLoading || isLoading) return <Loading />;
   if (!shop) {
     return (
-      <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />
+      <NoShopState />
     );
   }
 
@@ -452,14 +455,13 @@ const styles = StyleSheet.create({
   linkText: { ...type.label, color: colors.actionInk },
   footer: { gap: space.snug, paddingTop: space.section },
   stuck: {
+    // Amber, not red: a nudge to ring someone, not an alarm across the queue.
+    ...vibrantPane('#FF9F0A'),
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
     padding: space.cosy,
     borderRadius: RADII.control,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    borderColor: colors.borderStrong,
   },
   stuckBody: { flex: 1, minWidth: 0 },
   stuckTitle: { ...type.label, color: colors.text },
@@ -468,7 +470,7 @@ const styles = StyleSheet.create({
   list: { paddingBottom: space.gulf },
   heading: {
     ...type.caption,
-    fontFamily: type.label.fontFamily,
+    ...fontFor(600),
     letterSpacing: 0.4,
     textTransform: 'uppercase',
     color: colors.subtle,

@@ -14,6 +14,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, glassPane } from '@/components/glass';
+import { GlyphTile } from '@/components/stage-glyph';
 import { ACCENTS, ErrorText, colors, space, type } from '@/components/ui-kit';
 import { setShopStorefrontStyle } from '@/lib/api';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
@@ -52,9 +54,7 @@ export function StorefrontStyleCard({ shop }: { shop: Shop }) {
   return (
     <View style={styles.card}>
       <View style={styles.head}>
-        <View style={[styles.mark, { backgroundColor: accent.surface }]}>
-          <Ionicons name="storefront-outline" size={20} color={accent.ink} />
-        </View>
+        <GlyphTile icon="storefront" color={accent.ink} size={40} isLifted={false} />
         <View style={styles.words}>
           <Text style={styles.title}>Storefront look</Text>
           <Text style={styles.caption}>
@@ -182,15 +182,12 @@ const SKETCH_PHOTO = require('../../assets/images/services/stack.webp');
 
 const styles = StyleSheet.create({
   card: {
+    ...glassPane,
     borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: space.cosy,
     gap: space.cosy,
   },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  mark: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   words: { flex: 1, gap: 2 },
   title: { ...type.body, fontWeight: '600', color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
@@ -199,9 +196,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
+    ...glassChip,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: colors.border,
     padding: space.snug,
   },
   pressed: { opacity: 0.85 },

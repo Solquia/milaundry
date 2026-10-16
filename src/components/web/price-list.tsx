@@ -58,7 +58,8 @@ const styles = StyleSheet.create({
   list: { gap: space.snug },
   empty: {
     backgroundColor: colors.card,
-    borderRadius: 26,
+    borderRadius: 18,
+    borderCurve: 'continuous',
     padding: space.section,
     gap: space.tight,
   },

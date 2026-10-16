@@ -21,8 +21,9 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, useIsGlass } from '@/components/glass';
 import { APP_TINT, colors, space, type, useTint } from '@/components/ui-kit';
-import { RADII } from '@/lib/domain/design-scale';
+import { RADII, fontFor } from '@/lib/domain/design-scale';
 import {
   STRIP_LENGTH,
   addDays,
@@ -240,6 +241,7 @@ function PageArrow({
   onPress: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
@@ -250,6 +252,7 @@ function PageArrow({
       hitSlop={6}
       style={({ pressed }) => [
         styles.arrow,
+        isGlass && styles.chipGlass,
         !isEnabled && styles.arrowOff,
         pressed && { backgroundColor: tint.surface },
       ]}
@@ -282,6 +285,7 @@ function DayCell({
   onPress: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const isOpen = day.status === 'open';
   // The stock app blue keeps its brighter dot; a shop's own colour carries through.
   const dotColor = tint === APP_TINT ? colors.primary : tint.fill;
@@ -300,6 +304,7 @@ function DayCell({
       onPress={onPress}
       style={({ pressed }) => [
         styles.day,
+        isGlass && styles.chipGlass,
         isOn && styles.dayOn,
         isOn && { backgroundColor: tint.fill, borderColor: tint.fill, shadowColor: tint.fill },
         !isOpen && styles.dayOff,
@@ -404,6 +409,7 @@ function WindowChip({
   onPress: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const shut = window.reason ? SHUT_WORD[window.reason] : null;
   return (
     <Pressable
@@ -416,6 +422,7 @@ function WindowChip({
       onPress={onPress}
       style={({ pressed }) => [
         styles.window,
+        isGlass && styles.chipGlass,
         isOn && styles.windowOn,
         isOn && { backgroundColor: tint.fill, borderColor: tint.fill, shadowColor: tint.fill },
         !window.isOpen && styles.windowOff,
@@ -456,11 +463,13 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
   },
   arrowOff: { opacity: 0.35 },
+  /** The customer app's frosted chip; the shop's web page keeps the grey. */
+  chipGlass: { ...glassChip },
 
   /** Seven equal columns: they always fit, so nothing is ever cut off at the edge. */
   days: { flexDirection: 'row', gap: 4 },
@@ -471,21 +480,22 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingVertical: space.snug,
     borderRadius: RADII.chip,
-    backgroundColor: colors.card,
+    borderCurve: 'continuous',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'transparent',
   },
   dayOn: {
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
+    shadowOpacity: 0.22,
+    shadowRadius: 8,
     elevation: 2,
   },
   /** Recessed rather than greyed out: still legible, plainly not a button. */
   dayOff: { backgroundColor: 'transparent', borderColor: 'transparent' },
   dayLead: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   /** Today is told by its word, in ink — never by a ring that looks like a selection. */
-  dayLeadToday: { fontFamily: type.label.fontFamily },
+  dayLeadToday: { ...fontFor(600) },
   dayNumber: { ...type.section, color: colors.text },
   dayNumberOff: { color: colors.subtle, opacity: 0.55 },
   dots: { flexDirection: 'row', gap: 3, height: 12, alignItems: 'center' },
@@ -510,9 +520,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: RADII.chip,
+    borderCurve: 'continuous',
     borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
   windowOn: {
     shadowOffset: { width: 0, height: 2 },
@@ -520,9 +531,9 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 2,
   },
-  windowOff: { backgroundColor: colors.sunken, borderStyle: 'dashed' },
+  windowOff: { backgroundColor: 'transparent', borderStyle: 'dashed', borderColor: '#D1D1D6' },
   windowLine: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
-  windowText: { ...type.label, color: colors.text },
+  windowText: { ...type.body, fontSize: 15, lineHeight: 20, ...fontFor(600), color: colors.text },
   windowTextOff: { color: colors.subtle, textDecorationLine: 'line-through' },
   windowWhy: { ...type.caption, fontSize: 11, lineHeight: 14, color: colors.subtle },
   windowTag: {
@@ -530,7 +541,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     color: colors.moneyIn,
-    fontFamily: type.label.fontFamily,
+    ...fontFor(600),
   },
 
   dayShut: {

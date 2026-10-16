@@ -18,7 +18,8 @@ import { formatOrderTime, shortOrderId } from '@/lib/domain/order-card';
 import { orderContact } from '@/lib/domain/order-contact';
 import { orderTags } from '@/lib/domain/order-tags';
 
-import { CROWN, StatusBadge, Tag, colors, elevation, formatMoney, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { CROWN, StatusBadge, Tag, colors, formatMoney, space, type } from './ui-kit';
 
 export function OrderCard({
   order,
@@ -72,11 +73,8 @@ const styles = StyleSheet.create({
   card: {
     gap: space.cosy,
     padding: space.room,
+    ...glassPane,
     ...CROWN,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.rest,
   },
   pressed: { opacity: 0.85 },
   headline: { flexDirection: 'row', alignItems: 'flex-start', gap: space.cosy },

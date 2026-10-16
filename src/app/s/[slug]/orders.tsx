@@ -11,7 +11,7 @@ import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
 import { LaundryLine } from "@/components/laundry-line";
-import { ACCENTS, Loading, colors, space, type } from "@/components/ui-kit";
+import { ACCENTS, Loading, colors, elevation, space, type } from "@/components/ui-kit";
 import { GuestForm } from "@/components/web/guest-form";
 import { PageBand, WebShell, useWebLayout } from "@/components/web/web-shell";
 import { getMyOrders, getStorefront } from "@/lib/api";
@@ -114,9 +114,9 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     flexBasis: 280,
     backgroundColor: colors.card,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    ...elevation.rest,
     padding: space.room,
     gap: space.snug,
   },

@@ -10,6 +10,7 @@ import { Animated, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ACCENTS, RADII, colors, formatMoney, space, type } from './ui-kit';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -94,6 +95,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.cosy,
     paddingVertical: space.snug,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
   },
   pressed: { opacity: 0.88 },
   badge: {
@@ -116,10 +118,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
   },
-  countText: { ...type.caption, fontSize: 11, fontWeight: '700', color: colors.onAccent },
+  countText: { ...type.caption, fontSize: 11, ...fontFor(700), color: colors.onAccent },
   words: { flex: 1 },
-  title: { ...type.label, color: colors.onAccent },
+  title: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.onAccent },
   caption: { ...type.caption, fontSize: 12, color: colors.onAccent, opacity: 0.85 },
-  price: { ...type.label, fontSize: 16, color: colors.onAccent },
+  price: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent, fontVariant: ['tabular-nums'] },
   blocked: { ...type.caption, color: colors.subtle, textAlign: 'center', marginBottom: space.snug },
 });

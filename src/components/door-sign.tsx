@@ -18,6 +18,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, glassChip, vibrantPane } from './glass';
 import { PowerLight, STATUS_TONES } from './shop-status-pill';
 import { ErrorText, colors, space, type } from './ui-kit';
 import { setShopPause } from '@/lib/api';
@@ -35,14 +36,16 @@ import type { Shop } from '@/lib/types';
 import { useHaptic } from '@/lib/use-app-settings';
 import { useNow } from '@/lib/use-now';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /** How much the strip swells when flipped. */
 const BOUNCE_SCALE = 0.04;
 
+/** The hue each sign's glass glows: the power light's own green, red or grey. */
 const PLAQUES = {
-  open: { surface: '#EAF7EF', edge: '#9BD3B0' },
-  shut: { surface: '#FDECEF', edge: '#F2B5C3' },
-  after: { surface: colors.bg, edge: colors.borderStrong },
+  open: vibrantPane(STATUS_TONES.open.light),
+  shut: vibrantPane(STATUS_TONES.paused.light),
+  after: vibrantPane(STATUS_TONES.closed.light),
 } as const;
 
 export function DoorSign({ shop }: { shop: Shop }) {
@@ -103,8 +106,8 @@ export function DoorSign({ shop }: { shop: Shop }) {
     <View>
       <Animated.View
         style={[
+          plaque,
           styles.plaque,
-          { backgroundColor: plaque.surface, borderColor: plaque.edge },
           {
             transform: [
               {
@@ -235,11 +238,11 @@ const styles = StyleSheet.create({
     minHeight: 30,
     borderRadius: 999,
   },
-  buttonQuiet: { backgroundColor: colors.card, borderWidth: 1, borderColor: colors.border },
+  buttonQuiet: { ...glassChip },
   buttonFilled: { backgroundColor: colors.moneyIn },
   buttonText: { ...type.label, fontSize: 12 },
   choices: { gap: space.snug },
-  ask: { ...type.caption, color: colors.text, fontFamily: type.label.fontFamily },
+  ask: { ...type.caption, color: colors.text, ...fontFor(600) },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   chip: {
     flexGrow: 1,
@@ -247,9 +250,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.snug,
     paddingHorizontal: space.cosy,
     borderRadius: 12,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
   },
   chipLabel: { ...type.label, fontSize: 14, color: colors.text },
   chipHint: { ...type.caption, fontSize: 11, color: colors.subtle },
@@ -257,9 +258,9 @@ const styles = StyleSheet.create({
     ...type.body,
     fontSize: 14,
     color: colors.text,
-    backgroundColor: colors.card,
+    backgroundColor: GLASS_FILL_DENSE,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: GLASS_EDGE,
     borderRadius: 12,
     paddingHorizontal: space.cosy,
     paddingVertical: space.snug,

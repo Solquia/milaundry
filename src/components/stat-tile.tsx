@@ -8,6 +8,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
+import { glassPane, vibrantPane } from './glass';
 import { RADII, colors, space, type } from './ui-kit';
 
 export type StatTone = 'plain' | 'in' | 'owed';
@@ -31,7 +32,7 @@ export function StatTile({
 }) {
   return (
     <View
-      style={styles.tile}
+      style={[styles.tile, tone !== 'plain' && [vibrantPane(TONE_INK[tone]), styles.tileShape]]}
       accessible
       accessibilityLabel={hint ? `${label}: ${value}. ${hint}` : `${label}: ${value}`}
     >
@@ -59,11 +60,10 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     gap: space.tight,
     padding: space.room,
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
+  tileShape: { borderRadius: RADII.card },
   label: { ...type.caption, fontWeight: '600', color: colors.subtle },
   value: { ...type.value, letterSpacing: -0.2 },
   hint: { ...type.caption, color: colors.subtle },

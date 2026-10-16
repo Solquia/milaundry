@@ -16,6 +16,7 @@ import { Image } from 'expo-image';
 import React, { useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { GLASS_FILL_DENSE, glassChip, glassPane, useIsGlass } from './glass';
 import { SearchField } from './search-field';
 import { SERVICE_CUTOUTS } from './service-photo';
 import { ShopLogo } from './shop-logo';
@@ -37,6 +38,7 @@ import { showcaseTone } from '@/lib/domain/service-showcase';
 import type { ShopStatus } from '@/lib/domain/shop-availability';
 import type { Reputation } from '@/lib/domain/storefront';
 import { gridRows } from '@/lib/domain/web-layout';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -81,6 +83,7 @@ export function MarketHeader({
   action,
   isInset = false,
 }: MarketHeaderProps) {
+  const isGlass = useIsGlass();
   return (
     <View>
       <View
@@ -109,7 +112,7 @@ export function MarketHeader({
           </Pressable>
         ) : null}
       </View>
-      <View style={[header.card, isInset && header.cardInset, elevation.rest]}>
+      <View style={[header.card, isInset && header.cardInset, isGlass ? header.cardGlass : elevation.rest]}>
         <View style={header.top}>
           <ShopLogo name={name} logoUrl={logoUrl} size={60} accent={accent} shape="plate" />
           <View style={header.words}>
@@ -144,8 +147,9 @@ export function MarketHeader({
 }
 
 function InfoChip({ icon, label }: { icon: keyof typeof Ionicons.glyphMap; label: string }) {
+  const isGlass = useIsGlass();
   return (
-    <View style={header.chip}>
+    <View style={[header.chip, isGlass && header.chipGlass]}>
       <Ionicons name={icon} size={14} color={colors.subtle} />
       <Text style={header.chipText}>{label}</Text>
     </View>
@@ -187,6 +191,7 @@ export function MarketCatalog<T extends MarketService>({
 }: MarketCatalogProps<T>) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<Filter>(ALL);
+  const isGlass = useIsGlass();
   const [width, setWidth] = useState(0);
 
   const entries = useMemo(() => labelledServices(groupServicesByCategory(services)), [services]);
@@ -219,7 +224,7 @@ export function MarketCatalog<T extends MarketService>({
                 accessibilityRole="tab"
                 accessibilityState={{ selected: isOn }}
                 onPress={() => setFilter(key)}
-                style={[catalog.chip, isOn && { backgroundColor: accent.ink, borderColor: accent.ink }]}
+                style={[catalog.chip, isGlass && catalog.chipGlass, isOn && { backgroundColor: accent.ink, borderColor: accent.ink }]}
               >
                 <Text style={[catalog.chipText, isOn && { color: colors.onAccent }]}>
                   {key === ALL ? 'All' : CATEGORY_SHORT[key]}
@@ -291,13 +296,14 @@ function ProductCard({ service, label, look, quantity, accent, isDisabled, onAdd
   const facts = minimumLabel(service) ?? '';
   const suffix = service.unit === 'flat' && capacityLabel(service) ? '/load' : unitSuffix(service.unit);
   const isInBasket = quantity > 0;
+  const isGlass = useIsGlass();
   const price = `${formatMoney(service.price)}${suffix}`;
 
   // The card and its stepper are siblings, not parent and child: an accessible
   // Pressable folds everything inside it into one node, which would leave a
   // screen reader unable to reach "Remove one".
   return (
-    <View style={[card.card, elevation.rest, isInBasket && { borderColor: accent.ink }]}>
+    <View style={[card.card, isGlass ? card.cardGlass : elevation.rest, isInBasket && { borderColor: accent.ink }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`${service.name}, ${price}${isInBasket ? ', in basket' : ''}`}
@@ -405,6 +411,8 @@ const header = StyleSheet.create({
     padding: space.room,
     gap: space.cosy,
   },
+  // Denser than a plain pane: its top edge sits over the shop's colour band.
+  cardGlass: { ...glassPane, backgroundColor: GLASS_FILL_DENSE },
   cardInset: { marginHorizontal: space.room },
   top: { flexDirection: 'row', gap: space.cosy, alignItems: 'center' },
   words: { flex: 1, gap: 2 },
@@ -412,7 +420,7 @@ const header = StyleSheet.create({
   tagline: { ...type.caption, color: colors.subtle },
   meta: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: space.snug, marginTop: space.tight },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
-  ratingText: { ...type.caption, color: colors.text, fontWeight: '600' },
+  ratingText: { ...type.caption, color: colors.text, ...fontFor(600) },
   newShop: { ...type.caption, color: colors.subtle },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   chip: {
@@ -426,6 +434,7 @@ const header = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  chipGlass: { ...glassChip },
   chipText: { ...type.caption, color: colors.text },
 });
 
@@ -440,6 +449,7 @@ const catalog = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
   },
+  chipGlass: { ...glassChip },
   chipText: { ...type.label, color: colors.text },
   notice: {
     flexDirection: 'row',
@@ -465,6 +475,7 @@ const card = StyleSheet.create({
     borderColor: 'transparent',
     overflow: 'hidden',
   },
+  cardGlass: { ...glassPane, borderWidth: 1.5, borderRadius: RADII.control },
   pressed: { opacity: 0.9, transform: [{ scale: 0.98 }] },
   art: { height: 116, alignItems: 'center', justifyContent: 'center', padding: space.cosy },
   cutout: { width: '100%', height: '100%' },
@@ -476,7 +487,7 @@ const card = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: RADII.hair,
   },
-  badgeText: { ...type.caption, fontSize: 11, color: colors.onAccent, fontWeight: '700' },
+  badgeText: { ...type.caption, fontSize: 11, color: colors.onAccent, ...fontFor(700) },
   tap: { flex: 1 },
   words: { paddingHorizontal: space.snug, paddingTop: space.snug, gap: 2 },
   body: { paddingHorizontal: space.snug, paddingBottom: space.snug },

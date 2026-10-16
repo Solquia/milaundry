@@ -4,12 +4,15 @@ import { Redirect, useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { NoShopState } from '@/components/no-shop-state';
 import { ExpenseBreakdown } from '@/components/expense-breakdown';
 import { ExpenseSheet } from '@/components/expense-sheet';
+import { GLASS_GROUND, glassChip, glassPane, vibrantPane } from '@/components/glass';
 import { PeriodSheet } from '@/components/period-sheet';
 import { DueBills, MonthlyBillList } from '@/components/recurring-bills';
 import { RecurringSheet } from '@/components/recurring-sheet';
 import { SectionHeading } from '@/components/section-heading';
+import { GlyphTile } from '@/components/stage-glyph';
 import {
   EmptyState,
   ErrorState,
@@ -101,7 +104,7 @@ export default function MerchantExpenses() {
   if (isShopLoading) return <Loading />;
   if (!canOpenMerchantRoute(shopRole, 'expenses')) return <Redirect href="/(merchant)/orders" />;
   if (!shop) {
-    return <EmptyState message="Your account is not connected to a shop yet. Ask your administrator to add you." />;
+    return <NoShopState />;
   }
 
   const later = stepPeriod(period, 1);
@@ -218,7 +221,12 @@ export default function MerchantExpenses() {
                 accessibilityHint="Edit or delete"
                 style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
               >
-                <Ionicons name={CATEGORY_LOOKS[item.category].icon as never} size={18} color={colors.subtle} />
+                <GlyphTile
+                  icon={CATEGORY_LOOKS[item.category].icon.replace('-outline', '')}
+                  color={colors.moneyOut}
+                  size={32}
+                  isLifted={false}
+                />
                 <View style={styles.rowWords}>
                   <Text style={styles.rowTitle} numberOfLines={1}>
                     {item.note || CATEGORY_LOOKS[item.category].label}
@@ -289,14 +297,13 @@ export default function MerchantExpenses() {
 }
 
 const styles = StyleSheet.create({
-  shell: { flex: 1, backgroundColor: colors.bg },
+  shell: { flex: 1, backgroundColor: GLASS_GROUND },
   notice: { ...type.caption, color: colors.moneyIn, fontWeight: '700' },
+  // Money out, so the total glows in the colour the app spends it in.
   hero: {
+    ...vibrantPane(colors.moneyOut),
     gap: space.snug,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight, marginBottom: space.snug },
   step: {
@@ -305,7 +312,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    ...glassChip,
   },
   stepOff: { opacity: 0.3 },
   periodPill: {
@@ -315,8 +322,8 @@ const styles = StyleSheet.create({
     maxWidth: 170,
     paddingHorizontal: space.cosy,
     height: 32,
+    ...glassChip,
     borderRadius: RADII.pill,
-    backgroundColor: colors.sunken,
   },
   periodText: { ...type.label, color: colors.text, flexShrink: 1 },
   label: { ...type.label, color: colors.subtle },
@@ -330,11 +337,9 @@ const styles = StyleSheet.create({
   },
   paceText: { ...type.caption, fontWeight: '700' },
   day: {
+    ...glassPane,
     gap: space.snug,
     padding: space.room,
-    borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   dayHead: { flexDirection: 'row', justifyContent: 'space-between' },
   dayLabel: { ...type.label, color: colors.subtle },

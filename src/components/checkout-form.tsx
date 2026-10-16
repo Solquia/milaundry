@@ -18,6 +18,7 @@ import {
   type WalkInInput,
 } from '@/lib/domain/walk-in-order';
 
+import { glassChip, glassPane } from './glass';
 import { APP_TONE, type QuantityTone } from './quantity-picker';
 import { ErrorText, Field, PhoneField, RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
@@ -92,7 +93,7 @@ export function CheckoutForm({
 
   return (
     <View style={styles.form}>
-      {/* The one group that is all inputs keeps a white ground: a sunken field
+      {/* The one group that is all inputs keeps a glass ground: a sunken field
           laid straight on the page tint is a faint patch, not a place to type. */}
       <View style={[styles.block, styles.inputCard]}>
         <Text style={styles.blockTitle}>Customer</Text>
@@ -214,10 +215,8 @@ const styles = StyleSheet.create({
   // the page, so it carries the biggest gap; the groups below share the same.
   form: { gap: space.gulf, marginTop: space.section },
   inputCard: {
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: RADII.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: space.room,
   },
   /**
@@ -234,10 +233,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space.tight,
     padding: space.tight,
+    ...glassChip,
     borderRadius: RADII.control,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   segment: {
     flex: 1,
@@ -261,10 +258,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.tight,
+    ...glassChip,
     borderRadius: RADII.control,
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
     paddingHorizontal: space.snug,
   },
   methodText: { ...type.label, fontSize: 13, color: colors.text, textAlign: 'center' },

@@ -21,7 +21,9 @@ import {
   type RewardStanding,
 } from '@/lib/domain/rewards';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /** Past this many the circles stop fitting a phone row; the count says it instead. */
 const MAX_DRAWN_STAMPS = 20;
@@ -35,6 +37,7 @@ const PERK_ICONS = {
 
 function Stamps({ program, visits }: { program: RewardProgram; visits: number }) {
   const { filled, isReady } = stampProgress(visits, program.visits_needed, program.ready);
+  const isGlass = useIsGlass();
   if (program.visits_needed > MAX_DRAWN_STAMPS) {
     return (
       <Text style={styles.count}>
@@ -57,6 +60,7 @@ function Stamps({ program, visits }: { program: RewardProgram; visits: number })
             key={index}
             style={[
               styles.stamp,
+              isGlass && styles.stampGlass,
               isPrize && styles.stampPrize,
               isFilled && styles.stampFilled,
               isFilled && isReady && styles.stampReady,
@@ -77,8 +81,9 @@ function Stamps({ program, visits }: { program: RewardProgram; visits: number })
 }
 
 function Perk({ program }: { program: RewardProgram }) {
+  const isGlass = useIsGlass();
   return (
-    <View style={styles.perk}>
+    <View style={[styles.perk, isGlass && styles.perkGlass]}>
       <Ionicons name={PERK_ICONS[program.kind]} size={18} color={colors.actionInk} />
       <View style={styles.perkText}>
         <Text style={styles.perkKind}>{KIND_LABELS[program.kind]}</Text>
@@ -101,6 +106,7 @@ type Props = {
 };
 
 export function StampCard({ programs, standing, title = 'Loyalty rewards' }: Props) {
+  const isGlass = useIsGlass();
   if (programs.length === 0) return null;
   const stamp = programs.find((program) => program.kind === 'stamp_card');
   const perks = programs.filter((program) => program !== stamp);
@@ -114,7 +120,7 @@ export function StampCard({ programs, standing, title = 'Loyalty rewards' }: Pro
     : 'A visit counts once your laundry is done.';
 
   return (
-    <View style={[styles.card, hasReady && styles.cardReady]}>
+    <View style={[styles.card, isGlass && styles.cardGlass, hasReady && styles.cardReady]}>
       <View style={styles.header}>
         <Ionicons name="gift" size={20} color={hasReady ? colors.moneyIn : colors.actionInk} />
         <Text style={styles.title}>{title}</Text>
@@ -146,21 +152,19 @@ const styles = StyleSheet.create({
   card: {
     gap: space.cosy,
     padding: space.room,
-    borderRadius: RADII.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
-    borderWidth: 2,
-    borderColor: colors.actionMuted,
-    borderStyle: 'dashed',
     ...elevation.rest,
   },
+  cardGlass: { ...glassPane },
+  /** A reward waiting: the card takes the green, the way Wallet tints a ready pass. */
   cardReady: {
-    borderColor: colors.moneyIn,
-    borderStyle: 'solid',
     backgroundColor: colors.takingsSurface,
   },
   header: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   title: { ...type.section, color: colors.text },
-  nudge: { ...type.body, fontWeight: '700', color: colors.actionInk },
+  nudge: { ...type.body, fontSize: 15, ...fontFor(600), color: colors.actionInk },
   nudgeReady: { color: colors.moneyIn },
   stampBlock: { gap: space.snug },
   headline: { ...type.label, color: colors.text },
@@ -171,11 +175,12 @@ const styles = StyleSheet.create({
     borderRadius: STAMP_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: colors.actionMuted,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     backgroundColor: colors.sunken,
   },
-  stampPrize: { borderColor: colors.moneyOut, backgroundColor: TAG_TONES.owed.bg },
+  stampGlass: { ...glassChip, borderWidth: 1.5 },
+  stampPrize: { borderColor: '#FF9500', backgroundColor: TAG_TONES.owed.bg },
   stampFilled: { borderColor: colors.action, backgroundColor: colors.action },
   stampReady: { borderColor: colors.moneyIn, backgroundColor: colors.moneyIn },
   stampNumber: { ...type.caption, color: colors.subtle },
@@ -184,10 +189,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
-    paddingTop: space.snug,
-    borderTopWidth: 1,
-    borderColor: colors.border,
+    paddingTop: space.cosy,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(60, 60, 67, 0.22)',
   },
+  perkGlass: { borderColor: 'rgba(60, 60, 67, 0.12)' },
   perkText: { flex: 1, gap: 2 },
   perkKind: { ...type.caption, color: colors.subtle },
   perkLine: { ...type.label, color: colors.text },
@@ -197,6 +203,6 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     backgroundColor: TAG_TONES.settled.bg,
   },
-  readyText: { ...type.caption, fontWeight: '700', color: TAG_TONES.settled.ink },
+  readyText: { ...type.caption, ...fontFor(700), color: TAG_TONES.settled.ink },
   footnote: { ...type.caption, color: colors.subtle },
 });

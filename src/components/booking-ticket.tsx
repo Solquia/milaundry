@@ -23,7 +23,8 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { ServicePorthole } from './service-porthole';
 import { ShopLogo } from './shop-logo';
-import { RADII, colors, space, type, useTint } from './ui-kit';
+import { GLASS_FILL_DENSE, glassChip, glassPane, useIsGlass } from './glass';
+import { RADII, colors, elevation, fontFor, space, type, useTint } from './ui-kit';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -31,16 +32,15 @@ const UNIT_SUFFIX: Record<string, string> = { per_kg: '/kg', per_item: '/pc', fl
 
 /** One colour per kind of choice, so the cards read apart at a glance. */
 export const SECTION_TINTS = {
-  load: '#1370CE',
-  heavy: '#6D3FD4',
-  addons: '#0E7490',
-  wash: '#0B7A45',
-  place: '#C2410C',
-  schedule: '#1370CE',
+  load: '#0071E3',
+  heavy: '#5856D6',
+  addons: '#0A7C8C',
+  wash: '#248A3D',
+  place: '#C45100',
+  schedule: '#0071E3',
 } as const;
 
 /** 12% of a tint: the badge behind an icon drawn in the full colour. */
-const BADGE_ALPHA = '1F';
 
 /** Eases the next layout change on the phones; the web just redraws. */
 export function useTicketMotion(): () => void {
@@ -85,11 +85,12 @@ export function TicketHeader({
   isCompact?: boolean;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const tone = showcaseTone(service.category);
   const minimum = minimumLabel(service);
   if (isCompact) {
     return (
-      <View style={styles.slim}>
+      <View style={[styles.slim, isGlass && styles.paneGlass]}>
         {shop ? <ShopLogo name={shop.name} logoUrl={shop.logoUrl} size={48} shape="plate" /> : null}
         <View style={styles.slimText}>
           <View style={[styles.categoryChip, { backgroundColor: tone.field }]}>
@@ -108,12 +109,8 @@ export function TicketHeader({
     );
   }
   return (
-    <View style={styles.hero}>
+    <View style={[styles.hero, isGlass && styles.paneGlass]}>
       <View style={[styles.heroArt, { backgroundColor: tone.bg }]}>
-        {/* Soap bubbles drifting in the band: decoration only. */}
-        <View style={[styles.bubble, styles.bubbleA]} />
-        <View style={[styles.bubble, styles.bubbleB]} />
-        <View style={[styles.bubble, styles.bubbleC]} />
         <ServicePorthole
           service={service}
           size={136}
@@ -161,6 +158,7 @@ export function BookingSteps({
   labels?: Partial<Record<BookingPage, string>>;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const steps = STEPS.map((step) => ({ ...step, label: labels?.[step.page] ?? step.label }));
   const current = steps.findIndex((step) => step.page === page);
   return (
@@ -178,7 +176,11 @@ export function BookingSteps({
               accessibilityLabel={isDone ? `Back to ${step.label}` : step.label}
               disabled={!isDone}
               onPress={() => onGoTo(step.page)}
-              style={[styles.step, (isCurrent || isDone) && { backgroundColor: tint.fill }]}
+              style={[
+                styles.step,
+                isGlass && !(isCurrent || isDone) && styles.chipGlass,
+                (isCurrent || isDone) && { backgroundColor: tint.fill },
+              ]}
             >
               <Ionicons
                 name={isDone ? 'checkmark' : step.icon}
@@ -234,8 +236,9 @@ export function Section({
   children: React.ReactNode;
 }) {
   const brand = useTint();
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.card, problem ? styles.cardProblem : null]}>
+    <View style={[styles.card, isGlass && styles.cardGlass, problem ? styles.cardProblem : null]}>
       <View style={styles.head}>
         <Badge icon={icon} tint={tint} />
         <View style={styles.headText}>
@@ -245,7 +248,7 @@ export function Section({
         {amount ? (
           <Text style={[styles.amount, { color: brand.ink }]}>{amount}</Text>
         ) : isOptional ? (
-          <View style={styles.optional}>
+          <View style={[styles.optional, isGlass && styles.chipGlass]}>
             <Text style={styles.optionalText}>Optional</Text>
           </View>
         ) : null}
@@ -258,8 +261,9 @@ export function Section({
 
 function Badge({ icon, tint }: { icon: IconName; tint: string }) {
   return (
-    <View style={[styles.badge, { backgroundColor: `${tint}${BADGE_ALPHA}` }]}>
-      <Ionicons name={icon} size={18} color={tint} />
+    // The Settings app's row icon: a white glyph on a filled squircle.
+    <View style={[styles.badge, { backgroundColor: tint }]}>
+      <Ionicons name={icon} size={17} color={colors.onAccent} />
     </View>
   );
 }
@@ -287,8 +291,9 @@ export function StepperRow({
 }) {
   const canLower = value > min;
   const canRaise = value < max;
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.card, problem ? styles.cardProblem : null]}>
+    <View style={[styles.card, isGlass && styles.cardGlass, problem ? styles.cardProblem : null]}>
       <View style={[styles.head, styles.headOnly]}>
         <Badge icon="shirt" tint={SECTION_TINTS.load} />
         <View style={styles.headText}>
@@ -326,6 +331,7 @@ function StepButton({
   onPress: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const isAdd = icon === 'add';
   return (
     <Pressable
@@ -336,6 +342,7 @@ function StepButton({
       onPress={onPress}
       style={({ pressed }) => [
         styles.stepButton,
+        isGlass && styles.stepButtonGlass,
         { borderColor: tint.muted },
         isAdd && isEnabled && { backgroundColor: tint.fill, borderColor: tint.fill },
         !isEnabled && styles.stepButtonOff,
@@ -365,6 +372,7 @@ export function ChoiceTiles<K extends string>({
   onChange: (next: K) => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   return (
     <View style={styles.tiles} accessibilityRole="radiogroup">
       {options.map((option) => {
@@ -378,6 +386,7 @@ export function ChoiceTiles<K extends string>({
             onPress={() => onChange(option.key)}
             style={({ pressed }) => [
               styles.tile,
+              isGlass && styles.tileGlass,
               isOn && { borderColor: tint.fill, backgroundColor: tint.surface },
               pressed && styles.pressed,
             ]}
@@ -388,7 +397,7 @@ export function ChoiceTiles<K extends string>({
                 { backgroundColor: isOn ? tint.fill : tint.surface },
               ]}
             >
-              <Ionicons name={option.icon} size={26} color={isOn ? colors.onAccent : tint.ink} />
+              <Ionicons name={option.icon} size={22} color={isOn ? colors.onAccent : tint.ink} />
             </View>
             <Text style={styles.tileTitle}>{option.title}</Text>
             <Text style={styles.tileDetail}>{option.detail}</Text>
@@ -415,12 +424,13 @@ export function BasketRecap({
   onEdit: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${title}. ${detail}. Edit laundry`}
       onPress={onEdit}
-      style={({ pressed }) => [styles.recap, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.recap, isGlass && styles.paneGlass, pressed && styles.pressed]}
     >
       {/* The load's blue is the app's action blue, so the tint is the same
           colour by default and the shop's own inside its checkout. */}
@@ -446,8 +456,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.cosy,
     padding: space.cosy,
-    borderRadius: RADII.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
+    ...elevation.rest,
   },
   slimText: { flex: 1, minWidth: 0, gap: 2 },
   categoryChip: {
@@ -456,26 +468,28 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: RADII.pill,
   },
-  categoryText: { ...type.caption, fontSize: 11, fontWeight: '700' },
-  slimName: { ...type.label, fontSize: 17, lineHeight: 22, color: colors.text },
+  categoryText: { ...type.caption, fontSize: 11, ...fontFor(700) },
+  slimName: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.text },
   slimPrice: { ...type.caption },
 
-  hero: { borderRadius: RADII.card, overflow: 'hidden', backgroundColor: colors.card },
+  hero: {
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    backgroundColor: colors.card,
+    ...elevation.rest,
+  },
   heroArt: { height: 176, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
-  bubble: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.45)' },
-  bubbleA: { width: 46, height: 46, top: 18, left: 28 },
-  bubbleB: { width: 22, height: 22, bottom: 30, left: 70 },
-  bubbleC: { width: 64, height: 64, top: 40, right: 24, backgroundColor: 'rgba(255,255,255,0.3)' },
   heroInfo: { gap: 2, padding: space.room },
   heroPriceRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  heroPrice: { ...type.hero, fontSize: 30, lineHeight: 36 },
-  heroUnit: { ...type.label, color: colors.subtle },
+  heroPrice: { ...type.title, fontVariant: ['tabular-nums'] },
+  heroUnit: { ...type.body, fontSize: 17, color: colors.subtle },
   heroTag: {
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
   },
-  heroTagText: { ...type.caption },
+  heroTagText: { ...type.caption, ...fontFor(600) },
   heroName: { ...type.section, color: colors.text },
 
   steps: { flexDirection: 'row', alignItems: 'center' },
@@ -486,11 +500,11 @@ const styles = StyleSheet.create({
     paddingVertical: 7,
     paddingHorizontal: space.cosy,
     borderRadius: RADII.pill,
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
   stepText: { ...type.label, color: colors.subtle },
   stepTextOn: { color: colors.onAccent },
-  stepLine: { flex: 1, height: 2, marginHorizontal: space.snug, backgroundColor: colors.border },
+  stepLine: { flex: 1, height: StyleSheet.hairlineWidth * 2, marginHorizontal: space.snug, backgroundColor: '#D1D1D6' },
 
   rebook: {
     flexDirection: 'row',
@@ -499,6 +513,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.snug,
     paddingHorizontal: space.cosy,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
   },
   rebookText: { flex: 1, gap: 2 },
   rebookTitle: { ...type.label },
@@ -507,26 +522,33 @@ const styles = StyleSheet.create({
   card: {
     padding: space.room,
     gap: space.cosy,
-    borderRadius: RADII.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
     borderWidth: 1.5,
     borderColor: colors.card,
+    ...elevation.rest,
   },
   cardProblem: { borderColor: colors.dangerInk },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   headOnly: { minHeight: 40 },
   headText: { flex: 1, minWidth: 0, gap: 1 },
-  badge: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  title: { ...type.label, fontSize: 16, lineHeight: 21, color: colors.text },
+  badge: {
+    width: 30,
+    height: 30,
+    borderRadius: 7,
+    borderCurve: 'continuous',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.text },
   subtitle: { ...type.caption, color: colors.subtle },
-  amount: { ...type.label },
+  amount: { ...type.body, fontSize: 15, ...fontFor(600), fontVariant: ['tabular-nums'] },
   optional: {
     paddingHorizontal: space.snug,
     paddingVertical: 2,
     borderRadius: RADII.pill,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
   optionalText: { ...type.caption, fontSize: 11, color: colors.subtle },
   problemText: { ...type.caption, color: colors.dangerInk },
@@ -540,7 +562,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
   stepButtonOff: { opacity: 0.35 },
   count: { ...type.value, fontSize: 20, minWidth: 26, textAlign: 'center', color: colors.text },
@@ -551,19 +573,21 @@ const styles = StyleSheet.create({
     gap: 4,
     padding: space.cosy,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: 'transparent',
+    backgroundColor: colors.sunken,
   },
   tileIcon: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
-  tileTitle: { ...type.label, color: colors.text },
+  tileTitle: { ...type.body, fontSize: 15, lineHeight: 20, ...fontFor(600), color: colors.text },
   tileDetail: { ...type.caption, color: colors.subtle },
   tileCheck: {
     position: 'absolute',
@@ -581,8 +605,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.cosy,
     padding: space.cosy,
-    borderRadius: RADII.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     backgroundColor: colors.card,
+    ...elevation.rest,
   },
-  edit: { ...type.label },
+  edit: { ...type.body, fontSize: 17 },
+
+  // The customer app's frosted versions; the shop's web page keeps the white.
+  paneGlass: { ...glassPane, borderRadius: RADII.card - 4 },
+  cardGlass: { ...glassPane, borderRadius: RADII.card - 4, borderWidth: 1.5 },
+  chipGlass: { ...glassChip },
+  stepButtonGlass: { backgroundColor: GLASS_FILL_DENSE },
+  tileGlass: { ...glassChip, borderWidth: 1.5 },
 });

@@ -5,8 +5,8 @@ import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { ViewportProvider } from '@/components/viewport';
 import { frameLayout } from '@/lib/domain/web-frame';
 
-/** The deep navy the splash opens on: the window around the column. */
-const BACKDROP = '#04203F';
+/** A cool light grey, a step under the app's own ground: the window around the column. */
+const BACKDROP = '#E3E3E8';
 
 /**
  * Holds the app to a phone-width column in a wide browser window, and
@@ -41,5 +41,10 @@ export function WebFrame({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: BACKDROP, alignItems: 'center' },
-  column: { flex: 1, overflow: 'hidden' },
+  column: {
+    flex: 1,
+    overflow: 'hidden',
+    // The column sits on the window the way a device sits on a desk.
+    boxShadow: '0 0 40px rgba(0, 0, 0, 0.08)',
+  },
 });

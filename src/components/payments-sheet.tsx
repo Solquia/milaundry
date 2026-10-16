@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     paddingVertical: space.snug,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(60, 60, 67, 0.12)',
   },
   icon: {
     width: 34,

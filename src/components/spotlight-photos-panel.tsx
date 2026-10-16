@@ -17,6 +17,7 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ServicePhoto } from './service-photo';
+import { glassChip } from './glass';
 import { ACCENTS, ErrorText, RADII, colors, space, type } from './ui-kit';
 import { clearServiceImage, getServices, uploadServiceImage } from '@/lib/api';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
@@ -25,6 +26,7 @@ import { showcaseTitle } from '@/lib/domain/service-showcase';
 import { coverTooLarge } from '@/lib/domain/shop-cover';
 import { ownImage } from '@/lib/domain/spotlight';
 import type { ServiceRow } from '@/lib/types';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -158,23 +160,21 @@ const styles = StyleSheet.create({
   panel: {
     gap: space.snug,
     padding: space.cosy,
+    ...glassChip,
     borderRadius: 12,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   head: { flexDirection: 'row', gap: space.snug, alignItems: 'flex-start' },
   headWords: { flex: 1, gap: 2 },
   title: { ...type.label, color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
-  count: { ...type.caption, color: colors.subtle, fontWeight: '600' },
+  count: { ...type.caption, color: colors.subtle, ...fontFor(600) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.snug,
     paddingTop: space.snug,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   thumb: { width: 48, height: 48, borderRadius: RADII.chip },
   words: { flex: 1, gap: 1 },
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
   source: { ...type.caption, fontSize: 12, color: colors.subtle },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   ghost: { paddingHorizontal: space.tight, paddingVertical: space.tight },
-  ghostText: { ...type.caption, color: colors.subtle, fontWeight: '600' },
+  ghostText: { ...type.caption, color: colors.subtle, ...fontFor(600) },
   upload: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: RADII.pill,
   },
-  uploadText: { ...type.caption, fontWeight: '700', color: colors.onAccent },
+  uploadText: { ...type.caption, ...fontFor(700), color: colors.onAccent },
   pressed: { opacity: 0.8 },
   off: { opacity: 0.5 },
 });

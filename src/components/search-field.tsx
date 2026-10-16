@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, TextInput, View } from 'react-native';
 
+import { glassChip, useIsGlass } from './glass';
 import { RADII, colors, space, type } from './ui-kit';
 
 export function SearchField({
@@ -25,8 +26,9 @@ export function SearchField({
   /** Opened on purpose, from a search button: the keyboard should already be up. */
   autoFocus?: boolean;
 }) {
+  const isGlass = useIsGlass();
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, isGlass && styles.wrapGlass]}>
       <Ionicons name="search-outline" size={18} color={colors.subtle} />
       <TextInput
         autoFocus={autoFocus}
@@ -65,5 +67,6 @@ const styles = StyleSheet.create({
     paddingLeft: space.room,
     backgroundColor: colors.card,
   },
+  wrapGlass: { ...glassChip },
   input: { flex: 1, ...type.body, color: colors.text, paddingVertical: space.snug },
 });

@@ -156,6 +156,6 @@ const styles = StyleSheet.create({
     marginLeft: -4,
     marginBottom: space.snug,
   },
-  backText: { ...type.label, color: colors.actionInk },
+  backText: { ...type.body, fontSize: 17, color: colors.actionInk },
   pressed: { opacity: 0.6 },
 });

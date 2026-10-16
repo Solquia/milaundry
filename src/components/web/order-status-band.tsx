@@ -17,7 +17,7 @@
 import React from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, fontFor, space, type } from '@/components/ui-kit';
+import { RADII, colors, elevation, fontFor, space, type } from '@/components/ui-kit';
 import { docketNumber } from '@/lib/domain/docket';
 import type { OrderStatus } from '@/lib/domain/order-status';
 import { trackingHeadline, trackingSteps } from '@/lib/domain/order-tracking';
@@ -267,7 +267,7 @@ function BandShell({
     styles.band,
     isEmpty
       ? { borderColor: colors.border, borderStyle: 'dashed' as const }
-      : { backgroundColor: theme.brandSoft, borderColor: theme.brandSoft },
+      : { backgroundColor: colors.card, borderColor: colors.card, ...elevation.rest },
     isQuiet && styles.bandQuiet,
   ];
   if (!onOpen) return <View style={skin}>{children}</View>;
@@ -289,11 +289,12 @@ function BandShell({
 
 const styles = StyleSheet.create({
   band: {
-    borderRadius: 20,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
-    paddingHorizontal: space.room,
-    paddingVertical: space.cosy + 2,
-    gap: space.cosy,
+    paddingHorizontal: space.room + 2,
+    paddingVertical: space.room,
+    gap: space.cosy + 2,
   },
   bandQuiet: { opacity: 0.5, minHeight: 132 },
   bandHovered: { transform: [{ translateY: -2 }] },
@@ -306,13 +307,13 @@ const styles = StyleSheet.create({
    * spaced out, and in the shop's own ink rather than in body grey.
    */
   docket: {
-    fontFamily: fontFor(700),
-    fontSize: 11,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
+    ...fontFor(600),
+    fontSize: 13,
+    lineHeight: 18,
+    letterSpacing: -0.05,
   },
-  headline: { ...type.section, color: colors.text, fontSize: 17, lineHeight: 22 },
-  chevron: { fontSize: 26, lineHeight: 26, fontFamily: fontFor(600), marginTop: 2 },
+  headline: { ...type.section, color: colors.text, fontSize: 20, lineHeight: 25 },
+  chevron: { fontSize: 26, lineHeight: 26, ...fontFor(600), marginTop: 2 },
 
   /** The path, as one line the fill runs along and the marks sit on. */
   rail: { height: DOT, justifyContent: 'center' },
@@ -321,11 +322,11 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 0,
     right: 0,
-    height: 3,
+    height: 4,
     borderRadius: 2,
-    backgroundColor: colors.border,
+    backgroundColor: '#E9E9EE',
   },
-  trackFill: { position: 'absolute', left: 0, height: 3, borderRadius: 2 },
+  trackFill: { position: 'absolute', left: 0, height: 4, borderRadius: 2 },
   marks: { flexDirection: 'row', justifyContent: 'space-between' },
   markSlot: { alignItems: 'center', justifyContent: 'center' },
   mark: {
@@ -347,9 +348,9 @@ const styles = StyleSheet.create({
   },
 
   legend: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: space.snug },
-  stage: { ...type.label, fontSize: 13, flexShrink: 1 },
+  stage: { ...type.label, fontSize: 15, lineHeight: 20, flexShrink: 1 },
   count: { ...type.caption, color: colors.subtle },
 
-  emptyTitle: { ...type.section, color: colors.text, fontSize: 16 },
+  emptyTitle: { ...type.section, color: colors.text, fontSize: 17, lineHeight: 22 },
   emptyBody: { ...type.caption, color: colors.subtle, lineHeight: 18 },
 });

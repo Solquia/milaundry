@@ -17,8 +17,10 @@ import React, { useState } from 'react';
 import { Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 
+import { glassPane } from '@/components/glass';
 import { ShopMap } from '@/components/shop-map';
-import { ErrorText, Subtle, colors, elevation, space, type } from '@/components/ui-kit';
+import { RADII, ErrorText, Subtle, colors, space, type } from '@/components/ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 import {
   SHOP_MAP_ZOOM,
   directionsUrl,
@@ -154,12 +156,8 @@ export function ShopMapCard({ name, address, pin, theme }: ShopMapCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 18,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
     overflow: 'hidden',
-    ...elevation.rest,
   },
   map: { height: MAP_HEIGHT, backgroundColor: colors.sunken },
   /** The shop's name, said on the map itself, so the pin is never anonymous. */
@@ -182,19 +180,21 @@ const styles = StyleSheet.create({
   pinIcon: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 9,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  name: { ...type.section, fontSize: 16, color: colors.text },
+  name: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   go: {
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 50,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
   },
-  goTitle: { ...type.label, fontSize: 16 },
+  goTitle: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600) },
   pressed: { opacity: 0.85 },
 });

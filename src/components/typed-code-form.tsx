@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, glassPane, useIsGlass } from '@/components/glass';
 import { Button, ErrorText, colors, space, type } from '@/components/ui-kit';
 import { parseTypedCode, typedCodeCopy } from '@/lib/domain/scan-entry';
 
@@ -27,6 +28,7 @@ export function TypedCodeForm({
   const copy = { ...typedCodeCopy(), ...override };
   const [raw, setRaw] = useState('');
   const [invalid, setInvalid] = useState('');
+  const isGlass = useIsGlass();
 
   const submit = () => {
     if (!accepts(raw.trim())) {
@@ -38,7 +40,7 @@ export function TypedCodeForm({
   };
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isGlass && styles.cardGlass]}>
       <Text style={styles.title}>{copy.title}</Text>
       <Text style={styles.hint}>{copy.hint}</Text>
       <TextInput
@@ -54,7 +56,7 @@ export function TypedCodeForm({
           if (invalid) setInvalid('');
         }}
         onSubmitEditing={submit}
-        style={styles.input}
+        style={[styles.input, isGlass && styles.inputGlass]}
       />
       <ErrorText>{invalid || problem}</ErrorText>
       <Button title={isBusy ? 'One moment…' : copy.submit} onPress={submit} disabled={isBusy || !raw.trim()} />
@@ -70,6 +72,8 @@ const styles = StyleSheet.create({
     gap: space.snug,
     width: '100%',
   },
+  // The customer app's frosted version; merchant and signed-out scanners keep the white.
+  cardGlass: { ...glassPane, borderRadius: 16 },
   title: { ...type.title, color: colors.text },
   hint: { ...type.body, color: colors.subtle },
   input: {
@@ -81,4 +85,5 @@ const styles = StyleSheet.create({
     color: colors.text,
     backgroundColor: colors.bg,
   },
+  inputGlass: { backgroundColor: GLASS_FILL_DENSE, borderColor: GLASS_EDGE },
 });

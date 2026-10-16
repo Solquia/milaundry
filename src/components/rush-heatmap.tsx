@@ -9,7 +9,8 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { RUSH_WEEKS, type RushGrid } from '@/lib/domain/rush-hours';
 
-import { RADII, colors, elevation, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { RADII, colors, space, type } from './ui-kit';
 
 const hourMark = (hour: number): string => (hour === 12 ? '12p' : hour > 12 ? `${hour - 12}p` : `${hour}a`);
 
@@ -77,7 +78,7 @@ export function RushHeatmap({ grid }: { grid: RushGrid }) {
 }
 
 const styles = StyleSheet.create({
-  card: { gap: space.cosy, padding: space.room, borderRadius: RADII.card, backgroundColor: colors.card, ...elevation.rest },
+  card: { ...glassPane, gap: space.cosy, padding: space.room, borderRadius: RADII.card },
   insight: {
     flexDirection: 'row',
     alignItems: 'center',

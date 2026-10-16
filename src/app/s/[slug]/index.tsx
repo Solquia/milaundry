@@ -21,7 +21,7 @@ import { MarketBasketBar } from '@/components/market-basket-bar';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
 import { SpotlightBasket } from '@/components/spotlight-basket';
 import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
-import { ACCENTS, Loading, colors, space, type } from '@/components/ui-kit';
+import { ACCENTS, Loading, colors, fontFor, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
 import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
 import { ShopRewardsCard } from '@/components/shop-rewards-card';
@@ -518,19 +518,20 @@ const styles = StyleSheet.create({
   aside: { gap: space.cosy },
   // Ink on the page field, not white: the hero already spent the white on
   // navy, and these headings sit on `colors.bg`.
-  sectionTitle: { ...type.section, color: colors.text, marginTop: space.section },
+  sectionTitle: { ...type.section, fontSize: 24, lineHeight: 30, letterSpacing: -0.6, color: colors.text, marginTop: space.gulf },
   actions: { flexDirection: 'row', gap: space.cosy },
   /** In the side column the buttons run full width, one under the other. */
   actionsStacked: { flexDirection: 'column' },
   action: {
     flex: 1,
-    minHeight: 48,
-    borderRadius: 12,
+    minHeight: 50,
+    borderRadius: 14,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: space.room,
   },
-  actionTitle: { ...type.label, fontSize: 16 },
+  actionTitle: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600) },
   pressed: { opacity: 0.8 },
   notice: { padding: space.gulf, gap: space.snug, marginTop: space.gulf * 2 },
   noticeTitle: { ...type.title, color: colors.text, textAlign: 'center' },

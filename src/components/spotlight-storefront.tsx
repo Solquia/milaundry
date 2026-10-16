@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { SearchField } from './search-field';
 import { ServicePhoto } from './service-photo';
 import { ShopLogo } from './shop-logo';
@@ -43,6 +44,7 @@ import {
   type SpotlightService,
 } from '@/lib/domain/spotlight';
 import type { Reputation } from '@/lib/domain/storefront';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -238,13 +240,14 @@ function RoundButton({
   label: string;
   onPress: () => void;
 }) {
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => [header.round, elevation.rest, pressed && header.pressed]}
+      style={({ pressed }) => [header.round, isGlass ? header.roundGlass : elevation.rest, pressed && header.pressed]}
     >
       <Ionicons name={icon} size={22} color={colors.text} />
     </Pressable>
@@ -253,6 +256,7 @@ function RoundButton({
 
 function BasketButton({ count, accent, onPress }: { count: number; accent: Accent; onPress?: () => void }) {
   const label = count === 0 ? 'Basket, empty' : `Basket, ${count} ${count === 1 ? 'item' : 'items'}`;
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
@@ -261,7 +265,7 @@ function BasketButton({ count, accent, onPress }: { count: number; accent: Accen
       disabled={!onPress}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => [header.round, elevation.rest, pressed && header.pressed]}
+      style={({ pressed }) => [header.round, isGlass ? header.roundGlass : elevation.rest, pressed && header.pressed]}
     >
       <Ionicons name="basket-outline" size={22} color={colors.text} />
       {count > 0 ? (
@@ -342,7 +346,7 @@ export function SpotlightBody<T extends SpotlightService>({
 
       {!spot.isSearching && spot.picks.length > 1 ? (
         <View style={styles.block}>
-          <SectionHead title="Featured services" link="See all" onLink={() => spot.choose(ALL)} accent={accent} />
+          <SectionHead title="Featured Services" link="See All" onLink={() => spot.choose(ALL)} accent={accent} />
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.rail}>
             {spot.picks.map((service) => (
               <ProductCard
@@ -445,7 +449,6 @@ function SectionHead({
       {link && onLink ? (
         <Pressable accessibilityRole="button" onPress={onLink} hitSlop={8} style={styles.headLink}>
           <Text style={[styles.headLinkText, accent && { color: accent.ink }]}>{link}</Text>
-          <Ionicons name="arrow-forward" size={14} color={accent?.ink ?? colors.text} />
         </Pressable>
       ) : null}
     </View>
@@ -459,12 +462,13 @@ function SectionHead({
  */
 function OfferStrip<T extends SpotlightService>({ accent, spot }: { accent: Accent; spot: Spotlight<T> }) {
   const photos = spot.sections.slice(0, 2).map((section) => section.photo);
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="One basket, one checkout. See all services."
       onPress={() => spot.choose(ALL)}
-      style={({ pressed }) => [styles.offer, { borderColor: accent.ink }, pressed && styles.pressed]}
+      style={({ pressed }) => [styles.offer, { borderColor: accent.ink }, isGlass && styles.offerGlass, pressed && styles.pressed]}
     >
       <View style={styles.offerWords}>
         <Text style={[styles.offerKicker, { color: accent.ink }]}>ONE BASKET</Text>
@@ -495,28 +499,30 @@ const header = StyleSheet.create({
   band: {
     paddingHorizontal: space.room,
     paddingBottom: space.room,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
+    borderBottomLeftRadius: RADII.sheet,
+    borderBottomRightRadius: RADII.sheet,
+    borderCurve: 'continuous',
   },
   inner: { width: '100%', alignSelf: 'center', gap: space.cosy },
   bleed: { marginHorizontal: -space.room, marginTop: -space.room },
   identity: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  logoPlate: { padding: 4, borderRadius: 22, backgroundColor: colors.card },
+  logoPlate: { padding: 3, borderRadius: 16, borderCurve: 'continuous', backgroundColor: colors.card },
   round: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.card,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  roundGlass: { ...glassChip },
   pressed: { opacity: 0.8, transform: [{ scale: 0.96 }] },
   shop: { flex: 1, gap: 3 },
-  shopName: { ...type.title, fontSize: 24, lineHeight: 28, color: colors.text },
+  shopName: { ...type.title, fontSize: 24, lineHeight: 29, letterSpacing: -0.5, color: colors.text },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   rating: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   metaText: { ...type.caption, fontSize: 13, color: colors.subtle },
-  metaStrong: { ...type.caption, fontSize: 13, color: colors.text, fontWeight: '700' },
+  metaStrong: { ...type.caption, fontSize: 13, color: colors.text, ...fontFor(700) },
   badge: {
     position: 'absolute',
     top: -3,
@@ -530,10 +536,10 @@ const header = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.card,
   },
-  badgeText: { ...type.caption, fontSize: 10, fontWeight: '800', color: colors.onAccent },
+  badgeText: { ...type.caption, fontSize: 11, lineHeight: 13, ...fontFor(600), color: colors.onAccent },
   words: { gap: 2, marginTop: space.tight },
-  hello: { ...type.label },
-  title: { ...type.section, fontSize: 21, lineHeight: 26, color: colors.text },
+  hello: { ...type.caption, ...fontFor(600) },
+  title: { ...type.hero, fontSize: 30, lineHeight: 36, color: colors.text },
   pill: { alignSelf: 'flex-start', marginTop: space.tight },
 });
 
@@ -542,10 +548,10 @@ const styles = StyleSheet.create({
   block: { gap: space.cosy },
   head: { flexDirection: 'row', alignItems: 'flex-end', gap: space.snug },
   headWords: { flex: 1, gap: 2 },
-  headTitle: { ...type.section, color: colors.text },
-  headCaption: { ...type.caption, color: colors.subtle },
+  headTitle: { ...type.section, fontSize: 22, lineHeight: 28, letterSpacing: -0.5, color: colors.text },
+  headCaption: { ...type.caption, fontSize: 14, color: colors.subtle },
   headLink: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingBottom: 2 },
-  headLinkText: { ...type.label, fontSize: 13 },
+  headLinkText: { ...type.body, fontSize: 17 },
   rail: { gap: space.cosy - 2, paddingVertical: space.tight, paddingRight: space.room },
   pressed: { opacity: 0.9 },
 
@@ -553,27 +559,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: 132,
-    borderRadius: RADII.sheet,
-    borderWidth: 1.5,
-    borderStyle: 'dashed',
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
+    borderWidth: 0,
     backgroundColor: colors.card,
     padding: space.room,
     overflow: 'hidden',
+    ...elevation.rest,
   },
+  offerGlass: { ...glassPane },
   offerWords: { flex: 1, gap: 4 },
-  offerKicker: { ...type.caption, fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  offerTitle: { ...type.section, fontSize: 18, lineHeight: 22, color: colors.text },
+  offerKicker: { ...type.caption, ...fontFor(600) },
+  offerTitle: { ...type.body, fontSize: 17, lineHeight: 22, ...fontFor(600), color: colors.text },
   offerCta: {
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
     gap: 5,
     marginTop: space.tight,
-    paddingHorizontal: space.cosy,
+    paddingHorizontal: space.cosy + 2,
     height: 30,
-    borderRadius: RADII.pill,
+    borderRadius: 15,
   },
-  offerCtaText: { ...type.label, fontSize: 12.5, color: colors.onAccent },
+  offerCtaText: { fontSize: 15, lineHeight: 20, letterSpacing: -0.2, ...fontFor(700), color: colors.onAccent },
   offerPhotos: { width: 118, height: 100 },
   offerPhoto: {
     position: 'absolute',
@@ -581,13 +589,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 84,
     height: 84,
-    borderRadius: 42,
+    borderRadius: 18,
+    borderCurve: 'continuous',
     borderWidth: 3,
     borderColor: colors.card,
   },
-  offerPhotoBack: { right: 52, bottom: 26, width: 64, height: 64, borderRadius: 32 },
+  offerPhotoBack: { right: 52, bottom: 26, width: 64, height: 64, borderRadius: 14 },
 
-  notice: { flexDirection: 'row', alignItems: 'center', gap: space.snug, padding: space.snug, borderRadius: RADII.chip },
+  notice: { flexDirection: 'row', alignItems: 'center', gap: space.snug, padding: space.cosy, borderRadius: RADII.control, borderCurve: 'continuous' },
   noticeText: { ...type.caption, flex: 1 },
   empty: { alignItems: 'center', gap: space.snug, paddingVertical: space.gulf },
   emptyText: { ...type.body, color: colors.subtle },

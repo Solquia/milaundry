@@ -16,6 +16,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SHELF_GAP, shelfColumns } from '@/lib/domain/shop-addons';
 import { gridRows } from '@/lib/domain/web-layout';
 
+import { glassPane, useIsGlass } from './glass';
 import { RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 
 const FREE_INK = '#0B7A4B';
@@ -84,6 +85,7 @@ export function ProductCard({
   onPress: () => void;
 }) {
   const label = accessibilityLabel ?? [name, note, price].filter(Boolean).join(', ');
+  const isGlass = useIsGlass();
   return (
     <Pressable
       accessibilityRole={role}
@@ -91,7 +93,12 @@ export function ProductCard({
       accessibilityLabel={label}
       accessibilityHint={isOn ? 'Takes it off this load' : 'Puts it on this load'}
       onPress={onPress}
-      style={({ pressed }) => [styles.card, isOn && styles.cardOn, pressed && styles.pressed]}
+      style={({ pressed }) => [
+        styles.card,
+        isGlass && styles.cardGlass,
+        isOn && styles.cardOn,
+        pressed && styles.pressed,
+      ]}
     >
       <View style={styles.photo}>
         {picture}
@@ -134,6 +141,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     ...elevation.rest,
   },
+  cardGlass: { ...glassPane, borderWidth: 1.5, borderRadius: RADII.control },
   /** On the load: the action blue round the card and a wash of it behind the text. */
   cardOn: { borderColor: colors.action, backgroundColor: colors.actionSurface },
   pressed: { transform: [{ scale: 0.97 }] },
@@ -169,7 +177,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 18,
     marginTop: 2,
-    fontFamily: fontFor(800),
+    ...fontFor(800),
     color: colors.text,
   },
   priceFree: { color: FREE_INK },
@@ -185,7 +193,7 @@ const styles = StyleSheet.create({
   },
   stepButton: { width: 32, height: 30, alignItems: 'center', justifyContent: 'center' },
   stepButtonOff: { opacity: 0.35 },
-  stepCount: { ...type.label, fontSize: 14, fontFamily: fontFor(800), color: colors.text },
+  stepCount: { ...type.label, fontSize: 14, ...fontFor(800), color: colors.text },
 });
 
 /**

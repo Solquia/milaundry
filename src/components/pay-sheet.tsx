@@ -19,25 +19,29 @@ import * as ImagePicker from 'expo-image-picker';
 import React, { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip } from '@/components/glass';
 import {
   Button,
   Card,
   ErrorText,
   Field,
   Subtle,
+  RADII,
   colors,
+  fontFor,
   formatMoney,
   mono,
   space,
   type,
 } from '@/components/ui-kit';
 import {
-  choosePaymentMethod,
+  sendPaymentChoice,
   submitPaymentProof,
   type OrderWithDetails,
 } from '@/lib/api';
 import { friendlyBookingError } from '@/lib/domain/booking-error';
 import {
+  cashChoiceCopy,
   customerProofCopy,
   proofState,
   validateReference,
@@ -67,13 +71,23 @@ export function PaySheet({ order }: PaySheetProps) {
   const [error, setError] = useState('');
   const [screenshotUri, setScreenshotUri] = useState<string | null>(null);
   const [referenceInput, setReferenceInput] = useState('');
+  // Tapping a method only picks it; nothing reaches the shop until the button
+  // under the choice sends it. Saving on every tap told the shop nothing and
+  // let a stray tap flip what the counter expected.
+  const [picked, setPicked] = useState<PaymentMethod | null>(null);
+  const selected = picked ?? order.payment_method;
 
-  const state = proofState(order);
   const shopName = order.shop?.name ?? 'the shop';
+  const savedState = proofState(order);
+  const state = proofState({ ...order, payment_method: selected });
 
-  const methodMutation = useMutation({
-    mutationFn: (method: PaymentMethod) => choosePaymentMethod(order.id, method),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['order', order.id] }),
+  const choiceMutation = useMutation({
+    mutationFn: (method: PaymentMethod) => sendPaymentChoice(order.id, method),
+    onSuccess: () => {
+      setPicked(null);
+      queryClient.invalidateQueries({ queryKey: ['order', order.id] });
+      queryClient.invalidateQueries({ queryKey: ['my-orders'] });
+    },
     onError: (err: Error) => setError(friendlyBookingError(err.message)),
   });
 
@@ -82,7 +96,7 @@ export function PaySheet({ order }: PaySheetProps) {
       submitPaymentProof(order.id, {
         photoUri: screenshotUri!,
         reference: validateReference(referenceInput)!,
-        method: order.payment_method,
+        method: selected,
       }),
     onSuccess: () => {
       setScreenshotUri(null);
@@ -105,7 +119,11 @@ export function PaySheet({ order }: PaySheetProps) {
 
   // Nothing to pay yet, or nothing left to pay: the bill card and the paid
   // card on the order screen already say so.
-  if (state === 'not_applicable' || state === 'awaiting_price' || state === 'confirmed') {
+  if (
+    savedState === 'not_applicable' ||
+    savedState === 'awaiting_price' ||
+    savedState === 'confirmed'
+  ) {
     return null;
   }
 
@@ -114,10 +132,15 @@ export function PaySheet({ order }: PaySheetProps) {
   const details = order.shop ?? {};
   const methods = payableMethods(details, shopName);
   const rails = availableRails(details, shopName);
-  const chosenRail = rails.find((rail) => rail.method === order.payment_method) ?? null;
+  const chosenRail = rails.find((rail) => rail.method === selected) ?? null;
+  const cash = cashChoiceCopy(shopName, order.fulfillment === 'delivery');
+  const isCashSent =
+    selected === 'cash' &&
+    order.payment_method === 'cash' &&
+    Boolean(order.payment_choice_sent_at);
 
   // The claim is already with the shop; asking again would read as doubt.
-  if (state === 'submitted') {
+  if (savedState === 'submitted' && picked === null) {
     return (
       <Card>
         <Text style={styles.heading}>{copy.title}</Text>
@@ -150,22 +173,39 @@ export function PaySheet({ order }: PaySheetProps) {
                     : 'Cash at pickup'
                   : PAYMENT_LABELS[method]
               }
-              variant={order.payment_method === method ? 'primary' : 'outline'}
+              variant={selected === method ? 'primary' : 'outline'}
               onPress={() => {
                 setError('');
-                methodMutation.mutate(method);
+                setPicked(method);
               }}
             />
           </View>
         ))}
       </View>
-      <Subtle>{railsNotice(details, shopName)}</Subtle>
+      {selected === 'cash' ? null : <Subtle>{railsNotice(details, shopName)}</Subtle>}
 
       {state === 'awaiting_counter' && (
-        <View style={styles.counterNote}>
-          <Ionicons name="storefront-outline" size={18} color={colors.subtle} />
-          <Subtle>{copy.body}</Subtle>
-        </View>
+        <>
+          <View style={styles.counterNote}>
+            <Ionicons name="storefront-outline" size={18} color={colors.subtle} />
+            <Subtle>{copy.body}</Subtle>
+          </View>
+          {isCashSent ? (
+            <View style={styles.sentNote} accessibilityLiveRegion="polite">
+              <Ionicons name="checkmark-circle" size={18} color={colors.success} />
+              <Text style={styles.sentText}>{cash.sentNote}</Text>
+            </View>
+          ) : (
+            <Button
+              title={choiceMutation.isPending ? 'Sending…' : cash.sendLabel}
+              disabled={choiceMutation.isPending}
+              onPress={() => {
+                setError('');
+                choiceMutation.mutate('cash');
+              }}
+            />
+          )}
+        </>
       )}
 
       {state === 'awaiting_payment' && chosenRail && (
@@ -209,7 +249,9 @@ export function PaySheet({ order }: PaySheetProps) {
           )}
 
           <Button
-            title={proofMutation.isPending ? 'Sending…' : `I've sent ${amount}`}
+            title={
+              proofMutation.isPending ? 'Sending…' : `Send receipt to ${shopName}`
+            }
             disabled={!canSend}
             onPress={() => {
               setError('');
@@ -315,18 +357,26 @@ function RailDetails({ rail }: { rail: PaymentRail }) {
 }
 
 const styles = StyleSheet.create({
-  heading: { fontWeight: '600', fontSize: 16 },
+  heading: { ...type.section, color: colors.text },
   methodRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   methodSlot: { minWidth: 100, flexGrow: 1 },
 
   counterNote: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  sentNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
+    backgroundColor: '#E3F5E6',
+    padding: space.cosy,
+  },
+  sentText: { flex: 1, ...type.body, fontSize: 15, ...fontFor(600), color: colors.success },
 
   /** The one fact the whole sheet exists to deliver, framed like one. */
   rail: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 12,
-    backgroundColor: colors.sunken,
+    ...glassChip,
+    borderRadius: RADII.control,
     padding: space.cosy,
     gap: space.tight,
   },
@@ -336,9 +386,8 @@ const styles = StyleSheet.create({
   /** Monospace so the digits column up as they do in the banking app. */
   railNumber: {
     flex: 1,
-    fontFamily: mono,
-    fontSize: 20,
-    fontWeight: '700',
+    ...type.value,
+    fontVariant: ['tabular-nums'],
     color: colors.text,
   },
 
@@ -351,16 +400,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.tight,
-    minWidth: 92,
-    minHeight: 40,
+    minWidth: 84,
+    minHeight: 32,
     paddingHorizontal: space.cosy,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.actionMuted,
-    backgroundColor: colors.card,
+    ...glassChip,
+    borderRadius: RADII.pill,
   },
-  copyKeyDone: { borderColor: colors.takingsBorder, backgroundColor: colors.takingsSurface },
-  copyText: { ...type.label, color: colors.actionInk },
+  copyKeyDone: { backgroundColor: '#E3F5E6' },
+  copyText: { fontSize: 15, lineHeight: 20, letterSpacing: -0.2, ...fontFor(700), color: colors.action },
   copyTextDone: { color: colors.success },
   copyFailed: { ...type.caption, color: colors.dangerInk },
 
@@ -368,11 +415,9 @@ const styles = StyleSheet.create({
 
   /** Same 16:9 frame the merchant's weigh photo uses. */
   proofBox: {
+    ...glassChip,
     height: 160,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.sunken,
+    borderRadius: RADII.control,
     overflow: 'hidden',
   },
   proofImage: { width: '100%', height: '100%' },

@@ -38,6 +38,7 @@ import {
 } from '@/lib/domain/shop-addons';
 
 import { AddonPicture } from './addon-shelf';
+import { glassChip, glassPane } from './glass';
 import { Button, ErrorText, Field, RADII, Subtle, colors, fontFor, space, type } from './ui-kit';
 
 const THUMB = 64;
@@ -417,10 +418,8 @@ export function MerchantAddons({ shopId }: { shopId: string }) {
 
 const styles = StyleSheet.create({
   sheet: {
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: RADII.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   head: { padding: space.room, gap: space.tight },
@@ -436,8 +435,7 @@ const styles = StyleSheet.create({
   group: { gap: space.snug, paddingHorizontal: space.room, paddingBottom: space.cosy },
   groupTitle: { ...type.label, color: colors.subtle },
   row: {
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
     borderRadius: RADII.control,
     padding: space.snug,
     gap: space.snug,
@@ -457,16 +455,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(11,27,43,0.7)',
   },
   rowText: { flex: 1, minWidth: 0, gap: 1 },
-  rowName: { ...type.body, fontFamily: fontFor(700), color: colors.text },
+  rowName: { ...type.body, ...fontFor(700), color: colors.text },
   rowMeta: { ...type.caption, color: colors.subtle },
-  rowPrice: { ...type.label, fontFamily: fontFor(800), color: colors.text },
+  rowPrice: { ...type.label, ...fontFor(800), color: colors.text },
   rowFree: { color: '#0B7A4B' },
   switchCol: { alignItems: 'center', gap: 2 },
   switchText: { ...type.caption, fontSize: 11, color: colors.subtle },
   editor: { gap: space.snug },
-  rowLimit: { ...type.caption, fontFamily: fontFor(600), color: colors.subtle },
+  rowLimit: { ...type.caption, ...fontFor(600), color: colors.subtle },
   editLink: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
-  editLinkText: { ...type.caption, fontFamily: fontFor(700), color: colors.actionInk },
+  editLinkText: { ...type.caption, ...fontFor(700), color: colors.actionInk },
   numberRow: { flexDirection: 'row', gap: space.snug },
   numberCell: { flex: 1, minWidth: 0 },
   ruleRow: {
@@ -499,7 +497,7 @@ const styles = StyleSheet.create({
     padding: space.room,
     gap: space.snug,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   addTitle: { ...type.label, fontSize: 15, color: colors.text },
   kindRow: { flexDirection: 'row', gap: space.snug },
@@ -508,9 +506,8 @@ const styles = StyleSheet.create({
     minHeight: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    ...glassChip,
     borderRadius: RADII.pill,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   kindChipOn: { backgroundColor: colors.action, borderColor: colors.action },
   kindText: { ...type.label, color: colors.text },

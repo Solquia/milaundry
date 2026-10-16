@@ -16,6 +16,7 @@ import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
 import { WASH_CYCLE_STAGES, cycleStanding } from '@/lib/domain/wash-cycle';
 import type { StatusHistoryRow } from '@/lib/types';
 
+import { glassPane } from './glass';
 import { RADII, colors, formatWhen, space, type } from './ui-kit';
 
 const STAGES = [
@@ -135,16 +136,14 @@ const styles = StyleSheet.create({
   card: {
     gap: space.cosy,
     padding: space.room,
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: space.snug },
   heading: { ...type.section, fontSize: 16, color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
   rail: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  segment: { height: 6, borderRadius: 3, backgroundColor: colors.border },
+  segment: { height: 6, borderRadius: 3, backgroundColor: 'rgba(60, 60, 67, 0.12)' },
   segmentDone: { backgroundColor: colors.success },
   segmentCurrent: { backgroundColor: colors.action },
   rows: { gap: space.snug, marginTop: space.tight },

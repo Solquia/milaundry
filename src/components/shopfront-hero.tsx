@@ -19,13 +19,15 @@ import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from 'reac
 
 import { ClaimRings, claimFill, claimSwell } from '@/components/claim';
 import { WashLine, useCue } from '@/components/entrance';
-import { ACCENTS, HERO_GRADIENT, colors, elevation, space, type } from '@/components/ui-kit';
+import { GLASS_FILL_DENSE, glassPane } from '@/components/glass';
+import { ACCENTS, HERO_GRADIENT, RADII, colors, elevation, space, type } from '@/components/ui-kit';
 import { shopInitials } from '@/lib/domain/connected-shops';
 import type { ConnectionRank } from '@/lib/domain/connection-welcome';
 import { ENTRANCE } from '@/lib/domain/entrance';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import { heroBackdrop } from '@/lib/domain/shop-cover';
 import type { Reputation } from '@/lib/domain/storefront';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -37,6 +39,8 @@ const COVER_RADIUS = 28;
 const CARD_OVERLAP = 36;
 /** The shop's mark, half of it standing above the card's top edge. */
 const MARK_SIZE = 72;
+/** An app icon's corner: the mark reads as the shop's own icon. */
+const MARK_RADIUS = Math.round(MARK_SIZE * 0.24);
 /** The app's deep navy, used for the scrim so the photo darkens into brand. */
 const SCRIM = '#04203F';
 /** Rating gold; the only star on the card, so it can afford to be warm. */
@@ -351,7 +355,6 @@ export function ShopfrontHero({
             <Text style={styles.heroCtaText}>
               {isConnecting ? 'Connecting…' : 'Connect to book'}
             </Text>
-            {!isConnecting && <Ionicons name="arrow-forward" size={17} color={colors.onAccent} />}
           </Pressable>
         )}
       </View>
@@ -386,17 +389,18 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(4,32,63,0.45)',
+    // A frosted dark disc, as Photos and Maps set a control over a picture.
+    backgroundColor: 'rgba(0,0,0,0.36)',
   },
   storeCard: {
     marginTop: -CARD_OVERLAP,
     marginHorizontal: space.room,
     paddingHorizontal: space.room,
     paddingBottom: space.room,
-    borderRadius: 20,
-    backgroundColor: colors.card,
+    ...glassPane,
+    // Denser than a plain pane: its top edge sits over the cover photo.
+    backgroundColor: GLASS_FILL_DENSE,
     gap: space.snug,
-    ...elevation.lift,
   },
   identityRow: {
     flexDirection: 'row',
@@ -412,13 +416,15 @@ const styles = StyleSheet.create({
     position: 'absolute',
     width: MARK_SIZE,
     height: MARK_SIZE,
-    borderRadius: MARK_SIZE / 2,
+    borderRadius: MARK_RADIUS,
+    borderCurve: 'continuous',
     borderWidth: 2,
   },
   heroMark: {
     width: MARK_SIZE,
     height: MARK_SIZE,
-    borderRadius: MARK_SIZE / 2,
+    borderRadius: MARK_RADIUS,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -427,14 +433,14 @@ const styles = StyleSheet.create({
     borderColor: colors.card,
     ...elevation.rest,
   },
-  heroLogo: { width: '100%', height: '100%', borderRadius: MARK_SIZE / 2 },
+  heroLogo: { width: '100%', height: '100%', borderRadius: MARK_RADIUS - 3 },
   markWash: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    borderRadius: MARK_SIZE / 2,
+    borderRadius: MARK_RADIUS - 3,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -448,40 +454,41 @@ const styles = StyleSheet.create({
     paddingVertical: space.tight,
     borderRadius: 999,
   },
-  yourShopText: { ...type.caption, fontFamily: type.label.fontFamily },
+  yourShopText: { ...type.caption, ...fontFor(600) },
   names: { gap: 2 },
-  heroName: { ...type.value, color: colors.text },
-  heroTagline: { ...type.label, color: colors.subtle },
+  heroName: { ...type.title, fontSize: 24, lineHeight: 30, letterSpacing: -0.5, color: colors.text },
+  heroTagline: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.subtle },
   addressRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: space.tight,
   },
-  heroAddress: { ...type.caption, color: colors.subtle, flex: 1, marginTop: 1 },
+  heroAddress: { ...type.caption, fontSize: 14, lineHeight: 19, color: colors.subtle, flex: 1, marginTop: 1 },
   statStrip: {
     flexDirection: 'row',
     marginTop: space.tight,
     paddingTop: space.cosy,
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   stat: { flex: 1, alignItems: 'center', gap: 2 },
   statDivided: {
     borderLeftWidth: StyleSheet.hairlineWidth,
-    borderLeftColor: colors.border,
+    borderLeftColor: 'rgba(60, 60, 67, 0.12)',
   },
   statValueRow: { flexDirection: 'row', alignItems: 'center', gap: space.tight },
-  statValue: { ...type.section, color: colors.text },
-  statLabel: { ...type.caption, color: colors.subtle },
+  statValue: { ...type.section, fontSize: 19, color: colors.text },
+  statLabel: { ...type.caption, fontSize: 12, lineHeight: 16, ...fontFor(500), color: colors.subtle },
   heroCta: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
     marginTop: space.snug,
-    paddingVertical: space.cosy + 2,
-    borderRadius: 999,
+    minHeight: 50,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     backgroundColor: colors.action,
   },
-  heroCtaText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  heroCtaText: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600), color: colors.onAccent },
 });

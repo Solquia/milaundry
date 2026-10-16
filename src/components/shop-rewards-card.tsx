@@ -33,6 +33,6 @@ export function ShopRewardsCard({ shopId, isRegistered }: { shopId: string; isRe
   const programs: RewardProgram[] = (offer ?? [])
     .filter((reward) => reward.is_active)
     .map((reward) => ({ ...reward, ready: 0 }));
-  const title = isRegistered ? 'Loyalty rewards' : 'Rewards when you come back';
+  const title = isRegistered ? 'Loyalty Rewards' : 'Rewards When You Come Back';
   return <StampCard programs={programs} standing={null} title={title} />;
 }

@@ -13,7 +13,8 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { ProductCard, ProductGrid } from './product-grid';
 import { SoapArt } from './soap-art';
 import { TouchArt } from './touch-art';
-import { BLUE_FIELD, ErrorText, Field, colors, elevation, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { ErrorText, Field, colors, fontFor, space, type } from './ui-kit';
 import {
   DETERGENT_LABELS,
   PREFERENCE_KEYS,
@@ -48,7 +49,7 @@ interface TileOption<T> {
   art: TileArt;
 }
 
-const USUAL_ART: TileArt = { kind: 'icon', icon: 'sparkles-outline', color: BLUE_FIELD.mid };
+const USUAL_ART: TileArt = { kind: 'icon', icon: 'sparkles-outline', color: colors.action };
 
 /**
  * Most-asked first. "Regular" is left off the board — every brand is regular
@@ -92,7 +93,7 @@ const SOFTENER_TILES: readonly TileOption<SoftenerChoice | null>[] = [
     value: 'with',
     label: "Shop's fabcon",
     note: 'Any brand',
-    art: { kind: 'icon', icon: 'water-outline', color: BLUE_FIELD.mid },
+    art: { kind: 'icon', icon: 'water-outline', color: colors.action },
   },
   {
     value: 'without',
@@ -312,7 +313,7 @@ const styles = StyleSheet.create({
   picker: { gap: space.room },
   group: { gap: space.snug },
   groupHead: { gap: 2 },
-  groupTitle: { ...type.label, fontSize: 15, color: colors.text },
+  groupTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   groupNote: { ...type.caption, color: colors.subtle },
   iconArt: {
     width: ART_SIZE,
@@ -323,24 +324,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
 
+  // Only Settings renders this card, so it is always on glass.
   card: {
-    backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
+    borderRadius: 18,
     padding: space.room,
     gap: space.cosy,
-    ...elevation.rest,
   },
   cardTitle: { ...type.section, color: colors.text },
   cardNote: { ...type.caption, color: colors.subtle },
   save: {
-    minHeight: 48,
+    minHeight: 50,
     borderRadius: 14,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: BLUE_FIELD.mid,
+    backgroundColor: colors.action,
   },
-  saveText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  saveText: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.onAccent },
   pressed: { opacity: 0.7 },
 });

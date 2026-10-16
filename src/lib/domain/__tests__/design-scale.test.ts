@@ -1,29 +1,44 @@
 import {
   CROWN,
-  FONT,
+  INTER,
   RADII,
   ROLE_ORDER,
   TYPE_ROLES,
-  fontFor,
+  WEB_FONT_STACK,
+  fontForPlatform,
+  nearestCut,
 } from '../design-scale';
 
-describe('FONT', () => {
-  it('names a family for every weight the roles ask for', () => {
-    for (const role of Object.values(TYPE_ROLES)) {
-      expect(Object.values(FONT)).toContain(role.fontFamily);
-    }
+describe('nearestCut', () => {
+  it('keeps a weight the faces ship', () => {
+    expect(nearestCut(400)).toBe(400);
+    expect(nearestCut(600)).toBe(600);
+    expect(nearestCut(800)).toBe(800);
   });
 
-  it('maps a numeric weight to its own file rather than leaning on fontWeight', () => {
-    expect(fontFor(400)).toBe(FONT.regular);
-    expect(fontFor(600)).toBe(FONT.semibold);
-    expect(fontFor(800)).toBe(FONT.extrabold);
+  it('rounds an in-between weight to the nearest cut, heavier on a tie', () => {
+    expect(nearestCut(450)).toBe(500);
+    expect(nearestCut(1000)).toBe(800);
+    expect(nearestCut(100)).toBe(400);
+  });
+});
+
+describe('fontForPlatform', () => {
+  it('hands iOS the system face, so an iPhone reads San Francisco', () => {
+    expect(fontForPlatform(700, 'ios')).toEqual({ fontFamily: 'System', fontWeight: '700' });
   });
 
-  it('rounds an in-between weight to the nearest cut it actually ships', () => {
-    expect(fontFor(450)).toBe(FONT.medium);
-    expect(fontFor(1000)).toBe(FONT.extrabold);
-    expect(fontFor(100)).toBe(FONT.regular);
+  it('hands Android a bundled Inter cut by family, never a synthesised weight', () => {
+    expect(fontForPlatform(600, 'android')).toEqual({ fontFamily: INTER[600] });
+    expect(fontForPlatform(600, 'android')).not.toHaveProperty('fontWeight');
+  });
+
+  it('hands the web a stack that starts with the Apple system face', () => {
+    const style = fontForPlatform(400, 'web');
+    expect(style.fontWeight).toBe('400');
+    expect(style.fontFamily).toBe(WEB_FONT_STACK);
+    expect(WEB_FONT_STACK.startsWith('-apple-system')).toBe(true);
+    expect(WEB_FONT_STACK).toContain('Inter');
   });
 });
 
@@ -41,23 +56,20 @@ describe('TYPE_ROLES', () => {
     }
   });
 
-  it('sets body at the 16px reading floor', () => {
+  it('opens on the iOS large title and reads body at 16 or more', () => {
+    expect(TYPE_ROLES.hero.fontSize).toBe(34);
     expect(TYPE_ROLES.body.fontSize).toBeGreaterThanOrEqual(16);
   });
 
-  it('keeps display tracking tight and never below the -0.04em floor', () => {
+  it('tracks tighter as the size grows, never past the -0.04em floor', () => {
     for (const role of Object.values(TYPE_ROLES)) {
       expect(role.letterSpacing).toBeGreaterThanOrEqual(role.fontSize * -0.04);
+      expect(role.letterSpacing).toBeLessThanOrEqual(0);
     }
+    expect(TYPE_ROLES.hero.letterSpacing).toBeLessThan(TYPE_ROLES.body.letterSpacing);
   });
 
-  it('separates neighbouring roles by enough to read as different jobs', () => {
-    // The old scale ran 17/15/14, so screens overrode it constantly. Every
-    // step now has to be worth making.
-    const sizes = ROLE_ORDER.map((role) => TYPE_ROLES[role].fontSize);
-    for (let i = 1; i < sizes.length; i += 1) {
-      expect(sizes[i - 1] - sizes[i]).toBeGreaterThanOrEqual(1);
-    }
+  it('separates a section heading from body by a visible step', () => {
     expect(TYPE_ROLES.section.fontSize - TYPE_ROLES.body.fontSize).toBeGreaterThanOrEqual(3);
   });
 });
@@ -77,9 +89,8 @@ describe('RADII', () => {
 });
 
 describe('CROWN', () => {
-  it('rounds the head of a sheet more than its foot, so it reads as drawn', () => {
-    expect(CROWN.borderTopLeftRadius).toBe(CROWN.borderTopRightRadius);
-    expect(CROWN.borderBottomLeftRadius).toBe(CROWN.borderBottomRightRadius);
-    expect(CROWN.borderTopLeftRadius).toBeGreaterThan(CROWN.borderBottomLeftRadius);
+  it('is one even, continuous corner, the way iOS draws a card', () => {
+    expect(CROWN.borderRadius).toBe(RADII.card);
+    expect(CROWN.borderCurve).toBe('continuous');
   });
 });

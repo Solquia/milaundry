@@ -21,7 +21,8 @@ import {
 } from '@/lib/domain/customer-insights';
 import { formatMoneyCompact } from '@/lib/domain/money';
 
-import { ACCENTS, RADII, TAG_TONES, colors, elevation, formatMoney, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { ACCENTS, RADII, TAG_TONES, colors, formatMoney, space, type } from './ui-kit';
 
 function visits(count: number): string {
   return `${count} ${count === 1 ? 'order' : 'orders'}`;
@@ -91,11 +92,8 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     padding: space.cosy,
     paddingRight: space.room,
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.rest,
   },
   flush: {
     borderRadius: 0,

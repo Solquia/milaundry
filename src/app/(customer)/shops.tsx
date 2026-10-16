@@ -1,28 +1,29 @@
-import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
-import { useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
+import React, { useMemo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import {
   ACCENTS,
   EmptyState,
   Loading,
   Screen,
-  Subtle,
   TAG_TONES,
+  RADII,
   colors,
-  elevation,
+  fontFor,
   space,
   type,
-} from '@/components/ui-kit';
-import { ShopLogo } from '@/components/shop-logo';
-import { getMyRewards, getRegisteredShops } from '@/lib/api';
-import { customerNudge } from '@/lib/domain/rewards';
-import { assignBrandAccents } from '@/lib/domain/shop-branding';
-import { shopLogoUri } from '@/lib/domain/shop-cover';
-import { emptyDirectoryMessage } from '@/lib/domain/shop-directory';
-import type { Shop } from '@/lib/types';
+} from "@/components/ui-kit";
+import { glassPane } from "@/components/glass";
+import { ShopLogo } from "@/components/shop-logo";
+import { getMyRewards, getRegisteredShops } from "@/lib/api";
+import { customerNudge } from "@/lib/domain/rewards";
+import { assignBrandAccents } from "@/lib/domain/shop-branding";
+import { shopLogoUri } from "@/lib/domain/shop-cover";
+import { emptyDirectoryMessage } from "@/lib/domain/shop-directory";
+import type { Shop } from "@/lib/types";
 
 /**
  * The customer's own laundries, and nothing else.
@@ -36,12 +37,15 @@ export default function CustomerShops() {
   const router = useRouter();
 
   const { data: registered, isLoading } = useQuery({
-    queryKey: ['registered-shops'],
+    queryKey: ["registered-shops"],
     queryFn: getRegisteredShops,
   });
 
   // One call for every card's reward line; a failure only costs the lines.
-  const { data: rewards } = useQuery({ queryKey: ['my-rewards'], queryFn: () => getMyRewards() });
+  const { data: rewards } = useQuery({
+    queryKey: ["my-rewards"],
+    queryFn: () => getMyRewards(),
+  });
 
   const mine = useMemo(() => registered ?? [], [registered]);
 
@@ -51,9 +55,9 @@ export default function CustomerShops() {
     () =>
       assignBrandAccents(
         mine.map((shop) => ({ id: shop.id, brand_accent: shop.brand_accent })),
-        ACCENTS.length
+        ACCENTS.length,
       ),
-    [mine]
+    [mine],
   );
 
   const openShop = (shopId: string) =>
@@ -65,23 +69,33 @@ export default function CustomerShops() {
 
   return (
     <Screen>
-      <Text style={styles.sectionTitle}>Your laundry shops</Text>
+      <Text style={styles.sectionTitle} accessibilityRole="header">
+        Your Laundries
+      </Text>
       {emptyMessage ? <EmptyState message={emptyMessage} /> : null}
-      {mine.map((shop, index) => {
-        const standing = rewards?.find((row) => row.shop_id === shop.id);
-        const nudge = standing ? customerNudge(standing) : null;
-        const isReady = Boolean(standing?.programs.some((program) => program.ready > 0));
-        return (
-          <ShopCard
-            key={shop.id}
-            shop={shop}
-            accent={ACCENTS[mineAccents[index]]}
-            onPress={() => openShop(shop.id)}
-          >
-            {nudge ? <RewardLine text={nudge} isReady={isReady} /> : null}
-          </ShopCard>
-        );
-      })}
+      {/* One grouped list, the way Settings sets a run of rows. */}
+      {mine.length > 0 ? (
+        <View style={styles.group}>
+          {mine.map((shop, index) => {
+            const standing = rewards?.find((row) => row.shop_id === shop.id);
+            const nudge = standing ? customerNudge(standing) : null;
+            const isReady = Boolean(
+              standing?.programs.some((program) => program.ready > 0),
+            );
+            return (
+              <ShopCard
+                key={shop.id}
+                isFirst={index === 0}
+                shop={shop}
+                accent={ACCENTS[mineAccents[index]]}
+                onPress={() => openShop(shop.id)}
+              >
+                {nudge ? <RewardLine text={nudge} isReady={isReady} /> : null}
+              </ShopCard>
+            );
+          })}
+        </View>
+      ) : null}
     </Screen>
   );
 }
@@ -91,83 +105,121 @@ function RewardLine({ text, isReady }: { text: string; isReady: boolean }) {
   const tone = isReady ? TAG_TONES.settled : TAG_TONES.linked;
   return (
     <View style={[styles.reward, { backgroundColor: tone.bg }]}>
-      <Ionicons name="gift" size={16} color={tone.ink} />
+      <Ionicons name="gift" size={14} color={tone.ink} />
       <Text style={[styles.rewardText, { color: tone.ink }]}>{text}</Text>
     </View>
   );
 }
 
 /**
- * A shop you have connected to wears its initials in its own accent — the same
- * tone it carries on the home screen and across the top of its own page — and
- * the card takes a hairline of that accent, so "mine" reads as a set before a
- * word of it is read. One you have not wears a plain storefront glyph and
- * spends its colour on the one thing you can do about that: connect.
- *
- * Three roles, one each: accent means yours, blue means you can act here, grey
- * means not yet.
+ * One row of the list: the shop's logo as an app-icon tile — its initials in
+ * its own accent when it has none, the same tone it wears on the home screen —
+ * then its name and address, and the disclosure chevron. A reward line, when
+ * there is one, sits under the words inside the same row.
  */
 function ShopCard({
+  isFirst,
   shop,
   accent,
   onPress,
   children,
 }: {
+  isFirst: boolean;
   shop: Shop;
   accent?: (typeof ACCENTS)[number];
   onPress: () => void;
   children?: React.ReactNode;
 }) {
   return (
-    <View style={[styles.card, accent && { borderColor: accent.ink }]}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${shop.name}`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.shopRow, pressed && { opacity: 0.7 }]}
-      >
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${shop.name}`}
+      onPress={onPress}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+    >
+      {isFirst ? null : <View style={styles.separator} />}
+      <View style={styles.shopRow}>
         <ShopLogo
           name={shop.name}
           logoUrl={shopLogoUri(shop)}
-          size={44}
+          size={LOGO}
+          shape="plate"
           accent={accent ?? null}
-          fallback={accent ? 'initials' : 'storefront'}
+          fallback={accent ? "initials" : "storefront"}
         />
-        <View style={{ flex: 1 }}>
+        <View style={styles.words}>
           <Text style={styles.shopName} numberOfLines={1}>
             {shop.name}
           </Text>
-          {shop.address ? <Subtle>{shop.address}</Subtle> : null}
+          {shop.address ? (
+            <Text style={styles.address} numberOfLines={2}>
+              {shop.address}
+            </Text>
+          ) : null}
+          {children}
         </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.borderStrong} />
-      </Pressable>
-      {children}
-    </View>
+        <Ionicons name="chevron-forward" size={16} color={CHEVRON} />
+      </View>
+    </Pressable>
   );
 }
 
+/** The iOS disclosure chevron's grey. */
+const CHEVRON = "#C7C7CC";
+const LOGO = 48;
+
 const styles = StyleSheet.create({
-  sectionTitle: { ...type.section, color: colors.text, marginTop: space.tight },
-  // Rebuilt from the same recipe as `ui-kit`'s Card so a connected shop can
-  // carry its accent on the border. One hairline, never a slab.
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 12,
-    padding: space.room,
-    gap: space.snug,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.rest,
+  sectionTitle: {
+    ...type.section,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.5,
+    color: colors.text,
+    marginTop: space.snug,
   },
-  shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  shopName: { ...type.label, fontSize: 16, color: colors.text },
+  group: {
+    ...glassPane,
+    overflow: "hidden",
+  },
+  row: {
+    paddingVertical: space.cosy,
+    paddingLeft: space.room,
+    paddingRight: space.cosy,
+  },
+  rowPressed: { backgroundColor: "rgba(255, 255, 255, 0.6)" },
+  /** Starts where the words start, the way an iOS list rule does. */
+  separator: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    left: space.room + LOGO + space.cosy,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: "rgba(60, 60, 67, 0.12)",
+  },
+  shopRow: { flexDirection: "row", alignItems: "center", gap: space.cosy },
+  words: { flex: 1, minWidth: 0, gap: 2 },
+  shopName: {
+    ...type.body,
+    fontSize: 17,
+    lineHeight: 22,
+    ...fontFor(600),
+    color: colors.text,
+  },
+  address: {
+    ...type.caption,
+    fontSize: 14,
+    lineHeight: 19,
+    color: colors.subtle,
+  },
   reward: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: space.snug,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.snug,
-    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: space.tight + 2,
+    marginTop: space.tight + 2,
+    paddingHorizontal: space.snug + 2,
+    paddingVertical: space.tight,
+    borderRadius: RADII.pill,
   },
-  rewardText: { ...type.label, flex: 1 },
+  rewardText: { ...type.caption, ...fontFor(600), flexShrink: 1 },
 });

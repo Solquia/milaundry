@@ -51,7 +51,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       .single();
     if (error) {
       console.warn('Failed to load profile:', error.message);
-      setProfile(null);
+      // A re-read fires on every token refresh, and a tablet on bad Wi-Fi
+      // fails it. Wiping the profile then turned a signed-in merchant into a
+      // "customer" mid-shift; the row already held for this person still holds.
+      setProfile((current) => (current?.id === userId ? current : null));
       return null;
     }
     const row = data as Profile;

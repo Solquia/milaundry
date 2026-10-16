@@ -12,6 +12,7 @@ import { OrderRewardsCard } from '@/components/order-rewards-card';
 import { OrderTimeline } from '@/components/order-timeline';
 import { SentPrice, WeighModal, settleLead } from '@/components/price-handoff';
 import { TagPrintRow } from '@/components/tag-print-row';
+import { Ionicons } from '@expo/vector-icons';
 import {
   Button,
   Card,
@@ -41,7 +42,7 @@ import { shortOrderId } from '@/lib/domain/order-card';
 import { isHeldForPayment, settleStep } from '@/lib/domain/order-settlement';
 import { canWeigh } from '@/lib/domain/weigh-order';
 import { advanceActionLabel, nextStatuses, type OrderStatus } from '@/lib/domain/order-status';
-import { proofState } from '@/lib/domain/payment-proof';
+import { merchantCashChoiceNote, proofState } from '@/lib/domain/payment-proof';
 import { PAYMENT_LABELS } from '@/lib/domain/payment-summary';
 import { printerCopy } from '@/lib/domain/printer';
 import { buildOrderQr } from '@/lib/domain/qr';
@@ -165,6 +166,7 @@ export default function MerchantOrderDetail() {
   const canCancel = forward.includes('cancelled');
   const selectedMethod = method ?? order.payment_method;
   const step = settleStep(order);
+  const cashChoice = merchantCashChoiceNote(order);
   const lead = settleLead(step, order);
 
   const confirmMarkPaid = (tendered?: number) => {
@@ -254,6 +256,12 @@ export default function MerchantOrderDetail() {
         <Text style={styles.cardHeading}>Payment</Text>
         {proofState(order) === 'submitted' && <ProofReview order={order} />}
         {step === 'await_customer' ? <SentPrice order={order} /> : null}
+        {cashChoice ? (
+          <View style={styles.cashChoice}>
+            <Ionicons name="cash-outline" size={18} color={colors.success} />
+            <Text style={styles.cashChoiceText}>{cashChoice}</Text>
+          </View>
+        ) : null}
         {lead ? (
           <Subtle>{lead}</Subtle>
         ) : order.payment_status === 'paid' ? (
@@ -357,6 +365,8 @@ export default function MerchantOrderDetail() {
 }
 
 const styles = StyleSheet.create({
+  cashChoice: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
+  cashChoiceText: { flex: 1, ...type.body, fontSize: 15, fontWeight: '600', color: colors.success },
   cardHeading: { ...type.section, color: colors.text },
   receipt: { ...type.label, color: colors.moneyIn },
   qrFrame: { alignItems: 'center', padding: space.cosy },

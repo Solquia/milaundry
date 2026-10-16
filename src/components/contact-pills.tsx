@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip } from './glass';
 import { colors, space, type } from './ui-kit';
 
 function Pill({
@@ -63,9 +64,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: space.cosy + 2,
     borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colors.borderStrong,
-    backgroundColor: colors.card,
+    ...glassChip,
   },
   pressed: { opacity: 0.8 },
   pillText: { ...type.label, color: colors.text },

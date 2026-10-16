@@ -20,7 +20,8 @@ import { settleAmountNote } from '@/lib/domain/order-settlement';
 import { orderTags } from '@/lib/domain/order-tags';
 
 import { ContactPills } from './contact-pills';
-import { CROWN, StatusBadge, Tag, colors, elevation, formatMoney, formatWhen, mono, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { CROWN, StatusBadge, Tag, colors, formatMoney, formatWhen, mono, space, type } from './ui-kit';
 
 function DetailLine({
   icon,
@@ -99,11 +100,8 @@ const styles = StyleSheet.create({
   hero: {
     gap: space.cosy,
     padding: space.section,
+    ...glassPane,
     ...CROWN,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.lift,
   },
   eyebrow: { flexDirection: 'row', justifyContent: 'space-between', gap: space.snug },
   ticket: { fontFamily: mono, fontSize: 12, letterSpacing: 0.8, color: colors.subtle },
@@ -121,7 +119,7 @@ const styles = StyleSheet.create({
     gap: space.snug,
     paddingTop: space.cosy,
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(60, 60, 67, 0.12)',
   },
   detail: { flexDirection: 'row', alignItems: 'flex-start', gap: space.snug },
   detailIcon: { marginTop: 2 },

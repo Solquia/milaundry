@@ -25,7 +25,7 @@
  */
 import { Image } from 'expo-image';
 import React from 'react';
-import { Animated, Easing, Platform, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from 'react-native-svg';
 
 import { BlueField } from '@/components/blue-field';
@@ -164,7 +164,6 @@ export function StorefrontHero({
   });
 
   const logoSize = layout.isTight ? LOGO_SIZE_TIGHT : LOGO_SIZE;
-  const sweep = layout.heroSweep;
 
   return (
     <View
@@ -173,16 +172,9 @@ export function StorefrontHero({
         {
           backgroundColor: BLUE_FIELD.deep,
           minHeight: layout.heroHeight,
-          // The arc. An elliptical corner radius — half the block's width
-          // across, `sweep` deep — on each bottom corner; the two meet at the
-          // centre and read as one continuous curve rather than two corners.
-          ...Platform.select({
-            web: {
-              borderBottomLeftRadius: `50% ${sweep}px`,
-              borderBottomRightRadius: `50% ${sweep}px`,
-            } as object,
-            default: { borderBottomLeftRadius: sweep, borderBottomRightRadius: sweep },
-          }),
+          // A straight foot, the way apple.com ends a hero: the blue simply
+          // gives way to the page. The swooping arc it used to end in was the
+          // one shape here that looked like a template.
         },
       ]}
     >
@@ -233,7 +225,7 @@ export function StorefrontHero({
       <View
         style={[
           styles.foot,
-          { paddingHorizontal: layout.gutter, paddingBottom: sweep + space.room },
+          { paddingHorizontal: layout.gutter, paddingBottom: space.gulf + space.snug },
           layout.isTight && styles.footTight,
         ]}
       >
@@ -254,7 +246,8 @@ export function StorefrontHero({
             style={[
               styles.logoRing,
               {
-                borderRadius: logoSize / 2 + 4,
+                // An app icon's corner, concentric with the tile inside.
+                borderRadius: logoSize * 0.24 + 3,
                 marginBottom: layout.isTight ? space.snug : space.cosy,
               },
               rise(0, 0.45),
@@ -308,12 +301,14 @@ const styles = StyleSheet.create({
   footInner: { width: '100%' },
   logoRing: {
     alignSelf: 'flex-start',
-    borderWidth: 2.5,
-    borderColor: 'rgba(255,255,255,0.92)',
+    borderWidth: 3,
+    borderColor: '#FFFFFF',
+    borderCurve: 'continuous',
+    overflow: 'hidden',
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
   },
   /**
    * The largest thing on the page, and tracked in hard.
@@ -328,7 +323,7 @@ const styles = StyleSheet.create({
    * identity block it sits over, which is left on every window this hero has.
    */
   greeting: {
-    fontFamily: fontFor(500),
+    ...fontFor(500),
     fontSize: 17,
     lineHeight: 23,
     letterSpacing: 0.1,
@@ -338,29 +333,28 @@ const styles = StyleSheet.create({
   },
   /** Full strength and full weight: the one word here that is the reader's. */
   greetingName: {
-    fontFamily: fontFor(800),
+    ...fontFor(600),
     color: colors.onAccent,
   },
   name: {
-    fontFamily: fontFor(800),
+    ...fontFor(700),
     fontSize: 40,
-    lineHeight: 43,
-    letterSpacing: -1.5,
+    lineHeight: 44,
+    letterSpacing: -1.2,
     color: '#FFFFFF',
   },
-  nameTight: { fontSize: 27, lineHeight: 30, letterSpacing: -0.9 },
+  nameTight: { fontSize: 28, lineHeight: 32, letterSpacing: -0.7 },
   /**
-   * Set small and opened right up. The shop wrote these words; at this size and
-   * tracking they read as a line of engraving under the name rather than as a
-   * second sentence competing with it.
+   * The shop's own words, set as apple.com sets a subhead: a size down from the
+   * name, regular weight, quieter in colour, so it reads as the second half of
+   * one statement rather than a label.
    */
   tagline: {
-    fontFamily: fontFor(600),
-    fontSize: 12,
-    lineHeight: 18,
-    letterSpacing: 1.9,
-    textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.74)',
+    ...fontFor(400),
+    fontSize: 19,
+    lineHeight: 25,
+    letterSpacing: -0.3,
+    color: 'rgba(255,255,255,0.82)',
     marginTop: space.snug,
   },
   /**
@@ -378,7 +372,7 @@ const styles = StyleSheet.create({
     marginTop: space.room,
   },
   fact: {
-    fontFamily: fontFor(600),
+    ...fontFor(600),
     fontSize: 13,
     lineHeight: 18,
     letterSpacing: 0.1,

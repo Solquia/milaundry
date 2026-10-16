@@ -46,6 +46,7 @@ import { invalidateShopExpenses } from '@/lib/use-shop-expenses';
 import { ChoiceChip } from './choice-chip';
 import { ReceiptField } from './receipt-field';
 import { SalesSheet } from './sales-sheet';
+import { glassChip } from './glass';
 import { Button, ErrorText, Field, RADII, colors, space, type } from './ui-kit';
 
 const SAVE_FAILED = 'Could not save. Check your connection and try again.';
@@ -294,10 +295,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: space.tight,
+    ...glassChip,
     borderRadius: RADII.pill,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   stepButton: {
     width: 36,

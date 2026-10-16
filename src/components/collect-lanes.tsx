@@ -13,7 +13,8 @@ import type { CollectLane, CollectOrder, CollectSplit } from '@/lib/domain/colle
 import { OVERDUE_AFTER_DAYS } from '@/lib/domain/collect-queue';
 import { formatMoneyCompact } from '@/lib/domain/money';
 
-import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { vibrantPane } from './glass';
+import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 function Lane({
   dot,
@@ -115,7 +116,8 @@ export function CollectLanes({
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: RADII.card, backgroundColor: colors.card, paddingHorizontal: space.room, ...elevation.rest },
+  // Money still owed, so the card glows in the owed tone its chase pills wear.
+  card: { ...vibrantPane(TAG_TONES.owed.ink), borderRadius: RADII.card, paddingHorizontal: space.room },
   lane: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, paddingVertical: space.cosy, minHeight: 56 },
   pressed: { opacity: 0.65 },
   dot: { width: 10, height: 10, borderRadius: 5 },
@@ -133,7 +135,7 @@ const styles = StyleSheet.create({
   },
   actionText: { ...type.caption, fontWeight: '700', color: TAG_TONES.owed.ink },
   chevronSpace: { width: 16 },
-  rule: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
+  rule: { height: StyleSheet.hairlineWidth, backgroundColor: 'rgba(60, 60, 67, 0.12)' },
   clear: { flexDirection: 'row', alignItems: 'center', gap: space.snug, paddingVertical: space.room },
   clearText: { ...type.body, color: colors.text, flex: 1 },
 });

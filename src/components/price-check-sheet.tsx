@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { glassChip } from '@/components/glass';
 import { Button, ErrorText, Subtle, colors, formatMoney, space, type } from '@/components/ui-kit';
 import { confirmOrderPrice, getServices, type OrderWithDetails } from '@/lib/api';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
@@ -271,7 +272,7 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     paddingVertical: space.snug,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    borderBottomColor: 'rgba(60, 60, 67, 0.12)',
   },
   lineText: { flex: 1, gap: 2 },
   lineName: { ...type.label, color: colors.text },
@@ -281,8 +282,7 @@ const styles = StyleSheet.create({
   counter: {
     flexDirection: 'row',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
     borderRadius: 999,
   },
   countKey: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
@@ -292,8 +292,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassChip,
     borderRadius: 10,
     paddingHorizontal: space.snug,
   },
@@ -302,10 +301,8 @@ const styles = StyleSheet.create({
 
   photoBox: {
     height: 150,
+    ...glassChip,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.sunken,
     overflow: 'hidden',
   },
   photo: { width: '100%', height: '100%' },

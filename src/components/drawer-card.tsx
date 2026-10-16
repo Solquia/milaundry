@@ -13,7 +13,8 @@ import type { MethodShare } from '@/lib/domain/sales-metrics';
 import type { PaymentMethod } from '@/lib/domain/walk-in-order';
 import type { SavedClose } from '@/lib/sales-store';
 
-import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { glassChip, glassPane } from './glass';
+import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 const METHOD_ICONS: Record<PaymentMethod, string> = {
   cash: 'cash-outline',
@@ -108,17 +109,15 @@ export function DrawerCard({
 }
 
 const styles = StyleSheet.create({
-  card: { gap: space.cosy, padding: space.room, borderRadius: RADII.card, backgroundColor: colors.card, ...elevation.rest },
+  card: { ...glassPane, gap: space.cosy, padding: space.room, borderRadius: RADII.card },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug },
   wallet: {
     flexBasis: '47%',
     flexGrow: 1,
     gap: 2,
     padding: space.cosy,
+    ...glassChip,
     borderRadius: RADII.control,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
   walletCash: { backgroundColor: colors.takingsSurface, borderColor: colors.takingsBorder },
   walletHead: { flexDirection: 'row', alignItems: 'center', gap: 5 },

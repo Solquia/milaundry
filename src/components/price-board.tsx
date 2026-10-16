@@ -12,6 +12,7 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ChipRow, type ChipOption } from './chip-row';
+import { glassPane } from './glass';
 import { SearchField } from './search-field';
 import { ACCENTS, CROWN, RADII, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
 import { formatMoneyCompact } from '@/lib/domain/money';
@@ -264,10 +265,8 @@ const styles = StyleSheet.create({
   board: { gap: space.cosy, paddingBottom: space.gulf * 2 },
 
   card: {
-    backgroundColor: colors.card,
+    ...glassPane,
     ...CROWN,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
   },
   cardHead: {
@@ -286,9 +285,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   cardTitleWrap: { flex: 1, minWidth: 0 },
-  cardTitle: { ...type.body, fontFamily: fontFor(700), color: colors.text },
+  cardTitle: { ...type.body, ...fontFor(700), color: colors.text },
   cardMeta: { ...type.caption, color: colors.subtle },
-  count: { ...type.caption, fontFamily: fontFor(600) },
+  count: { ...type.caption, ...fontFor(600) },
   rule: { height: 2, marginHorizontal: space.room, borderRadius: 1 },
 
   row: {
@@ -299,7 +298,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.cosy,
     minHeight: 56,
   },
-  rowRuled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+  rowRuled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(60, 60, 67, 0.12)' },
   rowHighlighted: {
     backgroundColor: TAG_TONES.settled.bg,
     marginHorizontal: 0,
@@ -314,7 +313,7 @@ const styles = StyleSheet.create({
   figure: {
     ...type.body,
     fontSize: 17,
-    fontFamily: fontFor(700),
+    ...fontFor(700),
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
@@ -326,7 +325,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.hair,
     backgroundColor: TAG_TONES.owed.bg,
   },
-  flagText: { ...type.caption, fontFamily: fontFor(600), color: TAG_TONES.owed.ink },
+  flagText: { ...type.caption, ...fontFor(600), color: TAG_TONES.owed.ink },
 
   noMatch: {
     alignItems: 'center',
@@ -338,7 +337,7 @@ const styles = StyleSheet.create({
     borderStyle: 'dashed',
     borderColor: colors.borderStrong,
   },
-  noMatchTitle: { ...type.body, fontFamily: fontFor(700), color: colors.text, textAlign: 'center' },
+  noMatchTitle: { ...type.body, ...fontFor(700), color: colors.text, textAlign: 'center' },
   noMatchBody: { ...type.caption, color: colors.subtle, textAlign: 'center' },
   noMatchActions: { flexDirection: 'row', gap: space.snug, marginTop: space.snug },
   ghostButton: {

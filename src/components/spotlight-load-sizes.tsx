@@ -10,6 +10,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, useIsGlass } from './glass';
 import { RADII, colors, space, type, useTint } from './ui-kit';
 import { loadLevel, type LoadSize } from '@/lib/domain/load-size';
 
@@ -28,6 +29,7 @@ export interface SpotlightLoadSizesProps {
 
 export function SpotlightLoadSizes({ sizes, chosen, priceFor, onPick }: SpotlightLoadSizesProps) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const price = chosen ? priceFor(chosen.kg) : null;
 
   return (
@@ -45,6 +47,7 @@ export function SpotlightLoadSizes({ sizes, chosen, priceFor, onPick }: Spotligh
               onPress={() => onPick(size.kg)}
               style={({ pressed }) => [
                 styles.tile,
+                isGlass && styles.tileGlass,
                 isOn && { borderColor: tint.ink, backgroundColor: tint.surface },
                 pressed && styles.pressed,
               ]}
@@ -110,6 +113,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
+  tileGlass: { ...glassChip, borderWidth: 1.5 },
 
   tub: {
     width: 40,

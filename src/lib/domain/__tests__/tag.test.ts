@@ -17,6 +17,7 @@ const order: OrderWithDetails = {
   weighed_at: null,
   payment_proof_path: null,
   payment_reference: null,
+  payment_choice_sent_at: null,
   reward_id: null,
   reward_kind: null,
   reward_benefit: null,

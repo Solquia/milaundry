@@ -241,21 +241,23 @@ export interface ShopMembership {
   shop: Shop;
 }
 
-export async function getMyShopMemberships(): Promise<ShopMembership[]> {
+/**
+ * The shops this person belongs to. The caller passes the signed-in user id
+ * from the session it already holds: asking the auth server (`getUser`) here
+ * was a second network round trip whose failure — a tablet waking with no
+ * Wi-Fi yet — read as "no user" and came back as an empty list, so a real
+ * merchant was told their account was not connected to a shop. A failure now
+ * throws, and only a real answer from the database can be empty.
+ */
+export async function getMyShopMemberships(userId: string): Promise<ShopMembership[]> {
   // The membership policy lets a member read every membership of their shop
   // (the owner console lists them), so without this filter a staff login
   // could read the owner's row first and be dressed as an owner in the app.
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return [];
   const result = await supabase
     .from('shop_members')
     .select('role, shop:shops(*)')
-    .eq('profile_id', auth.user.id);
+    .eq('profile_id', userId);
   return unwrap(result).map((row: any) => ({ role: row.role, shop: row.shop as Shop }));
-}
-
-export async function getMyMerchantShops(): Promise<Shop[]> {
-  return (await getMyShopMemberships()).map((membership) => membership.shop);
 }
 
 export async function getAllShops(): Promise<Shop[]> {
@@ -515,6 +517,12 @@ export async function removeOrderReward(orderId: string): Promise<OrderRow> {
   return unwrap(result) as OrderRow;
 }
 
+/** The whole order on the house, on the owner's or staff's say-so (0048). */
+export async function giveFreeLaundry(orderId: string): Promise<OrderRow> {
+  const result = await supabase.rpc('give_free_laundry', { p_order_id: orderId });
+  return unwrap(result) as OrderRow;
+}
+
 /** The signed-in customer's stamp cards, one per shop; narrowed by `shopId`. */
 export async function getMyRewards(shopId?: string): Promise<ShopRewardStanding[]> {
   const result = await supabase.rpc('get_my_rewards', { p_shop_id: shopId ?? null });
@@ -575,6 +583,21 @@ export async function choosePaymentMethod(
   method: PaymentMethod
 ): Promise<OrderRow> {
   const result = await supabase.rpc('choose_payment_method', {
+    p_order_id: orderId,
+    p_method: method,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/**
+ * The customer's "this is how I'll pay", sent to the shop: saves the method
+ * and stamps when, so the counter knows it was a choice and not a default.
+ */
+export async function sendPaymentChoice(
+  orderId: string,
+  method: PaymentMethod
+): Promise<OrderRow> {
+  const result = await supabase.rpc('send_payment_choice', {
     p_order_id: orderId,
     p_method: method,
   });

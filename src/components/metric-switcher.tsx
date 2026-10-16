@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { METRIC_LOOKS, formatMetric } from '@/lib/domain/sales-display';
 import { METRIC_KEYS, type MetricKey, type MetricSummary } from '@/lib/domain/sales-metrics';
 
+import { glassChip } from './glass';
 import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
 
 function Trend({ pct }: { pct: number | null }) {
@@ -72,10 +73,9 @@ const styles = StyleSheet.create({
     gap: 2,
     paddingVertical: space.snug,
     paddingHorizontal: space.snug,
+    ...glassChip,
     borderRadius: RADII.control,
-    backgroundColor: 'rgba(255, 255, 255, 0.55)',
     borderWidth: 1.5,
-    borderColor: 'transparent',
   },
   tileOn: { backgroundColor: colors.card, borderColor: colors.moneyIn, ...elevation.lift },
   pressed: { opacity: 0.75 },

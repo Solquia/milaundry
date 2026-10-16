@@ -19,7 +19,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import { ShopMap } from '@/components/shop-map';
 import { LIFT_MARK, ScannerFrame } from '@/components/storefront-flourishes';
-import { colors, elevation, space, type } from '@/components/ui-kit';
+import { RADII, colors, elevation, fontFor, space, type } from '@/components/ui-kit';
 import { buildShopQr } from '@/lib/domain/qr';
 import { directionsUrl, searchUrl, shopPin } from '@/lib/domain/shop-location';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
@@ -150,17 +150,16 @@ const styles = StyleSheet.create({
   stack: { gap: space.section },
   card: {
     backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     ...elevation.rest,
   },
   place: { padding: space.room, gap: space.cosy },
   placeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.cosy },
   placeWords: { flex: 1, gap: 2 },
-  placeTitle: { ...type.body, fontWeight: '600', color: colors.text },
-  placeNote: { ...type.caption, color: colors.subtle },
+  placeTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
+  placeNote: { ...type.caption, fontSize: 15, lineHeight: 20, color: colors.subtle },
   /**
    * White on the coloured strip, not a paler tint of it. The strip took the
    * shop's colour as its ground, and a pale-on-pale badge on it disappeared —
@@ -179,15 +178,16 @@ const styles = StyleSheet.create({
   reachButton: {
     flexGrow: 1,
     flexBasis: 130,
-    minHeight: 44,
-    borderRadius: 12,
+    minHeight: 50,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: space.snug,
     paddingHorizontal: space.cosy,
   },
-  reachTitle: { ...type.label, flexShrink: 1 },
+  reachTitle: { ...type.body, fontSize: 17, ...fontFor(600), flexShrink: 1 },
   pressed: { opacity: 0.8 },
   qrCard: { padding: space.section, alignItems: 'center', gap: space.room },
   /**
@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
    * to the shop whose page it is on.
    */
   qrHalo: { alignItems: 'center', justifyContent: 'center' },
-  qrFrame: { padding: QR_QUIET, backgroundColor: '#FFFFFF', borderRadius: 16 },
+  qrFrame: { padding: QR_QUIET, backgroundColor: '#FFFFFF', borderRadius: 16, borderCurve: 'continuous' },
   qrWords: { gap: space.tight, alignItems: 'center' },
-  qrTitle: { ...type.section, color: colors.text, textAlign: 'center' },
+  qrTitle: { ...type.title, color: colors.text, textAlign: 'center' },
   qrBody: { ...type.body, color: colors.subtle, textAlign: 'center' },
 });

@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildShopQr } from '@/lib/domain/qr';
 import type { Shop } from '@/lib/types';
 
+import { GLASS_TRAY } from './glass';
 import { Button, RADII, colors, space, type } from './ui-kit';
 
 const QR_SIZE = 220;
@@ -86,7 +87,7 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(11, 27, 43, 0.45)' },
   scrim: { flex: 1 },
   sheet: {
-    backgroundColor: colors.card,
+    backgroundColor: GLASS_TRAY,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: space.room,

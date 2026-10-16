@@ -18,8 +18,9 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { ServiceSteps, type StepTint } from './service-steps';
-import { CROWN, RADII, colors, fontFor, space, type } from './ui-kit';
+import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
 import { getShopAddonShelf } from '@/lib/api';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import {
@@ -62,7 +63,7 @@ const PHOTOS: Record<string, ImageSource> = {
 
 /** The poster's colours. Every `band` carries white text at 4.5:1 or better. */
 const TONES: Record<GuideTone, { band: string; surface: string; ink: string }> = {
-  blue: { band: '#1370CE', surface: '#E8F1FC', ink: '#1263AF' },
+  blue: { band: '#0071E3', surface: '#E8F2FD', ink: '#0066CC' },
   green: { band: '#15803D', surface: '#DEF3E7', ink: '#0B6238' },
   orange: { band: '#C2410C', surface: '#FDEBDD', ink: '#9A3412' },
 };
@@ -170,6 +171,7 @@ function LoadChoice<S extends GuideService>({
     title: variant.title,
     meta: `${money(variant.service.price)} · up to ${variant.perLoadKg} kg a load`,
   }));
+  const isGlass = useIsGlass();
   return (
     <View style={styles.strip}>
       <Text style={styles.stripTitle}>What are we washing?</Text>
@@ -184,6 +186,7 @@ function LoadChoice<S extends GuideService>({
               onPress={() => onChange(option.key)}
               style={({ pressed }) => [
                 styles.choice,
+                isGlass && styles.choiceGlass,
                 isOn && { borderColor: tone.band, backgroundColor: tone.surface },
                 pressed && styles.pressed,
               ]}
@@ -297,8 +300,9 @@ function PackagePanel<S extends GuideService>({
   const tone = TONES[look.tone];
   const variant = menu.variants.find((entry) => entry.kind === load) ?? menu.variants[0];
   const chosen = variant?.service;
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.panel, { borderColor: tone.band }]}>
+    <View style={[styles.panel, { borderColor: tone.band }, isGlass && styles.panelGlass]}>
       <View style={[styles.panelBand, { backgroundColor: tone.band }]}>
         <View style={styles.grow}>
           <Text style={styles.panelEyebrow}>{`PACKAGE ${look.number}`}</Text>
@@ -366,13 +370,14 @@ function DryingCard<S extends GuideService>({
   rows: S[];
   onBook?: (serviceId: string) => void;
 }) {
+  const isGlass = useIsGlass();
   if (rows.length === 0) return null;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isGlass && styles.cardGlass]}>
       <View style={styles.limits}>
         {['Max 8 kg regular clothes', 'Max 4 kg beddings & towels', 'Comforters & duvets per piece'].map(
           (limit) => (
-            <View key={limit} style={styles.limit}>
+            <View key={limit} style={[styles.limit, isGlass && styles.limitGlass]}>
               <Text style={styles.limitText}>{limit}</Text>
             </View>
           )
@@ -404,9 +409,10 @@ function DryingCard<S extends GuideService>({
 
 function AddonsCard({ addons }: { addons: readonly ShopAddon[] }) {
   const groups = groupAddons(addons);
+  const isGlass = useIsGlass();
   if (groups.length === 0) return null;
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, isGlass && styles.cardGlass]}>
       <Text style={styles.caption}>Added to any package at booking, charged once.</Text>
       {groups.map((group) => (
         <View key={group.kind} style={styles.strip}>
@@ -536,8 +542,8 @@ const styles = StyleSheet.create({
   guide: { gap: space.cosy, marginTop: space.cosy },
   grow: { flex: 1, minWidth: 0 },
   sectionHead: { gap: 2, marginTop: space.cosy },
-  eyebrow: { ...type.caption, fontFamily: fontFor(700), color: colors.actionInk, letterSpacing: 1.2 },
-  sectionTitle: { ...type.title, color: colors.text },
+  eyebrow: { ...type.caption, ...fontFor(600), color: colors.actionInk, letterSpacing: 0.2 },
+  sectionTitle: { ...type.section, fontSize: 22, lineHeight: 28, letterSpacing: -0.5, color: colors.text },
   tagline: { ...type.caption, color: colors.subtle },
   caption: { ...type.caption, color: colors.subtle },
   pressed: { opacity: 0.75 },
@@ -550,13 +556,15 @@ const styles = StyleSheet.create({
     paddingVertical: space.cosy,
     paddingHorizontal: space.tight,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
     minHeight: 76,
   },
-  tabLabel: { ...type.caption, fontFamily: fontFor(700) },
+  tabLabel: { ...type.caption, ...fontFor(700) },
   tabPrice: { ...type.value, fontVariant: ['tabular-nums'] },
   tabUnit: { ...type.caption, fontSize: 11, lineHeight: 14 },
 
-  panel: { ...CROWN, borderWidth: 2, backgroundColor: colors.card, overflow: 'hidden' },
+  panel: { ...CROWN, backgroundColor: colors.card, overflow: 'hidden', ...elevation.rest },
+  panelGlass: { ...glassPane },
   panelBand: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -564,7 +572,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.room,
     paddingVertical: space.cosy,
   },
-  panelEyebrow: { ...type.caption, fontFamily: fontFor(700), color: colors.onAccent, letterSpacing: 1 },
+  panelEyebrow: { ...type.caption, ...fontFor(600), color: 'rgba(255,255,255,0.8)', letterSpacing: 0.4 },
   panelTitle: { ...type.section, color: colors.onAccent },
   panelPriceWrap: { alignItems: 'flex-end' },
   panelPrice: { ...type.title, color: colors.onAccent, fontVariant: ['tabular-nums'] },
@@ -578,9 +586,13 @@ const styles = StyleSheet.create({
     gap: space.snug,
     padding: space.cosy,
     borderRadius: RADII.control,
-    borderWidth: 1.5,
-    borderColor: colors.border,
+    borderCurve: 'continuous',
+    // Unchosen is a quiet grey fill; the chosen one takes the package's ring.
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: colors.sunken,
   },
+  choiceGlass: { ...glassChip, borderWidth: 2 },
   choiceTitle: { ...type.label, color: colors.text },
   choiceMeta: { ...type.caption, color: colors.subtle },
 
@@ -592,6 +604,7 @@ const styles = StyleSheet.create({
     width: TILE_WIDTH,
     height: TILE_WIDTH * 1.25,
     borderRadius: RADII.chip,
+    borderCurve: 'continuous',
     backgroundColor: colors.sunken,
   },
   tileBlank: { alignItems: 'center', justifyContent: 'center' },
@@ -599,12 +612,12 @@ const styles = StyleSheet.create({
   tilePrice: {
     ...type.caption,
     fontSize: 12,
-    fontFamily: fontFor(700),
+    ...fontFor(700),
     color: colors.moneyIn,
     textAlign: 'center',
   },
 
-  table: { borderWidth: 1, borderRadius: RADII.chip, overflow: 'hidden' },
+  table: { borderWidth: StyleSheet.hairlineWidth, borderRadius: RADII.control, borderCurve: 'continuous', overflow: 'hidden' },
   tableRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -614,12 +627,12 @@ const styles = StyleSheet.create({
   },
   tableWeight: { ...type.body, flex: 1, color: colors.text },
   loads: { borderWidth: 1, borderRadius: RADII.pill, paddingHorizontal: space.snug, paddingVertical: 1 },
-  loadsText: { ...type.caption, fontSize: 11, lineHeight: 14, fontFamily: fontFor(600) },
+  loadsText: { ...type.caption, fontSize: 11, lineHeight: 14, ...fontFor(600) },
   tablePrice: {
     ...type.body,
     minWidth: 64,
     textAlign: 'right',
-    fontFamily: fontFor(700),
+    ...fontFor(700),
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
@@ -630,14 +643,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: space.snug,
     minHeight: 50,
-    borderRadius: RADII.pill,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
   },
-  bookText: { ...type.label, fontSize: 16, color: colors.onAccent },
+  bookText: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600), color: colors.onAccent },
 
   rules: {
     gap: space.snug,
     padding: space.room,
-    borderRadius: RADII.card,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     backgroundColor: colors.actionSurface,
   },
   ruleRow: { flexDirection: 'row', gap: space.snug, alignItems: 'flex-start' },
@@ -648,10 +663,10 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     padding: space.room,
     backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
     overflow: 'hidden',
+    ...elevation.rest,
   },
+  cardGlass: { ...glassPane },
   limits: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   limit: {
     paddingHorizontal: space.snug,
@@ -659,6 +674,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     backgroundColor: colors.sunken,
   },
+  limitGlass: { ...glassChip },
   limitText: { ...type.caption, fontSize: 12, color: colors.subtle },
   dryRow: { flexDirection: 'row', gap: space.cosy, paddingTop: space.cosy, alignItems: 'flex-start' },
   dryWords: { gap: 2 },
@@ -670,13 +686,12 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     backgroundColor: SUN.surface,
   },
-  dryNameText: { ...type.caption, fontFamily: fontFor(700), letterSpacing: 0.6, color: SUN.ink },
+  dryNameText: { ...type.caption, ...fontFor(700), letterSpacing: 0.6, color: SUN.ink },
   priceTag: {
     paddingHorizontal: space.cosy,
     paddingVertical: space.tight,
     borderRadius: RADII.chip,
     backgroundColor: SUN.tag,
-    transform: [{ rotate: '-4deg' }],
   },
   priceTagText: { ...type.label, color: colors.onAccent, fontVariant: ['tabular-nums'] },
 });

@@ -35,6 +35,7 @@ import {
   colors,
   type,
 } from './ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /** What the owner is holding after a successful create, until they dismiss it. */
 interface Handoff {
@@ -149,6 +150,6 @@ export function StaffCard({ shop }: { shop: Shop }) {
 const styles = StyleSheet.create({
   title: { ...type.section, color: colors.text },
   /** Selectable: an owner reads these out or copies one line at a time. */
-  credential: { ...type.body, fontFamily: type.label.fontFamily, color: colors.text },
+  credential: { ...type.body, ...fontFor(600), color: colors.text },
   warning: { ...type.caption, color: colors.moneyOut },
 });

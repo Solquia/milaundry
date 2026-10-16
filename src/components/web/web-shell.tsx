@@ -10,7 +10,7 @@
 import React from 'react';
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { colors, space, type } from '@/components/ui-kit';
+import { RADII, colors, elevation, space, type } from '@/components/ui-kit';
 import { useViewport } from '@/components/viewport';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
 import { webLayout, type WebLayout } from '@/lib/domain/web-layout';
@@ -153,16 +153,17 @@ const styles = StyleSheet.create({
    */
   sideFooter: {
     backgroundColor: colors.card,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
     gap: space.snug,
+    ...elevation.rest,
     ...Platform.select({ web: { position: 'sticky' } as object, default: {} }),
   },
-  band: { paddingVertical: space.room },
-  bandInner: { gap: space.snug },
-  bandBack: { ...type.caption, fontWeight: '600', opacity: 0.9 },
-  bandTitle: { ...type.title },
+  band: { paddingTop: space.room, paddingBottom: space.section + space.tight },
+  bandInner: { gap: space.tight },
+  bandBack: { ...type.body, fontSize: 17, opacity: 0.9 },
+  /** An iOS large title: the page's one question, said plainly. */
+  bandTitle: { ...type.hero },
   /**
    * The bar across the foot of a phone.
    *
@@ -176,9 +177,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: space.room,
     paddingBottom: space.room,
-    backgroundColor: colors.card,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    // The iOS bar material: near-white, a hairline above, the page blurred
+    // through it where the browser can.
+    backgroundColor: 'rgba(249, 249, 251, 0.94)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(60, 60, 67, 0.22)',
     ...Platform.select({
       web: {
         /**
@@ -197,6 +200,7 @@ const styles = StyleSheet.create({
          */
         position: 'sticky',
         bottom: 0,
+        backdropFilter: 'saturate(180%) blur(20px)',
         paddingBottom: `max(${space.room}px, env(safe-area-inset-bottom))`,
       } as object,
       default: {},

@@ -38,7 +38,7 @@ export function ServiceWell({
   rightLabel,
   artStyle,
   ground,
-  radius = CROWN.borderTopLeftRadius - 1.5,
+  radius = CROWN.borderRadius - 1.5,
   inset = space.snug,
 }: {
   service: WelledService;
@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontSize: 10.5,
     lineHeight: 14,
-    fontFamily: fontFor(700),
+    ...fontFor(700),
     letterSpacing: 0.3,
   },
 });

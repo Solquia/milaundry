@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Button, colors, elevation, formatMoney, mono, space, type } from '@/components/ui-kit';
+import { glassPane } from '@/components/glass';
+import { Button, colors, formatMoney, mono, space, type } from '@/components/ui-kit';
 import { orderPhotoUrl } from '@/lib/api';
 import { formatOrderTime } from '@/lib/domain/order-card';
 import type { PaymentClaim } from '@/lib/domain/payment-ledger';
@@ -138,13 +139,10 @@ export function PaymentClaimCard({
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: colors.card,
+    ...glassPane,
     borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
     padding: space.room,
     gap: space.snug,
-    ...elevation.rest,
   },
   pressed: { opacity: 0.85 },
 

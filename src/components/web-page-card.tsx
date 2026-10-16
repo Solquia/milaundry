@@ -6,13 +6,14 @@
  * can switch it off — a shop mid-renovation should not be taking calls from
  * a price list it has not updated.
  */
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Clipboard from 'expo-clipboard';
 import React, { useState } from 'react';
 import { Pressable, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
-import { Button, ErrorText, colors, space, type } from '@/components/ui-kit';
+import { GlyphTile } from '@/components/stage-glyph';
+import { glassPane } from '@/components/glass';
+import { Button, ErrorText, colors, fontFor, space, type } from '@/components/ui-kit';
 import { setShopWebEnabled } from '@/lib/api';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { storefrontUrl } from '@/lib/domain/web-links';
@@ -43,9 +44,7 @@ export function WebPageCard({ shop }: { shop: Shop }) {
   return (
     <View style={styles.card}>
       <View style={styles.row}>
-        <View style={styles.mark}>
-          <Ionicons name="globe-outline" size={20} color={colors.actionInk} />
-        </View>
+        <GlyphTile icon="globe" color={colors.action} size={40} isLifted={false} />
         <View style={styles.words}>
           <Text style={styles.title}>Your web page</Text>
           <Text style={styles.caption}>
@@ -92,29 +91,19 @@ export function WebPageCard({ shop }: { shop: Shop }) {
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
+    borderRadius: 18,
     overflow: 'hidden',
   },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy, padding: space.cosy },
-  mark: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: colors.actionSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   words: { flex: 1, gap: 2 },
-  title: { ...type.body, fontWeight: '600', color: colors.text },
+  title: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
   caption: { ...type.caption, color: colors.subtle },
   body: {
     gap: space.cosy,
     padding: space.room,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.borderStrong,
   },
   url: { ...type.label, color: colors.actionInk },
   actions: { flexDirection: 'row', gap: space.snug },

@@ -12,7 +12,8 @@ import { quantityLabel } from '@/lib/domain/sales-display';
 import type { Bestseller } from '@/lib/domain/sales-metrics';
 import { serviceIcon } from '@/lib/domain/service-icon';
 
-import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
+import { glassPane } from './glass';
+import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 function Change({ pct }: { pct: number | null }) {
   if (pct === null) {
@@ -83,9 +84,8 @@ const styles = StyleSheet.create({
     width: 150,
     gap: space.tight,
     padding: space.cosy,
+    ...glassPane,
     borderRadius: RADII.card,
-    backgroundColor: colors.card,
-    ...elevation.rest,
   },
   cardTop: { borderWidth: 1.5, borderColor: '#F6C453' },
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

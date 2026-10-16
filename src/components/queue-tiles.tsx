@@ -3,10 +3,15 @@
  *
  * The first three split the live queue — each order is counted in exactly one,
  * so the numbers add up instead of overlapping. The fourth is money, not
- * orders: what is owed on laundry that is ready or already gone. Colour means
- * one thing each — red overdue, green waiting at the counter, amber money owed
- * — and only while non-zero. The chosen tile inverts to ink rather than going
- * blue, because blue is already the buttons; tap it again to see everything.
+ * orders: what is owed on laundry that is ready or already gone.
+ *
+ * Each tile is set like an iOS widget: a glossy symbol tile in its colour, the
+ * number large and clean, the label under it. Colour means one thing each —
+ * red overdue, blue in the machines, green waiting at the counter, amber money
+ * owed — and lives in the symbol and the number, never in a muddy fill: the
+ * glass stays near-white so every tile reads crisp. At zero a tile goes calm
+ * grey, so the eye lands only on what needs it. The chosen tile wears a ring
+ * in its own colour; tap it again to see everything.
  */
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -14,16 +19,25 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { formatMoneyCompact } from '@/lib/domain/money';
 import type { BoardView } from '@/lib/domain/order-board';
 import type { QueueStats } from '@/lib/domain/order-queue';
+import { fontFor } from '@/lib/domain/design-scale';
 
-import { RADII, colors, space, type } from './ui-kit';
+import { GLASS_EDGE } from './glass';
+import { GlyphTile } from './stage-glyph';
+import { colors, space, type } from './ui-kit';
 
-type Tone = 'plain' | 'overdue' | 'ready' | 'owed';
+const TILE_RADIUS = 20;
+const GLYPH = 26;
 
 interface Tile {
   view: BoardView;
   value: string;
   label: string;
-  tone: Tone;
+  /** The tile's colour, used only while it has something to count. */
+  hue: string;
+  /** The number's ink while live: the deeper, readable form of the hue. */
+  ink: string;
+  icon: string;
+  isLive: boolean;
   spoken: string;
 }
 
@@ -34,39 +48,51 @@ function tilesFor(stats: QueueStats): Tile[] {
       view: 'overdue',
       value: String(stats.overdue),
       label: 'Overdue',
-      tone: stats.overdue > 0 ? 'overdue' : 'plain',
+      hue: colors.danger,
+      ink: colors.dangerInk,
+      icon: 'alarm-outline',
+      isLive: stats.overdue > 0,
       spoken: `${stats.overdue} overdue`,
     },
     {
       view: 'working',
       value: String(stats.inProgress),
       label: 'In progress',
-      tone: 'plain',
+      hue: colors.action,
+      ink: colors.actionInk,
+      icon: 'sync-outline',
+      isLive: stats.inProgress > 0,
       spoken: `${stats.inProgress} in progress`,
     },
     {
       view: 'ready',
       value: String(stats.ready),
       label: 'Ready',
-      tone: stats.ready > 0 ? 'ready' : 'plain',
+      hue: colors.success,
+      ink: colors.moneyIn,
+      icon: 'bag-check-outline',
+      isLive: stats.ready > 0,
       spoken: `${stats.ready} ready for pickup`,
     },
     {
       view: 'collect',
       value: owed,
       label: 'To collect',
-      tone: stats.toCollect > 0 ? 'owed' : 'plain',
+      hue: '#FF9500',
+      ink: colors.moneyOut,
+      icon: 'wallet-outline',
+      isLive: stats.toCollect > 0,
       spoken: `${owed} to collect from ${stats.toCollectCount} orders`,
     },
   ];
 }
 
-const INK: Record<Tone, string> = {
-  plain: colors.text,
-  overdue: colors.dangerInk,
-  ready: colors.moneyIn,
-  owed: colors.moneyOut,
-};
+/** A #RRGGBB colour at some alpha, as #RRGGBBAA. */
+function alpha(hex: string, amount: number): string {
+  return `${hex}${Math.round(amount * 255)
+    .toString(16)
+    .padStart(2, '0')}`;
+}
 
 export function QueueTiles({
   stats,
@@ -91,19 +117,42 @@ export function QueueTiles({
             onPress={() => onChange(isSelected ? 'active' : tile.view)}
             style={({ pressed }) => [
               styles.tile,
-              isSelected && styles.tileOn,
+              tile.isLive && { shadowColor: tile.hue, shadowOpacity: 0.14 },
+              isSelected && {
+                borderColor: tile.hue,
+                shadowColor: tile.hue,
+                shadowOpacity: 0.3,
+              },
               pressed && styles.pressed,
             ]}
           >
+            {/* The faintest wash of the hue from the top, so a live tile glows
+                without its glass going muddy. */}
+            {tile.isLive ? (
+              <View
+                pointerEvents="none"
+                style={[styles.glow, { backgroundColor: alpha(tile.hue, isSelected ? 0.1 : 0.06) }]}
+              />
+            ) : null}
+            <GlyphTile
+              icon={tile.icon}
+              color={tile.hue}
+              size={GLYPH}
+              isMuted={!tile.isLive}
+              isLifted={false}
+            />
             <Text
-              style={[styles.value, { color: isSelected ? colors.onAccent : INK[tile.tone] }]}
+              style={[styles.value, { color: tile.isLive ? tile.ink : colors.subtle }]}
               numberOfLines={1}
               adjustsFontSizeToFit
               minimumFontScale={0.6}
             >
               {tile.value}
             </Text>
-            <Text style={[styles.label, isSelected && styles.labelOn]} numberOfLines={1}>
+            <Text
+              style={[styles.label, isSelected && { color: tile.ink }]}
+              numberOfLines={1}
+            >
               {tile.label}
             </Text>
           </Pressable>
@@ -118,17 +167,33 @@ const styles = StyleSheet.create({
   tile: {
     flex: 1,
     minWidth: 0,
-    gap: 1,
-    paddingVertical: space.snug + 2,
+    gap: 6,
+    paddingTop: space.snug + 2,
+    paddingBottom: space.snug,
     paddingHorizontal: space.snug + 2,
-    borderRadius: RADII.control,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: TILE_RADIUS,
+    borderCurve: 'continuous',
+    overflow: 'hidden',
+    // Near-white glass: the hue lives in the symbol and the number.
+    backgroundColor: 'rgba(255, 255, 255, 0.86)',
+    borderWidth: 1.5,
+    borderColor: GLASS_EDGE,
+    shadowColor: '#1B2559',
+    shadowOpacity: 0.07,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
   },
-  tileOn: { backgroundColor: colors.text, borderColor: colors.text },
-  pressed: { opacity: 0.8 },
-  value: { ...type.value },
-  label: { ...type.caption, color: colors.subtle },
-  labelOn: { color: '#C9D3DF' },
+  glow: { position: 'absolute', top: 0, left: 0, right: 0, height: '60%' },
+  pressed: { transform: [{ scale: 0.97 }] },
+  value: {
+    ...type.value,
+    fontSize: 24,
+    lineHeight: 28,
+    letterSpacing: -0.6,
+    ...fontFor(700),
+    fontVariant: ['tabular-nums'],
+    marginTop: 2,
+  },
+  label: { ...type.caption, fontSize: 12, lineHeight: 15, ...fontFor(500), color: colors.subtle },
 });

@@ -15,6 +15,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlueField } from '@/components/blue-field';
+import { GLASS_GROUND, PastelWash, glassPane } from '@/components/glass';
 import { LaundryLine } from '@/components/laundry-line';
 import { LiftPressable } from '@/components/lift-pressable';
 import { QuickBookCard } from '@/components/quick-book';
@@ -26,9 +27,9 @@ import {
   EmptyState,
   ErrorText,
   Loading,
+  RADII,
+  STATUS_COLORS,
   STATUS_LABELS,
-  StatusBadge,
-  TAG_TONES,
   colors,
   elevation,
   formatMoney,
@@ -38,6 +39,9 @@ import {
 } from '@/components/ui-kit';
 import { getMyOrders, getRegisteredShops, type OrderWithDetails } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { confirmAction } from '@/lib/confirm';
+import { canHideOrder, hideOrderPrompt } from '@/lib/domain/hidden-orders';
+import { useHiddenOrders } from '@/lib/use-hidden-orders';
 import { assignBrandAccents, resolveAccent } from '@/lib/domain/shop-branding';
 import { useNow } from '@/lib/use-now';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
@@ -60,6 +64,7 @@ import {
   enabledNotifications,
 } from '@/lib/domain/notifications';
 import { useAppSettings, useHaptic } from '@/lib/use-app-settings';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /** The pinned bar's own height, under the status bar. */
 const TOP_BAR_HEIGHT = 52;
@@ -83,6 +88,23 @@ const SHEET_RADIUS_REST = 32;
 const SHEET_RADIUS_RIDE = 20;
 /** How far up the sheet has to come before it counts as riding. */
 const RIDE_AT = 90;
+
+/** The iOS disclosure chevron's grey. */
+const CHEVRON = '#C7C7CC';
+
+/** "TUESDAY, OCTOBER 14" — the line Apple sets over a Today page. */
+function dateLine(now: Date): string {
+  return now
+    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+    .toUpperCase();
+}
+
+/** The reader's initials for the account button, the way the App Store shows it. */
+function initialsOf(fullName: string | null | undefined): string {
+  const parts = (fullName ?? '').trim().split(/\s+/).filter(Boolean);
+  const letters = parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '');
+  return letters.join('') || '•';
+}
 
 function toHeadlineOrder(order: OrderWithDetails): HeadlineOrder {
   return {
@@ -108,6 +130,7 @@ export default function CustomerOrders() {
   const { profile } = useAuth();
   const isReduced = useReducedMotion();
   const [isPastOpen, setIsPastOpen] = useState(rememberedPastOpen);
+  const { hiddenIds, hide } = useHiddenOrders();
 
   const togglePast = () => {
     const next = !isPastOpen;
@@ -225,13 +248,25 @@ export default function CustomerOrders() {
     }));
   }, [recent, shopTiles]);
 
+  // Orders the customer cleared stay off both lists. Bills are built from
+  // every order below, so clearing a load never hides money still owed.
   const { active, past } = useMemo(() => {
-    const all = orders ?? [];
+    const shown = (orders ?? []).filter((order) => !hiddenIds.has(order.id));
     return {
-      active: all.filter((order) => !TERMINAL_STATUSES.includes(order.status)),
-      past: all.filter((order) => TERMINAL_STATUSES.includes(order.status)),
+      active: shown.filter((order) => !TERMINAL_STATUSES.includes(order.status)),
+      past: shown.filter((order) => TERMINAL_STATUSES.includes(order.status)),
     };
-  }, [orders]);
+  }, [orders, hiddenIds]);
+
+  /** Clears orders off home, after asking — one row, or the whole past list. */
+  const removeFromHome = (orderIds: string[]) => {
+    if (orderIds.length === 0) return;
+    confirmAction(hideOrderPrompt(orderIds.length), () => {
+      haptic('select');
+      if (!isReduced) LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      hide(orderIds);
+    });
+  };
 
   const subline = useMemo(() => homeSubline(active.map(toHeadlineOrder)), [active]);
   // Ticks, so "back today by 6 PM" turns into "running late" without a pull to refresh.
@@ -336,9 +371,9 @@ export default function CustomerOrders() {
           accessibilityLabel="Settings"
           hitSlop={10}
           onPress={() => go('/(customer)/settings')}
-          style={({ pressed }) => [styles.bell, pressed && { opacity: 0.7 }]}
+          style={({ pressed }) => [styles.bell, styles.avatar, pressed && { opacity: 0.7 }]}
         >
-          <Ionicons name="settings-outline" size={22} color={colors.onAccent} />
+          <Text style={styles.avatarText}>{initialsOf(profile?.full_name)}</Text>
         </Pressable>
       </View>
 
@@ -363,11 +398,9 @@ export default function CustomerOrders() {
               own name carries the weight; and the connector takes the accent,
               which is what makes the two rows read as one sentence broken
               across them rather than as two stacked lines. */}
-          <Text style={styles.hello} accessibilityRole="header">
-            Hi <Text style={styles.helloName}>{greeting.name}</Text>,
-          </Text>
-          <Text style={styles.headline}>
-            <Text style={styles.headlineLead}>{greeting.lead}</Text> {greeting.rest}
+          <Text style={styles.dateLine}>{dateLine(now)}</Text>
+          <Text style={styles.headline} accessibilityRole="header" numberOfLines={2}>
+            Hi, {greeting.name}
           </Text>
           <Text style={styles.state}>{subline}</Text>
         </Animated.View>
@@ -379,6 +412,8 @@ export default function CustomerOrders() {
             { borderTopLeftRadius: sheetRadius, borderTopRightRadius: sheetRadius },
           ]}
         >
+      {/* The light the glass on this sheet frosts over. */}
+      <PastelWash />
       {/* The laundries lead the sheet: they are what this app is for, and
           every other section here — the loads, the reorder, the history — is
           something one of them is doing for you. One shelf, recent first,
@@ -387,8 +422,8 @@ export default function CustomerOrders() {
       {hasAnyShop ? (
         <>
           <SectionHead
-            title="Your laundries"
-            linkLabel={hiddenShopCount > 0 ? `See all (${hiddenShopCount} more)` : 'See all'}
+            title="Your Laundries"
+            linkLabel={hiddenShopCount > 0 ? `See All (${hiddenShopCount})` : 'See All'}
             onLink={() => go('/(customer)/shops')}
           />
           <ShopRail
@@ -426,7 +461,7 @@ export default function CustomerOrders() {
         <>
           {/* Named for the whole list, not the wash: a load that is booked or
               ready is on the go too. */}
-          <SectionHead title="On the go" />
+          <SectionHead title="In Progress" />
           <LaundryLine
             orders={active}
             now={now}
@@ -462,13 +497,34 @@ export default function CustomerOrders() {
       {past.length > 0 && (
         <>
           <PastOrdersToggle count={past.length} isOpen={isPastOpen} onToggle={togglePast} />
-          {isPastOpen && past.map((order) => (
-            <PastOrderRow
-              key={order.id}
-              order={order}
-              onPress={() => go(`/(customer)/order/${order.id}`)}
-            />
-          ))}
+          {isPastOpen ? (
+            <>
+              <View style={styles.group}>
+                {past.map((order, index) => (
+                  <PastOrderRow
+                    key={order.id}
+                    isFirst={index === 0}
+                    order={order}
+                    onPress={() => go(`/(customer)/order/${order.id}`)}
+                    onRemove={
+                      canHideOrder(order.status) ? () => removeFromHome([order.id]) : undefined
+                    }
+                  />
+                ))}
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Clear all ${past.length} past orders from home`}
+                hitSlop={8}
+                onPress={() =>
+                  removeFromHome(past.filter((o) => canHideOrder(o.status)).map((o) => o.id))
+                }
+                style={({ pressed }) => [styles.clearPast, pressed && styles.pastPressed]}
+              >
+                <Text style={styles.clearPastText}>Clear past orders</Text>
+              </Pressable>
+            </>
+          ) : null}
         </>
       )}
 
@@ -544,24 +600,21 @@ function AttentionBanner({
         accessibilityRole="button"
         accessibilityLabel={`${card.title}. ${card.body}`}
         onPress={onPress}
-        style={({ pressed }) => [styles.bill, pressed && { opacity: 0.9 }]}
+        style={styles.bill}
       >
         <View style={styles.billHead}>
           <View style={styles.billIcon}>
-            <Ionicons name={card.icon as never} size={22} color={colors.onAccent} />
+            <Ionicons name={card.icon as never} size={16} color={colors.onAccent} />
           </View>
-          <View style={styles.attentionText}>
-            <Text style={styles.billEyebrow}>Payment needed</Text>
-            <Text style={styles.billTitle} numberOfLines={1} adjustsFontSizeToFit>
-              {card.title}
-            </Text>
-          </View>
+          <Text style={styles.billEyebrow}>Payment Due</Text>
         </View>
+        <Text style={styles.billTitle} numberOfLines={1} adjustsFontSizeToFit>
+          {card.title}
+        </Text>
         <Text style={styles.billBody}>{card.body}</Text>
         {card.cta ? (
           <View style={styles.billButton}>
             <Text style={styles.billButtonText}>{card.cta}</Text>
-            <Ionicons name="arrow-forward" size={18} color={colors.onAccent} />
           </View>
         ) : null}
       </LiftPressable>
@@ -636,19 +689,10 @@ function PastOrdersToggle({
       style={({ pressed }) => [styles.sectionHead, pressed && styles.pastPressed]}
     >
       <View style={styles.pastTitleRow}>
-        <Text style={styles.sectionTitle}>Past orders</Text>
-        <View style={styles.pastCount}>
-          <Text style={styles.pastCountText}>{count}</Text>
-        </View>
+        <Text style={styles.sectionTitle}>Past Orders</Text>
+        <Text style={styles.pastCountText}>{count}</Text>
       </View>
-      <View style={styles.sectionLinkRow}>
-        <Text style={styles.sectionLink}>{isOpen ? 'Hide' : 'Show'}</Text>
-        <Ionicons
-          name={isOpen ? 'chevron-up' : 'chevron-down'}
-          size={14}
-          color={colors.actionInk}
-        />
-      </View>
+      <Text style={styles.sectionLink}>{isOpen ? 'Hide' : 'Show'}</Text>
     </Pressable>
   );
 }
@@ -672,7 +716,6 @@ function SectionHead({
       {linkLabel && onLink ? (
         <Pressable accessibilityRole="button" hitSlop={12} onPress={onLink} style={styles.sectionLinkRow}>
           <Text style={styles.sectionLink}>{linkLabel}</Text>
-          <Ionicons name="chevron-forward" size={14} color={colors.actionInk} />
         </Pressable>
       ) : null}
     </View>
@@ -680,21 +723,27 @@ function SectionHead({
 }
 
 function PastOrderRow({
+  isFirst,
   order,
   onPress,
+  onRemove,
 }: {
+  isFirst: boolean;
   order: OrderWithDetails;
   onPress: () => void;
+  /** Absent when the order cannot be cleared. */
+  onRemove?: () => void;
 }) {
   return (
-    <LiftPressable
+    <Pressable
       accessibilityRole="button"
       accessibilityLabel={`${order.shop?.name ?? 'Laundry shop'}, ${
         STATUS_LABELS[order.status]
       }`}
       onPress={onPress}
-      style={({ pressed }) => [styles.panel, styles.pastRow, pressed && { opacity: 0.75 }]}
+      style={({ pressed }) => [styles.pastRow, pressed && styles.rowPressed]}
     >
+      {isFirst ? null : <View style={styles.separator} />}
       <View style={{ flex: 1 }}>
         <Text style={styles.shopName} numberOfLines={1}>
           {order.shop?.name ?? 'Laundry shop'}
@@ -704,8 +753,23 @@ function PastOrderRow({
           {formatOrderTime(order.created_at, new Date())}
         </Text>
       </View>
-      <StatusBadge status={order.status} />
-    </LiftPressable>
+      <Text style={[styles.pastStatus, { color: STATUS_COLORS[order.status] }]}>
+        {STATUS_LABELS[order.status]}
+      </Text>
+      {onRemove ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Remove ${order.shop?.name ?? 'this'} order from home`}
+          hitSlop={10}
+          onPress={onRemove}
+          style={({ pressed }) => [styles.removeButton, pressed && styles.pastPressed]}
+        >
+          <Ionicons name="close-circle" size={20} color={CHEVRON} />
+        </Pressable>
+      ) : (
+        <Ionicons name="chevron-forward" size={16} color={CHEVRON} />
+      )}
+    </Pressable>
   );
 }
 
@@ -813,197 +877,169 @@ const styles = StyleSheet.create({
 
   greeting: {
     paddingHorizontal: space.section,
-    paddingBottom: space.gulf + space.cosy,
+    paddingBottom: space.gulf + space.snug,
     gap: space.tight,
   },
-  /**
-   * The half of the headline that belongs to the reader, set a step down from
-   * the half that belongs to the page — one block, two voices, no eyebrow.
-   */
-  hello: {
-    ...type.title,
-    fontSize: 30,
-    lineHeight: 36,
-    // The greeting word, not the greeting: one step back from the name so the
-    // name is what the eye lands on.
-    fontWeight: '400',
-    color: 'rgba(255, 255, 255, 0.78)',
-  },
-  /** The reader's own name, at full strength and full weight. */
-  helloName: {
-    ...type.hero,
-    fontSize: 30,
-    lineHeight: 36,
-    color: colors.onAccent,
+  /** Apple's Today eyebrow: the date, small caps-height, over the title. */
+  dateLine: {
+    ...type.caption,
+    ...fontFor(600),
+    letterSpacing: 0.2,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   headline: {
     ...type.hero,
-    fontSize: 34,
-    lineHeight: 40,
     color: colors.onAccent,
-  },
-  /**
-   * The connector, in the app's own `actionMuted` rather than an invented
-   * pastel — the tint the design system already spends on blue-at-rule-weight,
-   * which is exactly this relationship: present, quieter, unmistakably the
-   * same family. 10:1 on the deep ground and 3.5:1 on the lit corner, against
-   * the 3:1 a 34pt line needs.
-   */
-  headlineLead: {
-    ...type.hero,
-    fontSize: 34,
-    lineHeight: 40,
-    fontWeight: '400',
-    color: colors.actionMuted,
   },
   state: {
     ...type.body,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: space.cosy,
+    fontSize: 17,
+    lineHeight: 22,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: space.tight,
   },
   /** What the page is made of, riding on the light. */
   sheet: {
+    borderCurve: 'continuous',
     flexGrow: 1,
-    backgroundColor: colors.bg,
+    backgroundColor: GLASS_GROUND,
+    overflow: 'hidden',
     paddingHorizontal: space.room,
-    paddingTop: space.room,
-    // Clear of the raised tab button at the foot of the screen.
-    paddingBottom: space.gulf * 3,
+    paddingTop: space.section + space.tight,
+    paddingBottom: space.gulf * 2,
     gap: space.cosy,
   },
 
   // 44pt: the smallest target a thumb can hit reliably, and enough glass for
   // the glyph to read as a control rather than as decoration on the field.
   bell: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.16)',
   },
+  /** The account button: initials on a frosted disc, as the App Store sets it. */
+  avatar: { backgroundColor: 'rgba(255, 255, 255, 0.24)' },
+  avatarText: { fontSize: 15, letterSpacing: 0.2, ...fontFor(600), color: colors.onAccent },
   bellBadge: {
     position: 'absolute',
-    top: 2,
-    right: 1,
+    top: -3,
+    right: -4,
     minWidth: 19,
     height: 19,
     borderRadius: 10,
     paddingHorizontal: 4,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5A623',
+    backgroundColor: '#FF3B30',
     // A ring in the hero's own blue, so the dot reads as sitting on the bell
     // rather than floating somewhere behind it.
     borderWidth: 2,
     borderColor: BLUE_FIELD.deep,
   },
   // #3B2400 on #F5A623 is 8.4:1 — a 12px bold count has to survive sunlight.
-  bellBadgeText: { fontSize: 11, fontWeight: '800', color: '#3B2400' },
+  // The iOS notification badge: system red, white count.
+  bellBadgeText: { fontSize: 11, lineHeight: 13, ...fontFor(600), color: colors.onAccent },
 
-  /** The ping: a full-width row the thumb cannot miss. */
+  /** The quiet ping: a receipt being checked asks nothing, so it is a plain row. */
   attention: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingHorizontal: space.cosy,
-    paddingVertical: space.snug,
+    paddingHorizontal: space.room,
+    paddingVertical: space.cosy,
+    ...glassPane,
   },
-  attentionPay: {
-    backgroundColor: colors.actionSurface,
-    borderColor: colors.actionMuted,
-  },
-  attentionQuiet: {
-    backgroundColor: colors.sunken,
-    borderColor: colors.border,
-  },
+  attentionPay: {},
+  attentionQuiet: {},
   attentionText: { flex: 1, gap: 2 },
 
-  /** A bill: amber like every owed amount, lifted off the field. */
+  /** A bill, set like a Wallet pass: white, the amount large, one blue button. */
   bill: {
-    gap: space.cosy,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    borderColor: '#F2C46B',
-    backgroundColor: TAG_TONES.owed.bg,
-    padding: space.cosy,
-    ...elevation.lift,
+    ...glassPane,
+    gap: space.snug,
+    padding: space.room + 2,
   },
-  billHead: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
+  billHead: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
   billIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 26,
+    height: 26,
+    borderRadius: 7,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.moneyOut,
+    backgroundColor: '#FF9500',
   },
-  billEyebrow: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: TAG_TONES.owed.ink,
-  },
-  billTitle: { fontSize: 24, fontWeight: '800', color: colors.text },
-  billBody: { fontSize: 14, lineHeight: 20, color: colors.text },
+  billEyebrow: { ...type.body, fontSize: 15, ...fontFor(600), color: colors.moneyOut },
+  billTitle: { ...type.title, color: colors.text },
+  billBody: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.subtle },
   billButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: space.tight,
-    minHeight: 48,
-    borderRadius: 999,
+    minHeight: 50,
+    marginTop: space.snug,
+    borderRadius: RADII.control,
+    borderCurve: 'continuous',
     backgroundColor: colors.action,
   },
-  billButtonText: { fontSize: 16, fontWeight: '700', color: colors.onAccent },
-  attentionTitle: { fontSize: 15, fontWeight: '700', color: colors.text },
-  attentionBody: { fontSize: 13, color: colors.subtle },
+  billButtonText: { fontSize: 17, letterSpacing: -0.3, ...fontFor(600), color: colors.onAccent },
+  attentionTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
+  attentionBody: { ...type.caption, fontSize: 14, color: colors.subtle },
 
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.cosy,
-    marginTop: space.snug,
+    marginTop: space.cosy,
   },
   sectionTitleBlock: { flexShrink: 1, gap: 2 },
-  sectionTitle: { ...type.section, color: colors.text },
+  sectionTitle: { ...type.section, fontSize: 22, lineHeight: 28, letterSpacing: -0.5, color: colors.text },
   sectionLinkRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
-  sectionLink: { ...type.label, color: colors.actionInk },
+  sectionLink: { ...type.body, fontSize: 17, color: colors.actionInk },
   pastPressed: { opacity: 0.7 },
   pastTitleRow: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  pastCount: {
-    minWidth: 24,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    alignItems: 'center',
-    borderRadius: 999,
-    backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  pastCountText: { ...type.caption, fontFamily: type.label.fontFamily, color: colors.subtle },
+  pastCountText: { ...type.section, fontSize: 22, lineHeight: 28, ...fontFor(400), color: colors.subtle },
   quickWrap: { marginTop: space.snug },
 
   panel: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...glassPane,
     padding: space.room,
     gap: space.cosy,
-    ...elevation.rest,
   },
 
   shopRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  shopName: { ...type.label, fontSize: 16, color: colors.text },
-  shopAddress: { ...type.caption, color: colors.subtle },
+  shopName: { ...type.body, fontSize: 17, color: colors.text },
+  shopAddress: { ...type.caption, fontSize: 14, color: colors.subtle },
 
-  pastRow: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
+  /** One grouped list, as Settings sets a run of rows. */
+  group: {
+    ...glassPane,
+    overflow: 'hidden',
+  },
+  pastRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.snug,
+    minHeight: 60,
+    paddingVertical: space.snug + 2,
+    paddingLeft: space.room,
+    paddingRight: space.cosy,
+  },
+  rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.6)' },
+  separator: {
+    position: 'absolute',
+    top: 0,
+    left: space.room,
+    right: 0,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(60, 60, 67, 0.22)',
+  },
+  pastStatus: { ...type.caption, fontSize: 14, ...fontFor(500) },
+  removeButton: { padding: 2 },
+  clearPast: { alignSelf: 'center', paddingVertical: space.snug },
+  clearPastText: { ...type.body, fontSize: 15, color: colors.dangerInk },
 
 });

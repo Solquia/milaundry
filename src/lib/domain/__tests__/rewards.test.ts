@@ -170,6 +170,12 @@ describe('appliedReward', () => {
     final_total: null,
   };
 
+  it('names free laundry the counter gave as on the house', () => {
+    expect(
+      appliedReward({ ...base, reward_kind: 'courtesy', reward_value: 0, reward_estimate_discount: 210 })
+    ).toEqual({ label: 'Free laundry · on the house', discount: 210 });
+  });
+
   it('is null when the order carries no reward', () => {
     expect(appliedReward({ ...base, reward_kind: null })).toBeNull();
   });

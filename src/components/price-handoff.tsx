@@ -19,6 +19,7 @@ import { orderPhotoUrl, type OrderWithDetails } from '@/lib/api';
 import type { SettleStep } from '@/lib/domain/order-settlement';
 import { formatKg, weighEvidence } from '@/lib/domain/weigh-evidence';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, GLASS_TRAY, glassChip } from './glass';
 import { RADII, colors, formatMoney, space, type } from './ui-kit';
 import { PriceCheckSheet } from './price-check-sheet';
 
@@ -118,7 +119,8 @@ const styles = StyleSheet.create({
   scrim: { flex: 1 },
   sheet: {
     maxHeight: '92%',
-    backgroundColor: colors.card,
+    // Solid tray, not see-through glass: over the dark scrim a clear pane reads grey.
+    backgroundColor: GLASS_TRAY,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: space.room,
@@ -141,13 +143,20 @@ const styles = StyleSheet.create({
     borderRadius: RADII.card,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    ...glassChip,
   },
   body: { paddingBottom: space.room },
   pressed: { opacity: 0.7 },
 
   sent: { flexDirection: 'row', gap: space.cosy, alignItems: 'center' },
-  thumb: { width: 72, height: 72, borderRadius: 12, backgroundColor: colors.sunken },
+  thumb: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    backgroundColor: GLASS_FILL_DENSE,
+    borderWidth: 1,
+    borderColor: GLASS_EDGE,
+  },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   sentText: { flex: 1, gap: 2 },
   sentBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },

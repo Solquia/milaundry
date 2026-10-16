@@ -4,7 +4,8 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { colors } from '@/components/ui-kit';
+import { glassChip, useIsGlass } from '@/components/glass';
+import { colors, fontFor } from '@/components/ui-kit';
 import type { TabConfig } from '@/lib/domain/tab-config';
 import { useHaptic } from '@/lib/use-app-settings';
 
@@ -12,23 +13,34 @@ type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
 // Derived from the installed expo-router rather than importing
 // @react-navigation/bottom-tabs, which this project does not depend on directly.
-export type TabBarProps = Parameters<
-  NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>
->[0];
+export type TabBarProps = Parameters<NonNullable<React.ComponentProps<typeof Tabs>['tabBar']>>[0];
 
-const BAR_HEIGHT = 62;
-/** How far the center button pokes above the bar. */
-const LIFT = 18;
-const CIRCLE = 56;
+const BAR_HEIGHT = 56;
+/**
+ * How far the center button pokes above the bar: not at all. An iOS tab bar
+ * is one flat strip; the scan action earns its emphasis with a filled blue
+ * disc inside the strip, not by floating over the page.
+ */
+const LIFT = 0;
+const CIRCLE = 44;
+/** The iOS separator: a hairline of grey at a third strength. */
+const SEPARATOR = 'rgba(60, 60, 67, 0.22)';
+
+/** SF Symbols fill the selected tab's glyph; the outline is the resting one. */
+function glyphFor(icon: string, isFocused: boolean): IconName {
+  if (!isFocused) return icon as IconName;
+  return icon.replace(/-outline$/, '') as IconName;
+}
 
 type Props = TabBarProps & { tabs: readonly TabConfig[] };
 
 /**
- * Bottom bar with a raised circular center action. The whole bar is drawn
- * inside one container tall enough to hold the lifted button, so the circle is
- * never clipped (Android clips children that overflow their parent).
+ * Bottom bar with a center action. The whole bar is drawn inside one
+ * container tall enough to hold that button, so it is never clipped (Android
+ * clips children that overflow their parent).
  */
 export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
+  const isGlass = useIsGlass();
   const insets = useSafeAreaInsets();
   const activeRoute = state.routes[state.index];
   const activeRouteName = activeRoute?.name;
@@ -43,12 +55,13 @@ export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
   return (
     <View style={[styles.container, { height: BAR_HEIGHT + LIFT + insets.bottom }]}>
       <View
-        style={[styles.surface, { height: BAR_HEIGHT + insets.bottom }]}
+        style={[
+          styles.surface,
+          isGlass && styles.surfaceGlass,
+          { height: BAR_HEIGHT + insets.bottom },
+        ]}
       />
-      <View
-        accessibilityRole="tablist"
-        style={[styles.row, { paddingBottom: insets.bottom }]}
-      >
+      <View accessibilityRole="tablist" style={[styles.row, { paddingBottom: insets.bottom }]}>
         {tabs.map((tab) => {
           const route = state.routes.find((candidate) => candidate.name === tab.name);
           if (!route) return null;
@@ -80,7 +93,7 @@ export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
                 style={styles.centerItem}
               >
                 <View style={[styles.circle, isFocused && styles.circleActive]}>
-                  <Ionicons name={tab.icon as IconName} color={colors.onAccent} size={28} />
+                  <Ionicons name={tab.icon as IconName} color={colors.onAccent} size={22} />
                 </View>
               </Pressable>
             );
@@ -89,7 +102,7 @@ export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
           // The 22px glyph can carry the identity blue (a control needs 3:1);
           // the 11px label cannot — at 3.5:1 it would fail AA, so it takes the
           // deeper ink. Same blue family, two different jobs.
-          const iconTint = isFocused ? colors.primary : colors.subtle;
+          const iconTint = isFocused ? colors.action : colors.subtle;
           const labelTint = isFocused ? colors.actionInk : colors.subtle;
           return (
             <Pressable
@@ -100,7 +113,7 @@ export function RaisedTabBar({ state, navigation, descriptors, tabs }: Props) {
               onPress={handlePress}
               style={styles.item}
             >
-              <Ionicons name={tab.icon as IconName} color={iconTint} size={22} />
+              <Ionicons name={glyphFor(tab.icon, isFocused)} color={iconTint} size={24} />
               <Text style={[styles.label, { color: labelTint }]} numberOfLines={1}>
                 {tab.title}
               </Text>
@@ -120,9 +133,17 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     pointerEvents: 'none',
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(249, 249, 251, 0.97)',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: SEPARATOR,
+  },
+  /** Frosted, like the iOS tab bar: the page shows faintly through it. */
+  surfaceGlass: {
+    ...glassChip,
+    borderWidth: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.72)',
     borderTopWidth: 1,
-    borderTopColor: colors.border,
+    borderTopColor: 'rgba(255, 255, 255, 0.95)',
   },
   row: {
     position: 'absolute',
@@ -138,29 +159,27 @@ const styles = StyleSheet.create({
     height: BAR_HEIGHT,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 3,
+    gap: 2,
   },
-  label: { fontSize: 11, fontWeight: '600' },
+  label: { fontSize: 10, lineHeight: 12, letterSpacing: 0.1, ...fontFor(500) },
   centerItem: {
     flex: 1,
     height: BAR_HEIGHT + LIFT,
     alignItems: 'center',
-    justifyContent: 'flex-start',
+    justifyContent: 'center',
   },
   circle: {
     width: CIRCLE,
     height: CIRCLE,
     borderRadius: CIRCLE / 2,
-    backgroundColor: colors.primary,
+    backgroundColor: colors.action,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 4,
-    borderColor: colors.card,
-    shadowColor: '#000000',
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    shadowColor: colors.action,
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 6,
+    elevation: 3,
   },
   circleActive: { backgroundColor: colors.primaryDark },
 });

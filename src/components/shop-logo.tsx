@@ -13,6 +13,7 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, space, type } from '@/components/ui-kit';
 import { shopInitials } from '@/lib/domain/connected-shops';
+import { fontFor } from '@/lib/domain/design-scale';
 
 interface Accent {
   surface: string;
@@ -52,7 +53,8 @@ export function ShopLogo({
   const frame = {
     width: size,
     height: size,
-    borderRadius: isPlate ? Math.round(size * 0.28) : size / 2,
+    borderRadius: isPlate ? Math.round(size * 0.24) : size / 2,
+    borderCurve: 'continuous' as const,
   };
   // A logo that will not decode (an upload the old file reader truncated to a
   // few bytes) used to leave an empty disc where the mark should be. The
@@ -110,5 +112,5 @@ const styles = StyleSheet.create({
     backgroundColor: colors.sunken,
     overflow: 'hidden',
   },
-  initials: { ...type.label, fontWeight: '700', color: colors.subtle },
+  initials: { ...type.label, ...fontFor(700), color: colors.subtle },
 });

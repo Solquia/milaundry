@@ -376,7 +376,7 @@ const styles = StyleSheet.create({
     borderColor: colors.card,
   },
   readoutText: {
-    fontFamily: fontFor(800),
+    ...fontFor(800),
     fontSize: 12,
     lineHeight: 15,
     color: colors.onAccent,

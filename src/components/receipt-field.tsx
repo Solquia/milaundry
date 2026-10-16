@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { expenseReceiptUrl } from '@/lib/api';
 
+import { GLASS_FILL_DENSE } from './glass';
 import { RADII, colors, space, type } from './ui-kit';
 
 const RECEIPT_QUALITY = 0.6;
@@ -100,7 +101,7 @@ const styles = StyleSheet.create({
   },
   addText: { ...type.label, color: colors.actionInk },
   row: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  thumb: { width: 64, height: 64, borderRadius: RADII.chip, backgroundColor: colors.sunken },
+  thumb: { width: 64, height: 64, borderRadius: RADII.chip, backgroundColor: GLASS_FILL_DENSE },
   thumbEmpty: { alignItems: 'center', justifyContent: 'center' },
   actions: { flex: 1, gap: space.tight },
   caption: { ...type.caption, color: colors.subtle },

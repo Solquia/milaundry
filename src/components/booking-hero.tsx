@@ -35,7 +35,7 @@ const ART_BLEED = 0.1;
 /** The object never takes more than this share of the band's width from the words. */
 const ART_MAX_WIDTH = 0.46;
 /** The navy the brand's deep end sinks toward. */
-const DEEP = '#0B1B2B';
+const DEEP = '#1D1D1F';
 
 /** Soap bubbles drifting behind the text, as shares of the band. */
 const FOAM = [
@@ -234,12 +234,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     lineHeight: 14,
     letterSpacing: 0.6,
-    fontFamily: fontFor(700),
+    ...fontFor(700),
     color: colors.onAccent,
     textTransform: 'uppercase',
   },
   title: { ...type.title, color: colors.onAccent },
-  rate: { ...type.body, fontFamily: fontFor(700), color: colors.onAccent, opacity: 0.92 },
+  rate: { ...type.body, ...fontFor(700), color: colors.onAccent, opacity: 0.92 },
   terms: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight, marginTop: 2 },
   term: {
     paddingHorizontal: space.snug,
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.45)',
   },
-  termText: { ...type.caption, fontFamily: fontFor(600), color: colors.onAccent },
+  termText: { ...type.caption, ...fontFor(600), color: colors.onAccent },
   art: { position: 'absolute' },
   /** What is on the scale, in the corner above the object: dark glass, white figures. */
   readout: {
@@ -266,7 +266,7 @@ const styles = StyleSheet.create({
     ...type.caption,
     fontSize: 12,
     lineHeight: 15,
-    fontFamily: fontFor(800),
+    ...fontFor(800),
     color: colors.onAccent,
     fontVariant: ['tabular-nums'],
   },

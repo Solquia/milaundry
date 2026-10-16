@@ -4,6 +4,7 @@ import React, { useMemo } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ContactPills } from '@/components/contact-pills';
+import { glassPane } from '@/components/glass';
 import { OrderCard } from '@/components/order-card';
 import { SectionHeading } from '@/components/section-heading';
 import { StatGrid, StatTile } from '@/components/stat-tile';
@@ -13,7 +14,6 @@ import {
   Loading,
   Screen,
   colors,
-  elevation,
   formatMoney,
   formatWhen,
   space,
@@ -149,11 +149,8 @@ const styles = StyleSheet.create({
   hero: {
     gap: space.cosy,
     padding: space.section,
+    ...glassPane,
     borderRadius: 20,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...elevation.lift,
   },
   identity: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
   avatar: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },

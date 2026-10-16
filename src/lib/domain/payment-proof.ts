@@ -165,3 +165,40 @@ export function validateReference(input: string): string | null {
   const trimmed = input.trim();
   return REFERENCE_RE.test(trimmed) ? trimmed : null;
 }
+
+export interface CashChoiceCopy {
+  /** What the button says before the choice is sent. */
+  sendLabel: string;
+  /** What the card says once the shop has it. */
+  sentNote: string;
+}
+
+/**
+ * The cash half of "tell the shop how you'll pay". Cash has no receipt to
+ * upload, so the button is the whole message.
+ */
+export function cashChoiceCopy(shopName: string, isDelivery: boolean): CashChoiceCopy {
+  const when = isDelivery ? 'on delivery' : 'at pickup';
+  return {
+    sendLabel: `Tell ${shopName} I'll pay cash ${when}`,
+    sentNote: `Sent. ${shopName} knows you'll pay cash ${when}.`,
+  };
+}
+
+/**
+ * The counter's line for a cash choice the customer sent, or null when they
+ * have not sent one (a default nobody touched says nothing).
+ */
+export function merchantCashChoiceNote(order: {
+  payment_method: PaymentMethod;
+  payment_status: PaymentStatus;
+  payment_choice_sent_at: string | null;
+  fulfillment: 'pickup' | 'delivery' | string;
+  customer_name: string;
+}): string | null {
+  if (order.payment_status === 'paid') return null;
+  if (order.payment_method !== 'cash' || !order.payment_choice_sent_at) return null;
+  const who = order.customer_name.trim() || 'The customer';
+  const when = order.fulfillment === 'delivery' ? 'on delivery' : 'at pickup';
+  return `${who} will pay cash ${when}.`;
+}

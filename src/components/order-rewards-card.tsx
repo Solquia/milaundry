@@ -3,7 +3,8 @@
  * and one button to use it. The bill drops on the server, so the payment card
  * under this one already asks for the right amount.
  *
- * Stays out of the way when the shop runs no programs. When the order has no
+ * Always here, because the owner or staff can put any open order on the house
+ * ("Give free laundry") whether or not it was earned. When the order has no
  * phone or account there is nobody to count visits for, and it says so —
  * that is the one fix the counter can make on the spot.
  */
@@ -12,7 +13,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { applyOrderReward, getOrderRewards, removeOrderReward } from '@/lib/api';
+import { applyOrderReward, getOrderRewards, giveFreeLaundry, removeOrderReward } from '@/lib/api';
 import { confirmAction } from '@/lib/confirm';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import {
@@ -56,7 +57,6 @@ export function OrderRewardsCard({ order }: { order: OrderRow }) {
   });
 
   const applied = appliedReward(order);
-  if (!standing || (standing.programs.length === 0 && !applied)) return null;
 
   // Once the customer has sent money for this bill, changing it would leave
   // them over- or under-paid; the server refuses the same.
@@ -96,25 +96,43 @@ export function OrderRewardsCard({ order }: { order: OrderRow }) {
     );
   };
 
+  const handleFree = () =>
+    confirmAction(
+      {
+        title: 'Give free laundry?',
+        message: `This order goes on the house: ${formatMoney(bill)} off, so the customer pays nothing. It does not use up a stamp.`,
+        confirmLabel: 'Make it free',
+        dismissLabel: 'Not now',
+      },
+      () => run(() => giveFreeLaundry(order.id)),
+      { isDestructive: false }
+    );
+
   const handleRemove = () =>
     confirmAction(
       {
         title: 'Take the reward off?',
-        message: 'The bill goes back to the full price, and the customer keeps the reward for later.',
+        message:
+          order.reward_kind === 'courtesy'
+            ? 'The bill goes back to the full price.'
+            : 'The bill goes back to the full price, and the customer keeps the reward for later.',
         confirmLabel: 'Take it off',
         dismissLabel: 'Keep it',
       },
       () => run(() => removeOrderReward(order.id))
     );
 
-  const visitsLabel = `${standing.visits} ${standing.visits === 1 ? 'visit' : 'visits'}`;
+  const programs = standing?.programs ?? [];
+  const isTracked = standing?.tracked ?? false;
+  const visits = standing?.visits ?? 0;
+  const visitsLabel = `${visits} ${visits === 1 ? 'visit' : 'visits'}`;
 
   return (
     <Card>
       <View style={styles.head}>
         <Ionicons name="gift" size={20} color={colors.actionInk} />
         <Text style={styles.heading}>Rewards</Text>
-        {standing.tracked ? <Text style={styles.visits}>{visitsLabel}</Text> : null}
+        {isTracked ? <Text style={styles.visits}>{visitsLabel}</Text> : null}
       </View>
 
       {applied ? (
@@ -131,18 +149,18 @@ export function OrderRewardsCard({ order }: { order: OrderRow }) {
             />
           )}
         </View>
-      ) : !standing.tracked ? (
+      ) : programs.length === 0 ? null : !isTracked ? (
         <Subtle>
           No phone number on this order, so there are no visits to count. Type the
           customer&apos;s number on their next ticket to start their card.
         </Subtle>
       ) : (
-        standing.programs.map((program) => (
+        programs.map((program) => (
           <View key={program.id} style={styles.program}>
             <View style={styles.programText}>
               <Text style={styles.programLine}>{programHeadline(program)}</Text>
               <Text style={[styles.progress, program.ready > 0 && styles.progressReady]}>
-                {program.ready > 0 ? 'Earned, ready to use' : progressLine(program, standing.visits)}
+                {program.ready > 0 ? 'Earned, ready to use' : progressLine(program, visits)}
               </Text>
             </View>
             {program.ready > 0 && !isLocked ? (
@@ -150,6 +168,15 @@ export function OrderRewardsCard({ order }: { order: OrderRow }) {
             ) : null}
           </View>
         ))
+      )}
+      {/* The counter's own call, earned or not: any open order can go on the house. */}
+      {applied || isLocked ? null : (
+        <Button
+          title="Give free laundry"
+          variant="outline"
+          onPress={handleFree}
+          disabled={isPending}
+        />
       )}
       <ErrorText>{error}</ErrorText>
     </Card>
@@ -168,7 +195,7 @@ const styles = StyleSheet.create({
     gap: space.cosy,
     paddingTop: space.snug,
     borderTopWidth: 1,
-    borderColor: colors.border,
+    borderColor: 'rgba(60, 60, 67, 0.12)',
   },
   programText: { flex: 1, gap: 2 },
   programLine: { ...type.label, color: colors.text },

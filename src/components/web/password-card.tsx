@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ErrorText, PasswordField, colors, space, type } from '@/components/ui-kit';
+import { ErrorText, PasswordField, colors, fontFor, space, type } from '@/components/ui-kit';
 import { setOwnPassword } from '@/lib/api';
 import { MIN_PASSWORD_LENGTH } from '@/lib/domain/credentials';
 import type { StorefrontTheme } from '@/lib/domain/web-theme';
@@ -90,12 +90,12 @@ export function PasswordCard({ phone, onDone, theme }: PasswordCardProps) {
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: 14, borderWidth: 1, padding: space.room, gap: space.snug },
+  card: { borderRadius: 18, borderCurve: 'continuous', borderWidth: 0, padding: space.room + 2, gap: space.snug },
   title: { ...type.section },
-  body: { ...type.caption, color: colors.text },
+  body: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.text },
   actions: { flexDirection: 'row', alignItems: 'center', gap: space.cosy },
-  save: { minHeight: 44, borderRadius: 12, paddingHorizontal: space.room, justifyContent: 'center' },
-  saveText: { ...type.label },
+  save: { minHeight: 44, borderRadius: 22, paddingHorizontal: space.section, justifyContent: 'center' },
+  saveText: { ...type.body, fontSize: 17, ...fontFor(600) },
   skip: { minHeight: 44, justifyContent: 'center' },
-  link: { ...type.label },
+  link: { ...type.body, fontSize: 17 },
 });

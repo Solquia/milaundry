@@ -23,7 +23,7 @@ import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlueField } from '@/components/blue-field';
-import { BLUE_FIELD, Button, colors, elevation, space, type } from '@/components/ui-kit';
+import { BLUE_FIELD, Button, colors, elevation, fontFor, space, type } from '@/components/ui-kit';
 import { RADII } from '@/lib/domain/design-scale';
 import { downloadAudience, downloadPage } from '@/lib/domain/download';
 import { useHaptic } from '@/lib/use-app-settings';
@@ -135,22 +135,30 @@ const styles = StyleSheet.create({
     paddingBottom: space.gulf,
     gap: space.cosy,
   },
+  /** apple.com's product headline: big, bold, pulled tight. */
   wordmark: {
     ...type.hero,
+    fontSize: 40,
+    lineHeight: 46,
     color: colors.onAccent,
-    letterSpacing: -1,
+    letterSpacing: -1.2,
     textAlign: 'center',
   },
   lede: {
     ...type.body,
-    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 19,
+    lineHeight: 25,
+    letterSpacing: -0.3,
+    color: 'rgba(255, 255, 255, 0.85)',
     textAlign: 'center',
     width: '100%',
   },
   iconPlate: {
     width: 132,
     height: 132,
+    // An app icon's own squircle.
     borderRadius: 30,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     marginTop: space.snug,
     ...elevation.hero,
@@ -161,6 +169,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.bg,
     borderTopLeftRadius: SHEET_RADIUS,
     borderTopRightRadius: SHEET_RADIUS,
+    borderCurve: 'continuous',
     paddingHorizontal: space.room,
     paddingTop: space.section,
     gap: space.section,
@@ -170,26 +179,25 @@ const styles = StyleSheet.create({
   },
   card: {
     backgroundColor: colors.card,
-    borderRadius: RADII.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: space.room,
+    borderRadius: RADII.card - 4,
+    borderCurve: 'continuous',
+    padding: space.room + 2,
     gap: space.room,
     ...elevation.rest,
   },
-  cardHead: { ...type.section, color: colors.text },
+  cardHead: { ...type.section, fontSize: 22, lineHeight: 28, letterSpacing: -0.5, color: colors.text },
   step: { flexDirection: 'row', gap: space.cosy, alignItems: 'flex-start' },
   stepBadge: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.actionSurface,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.action,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepN: { ...type.label, fontSize: 13, lineHeight: 16, color: colors.actionInk },
+  stepN: { ...type.label, fontSize: 14, lineHeight: 18, color: colors.onAccent },
   stepCopy: { flex: 1, flexShrink: 1, minWidth: 0, gap: 2 },
-  stepTitle: { ...type.label, color: colors.text },
-  stepBody: { ...type.caption, color: colors.subtle, flexShrink: 1 },
+  stepTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text },
+  stepBody: { ...type.caption, fontSize: 15, lineHeight: 20, color: colors.subtle, flexShrink: 1 },
   version: { ...type.caption, color: colors.subtle, textAlign: 'center' },
 });

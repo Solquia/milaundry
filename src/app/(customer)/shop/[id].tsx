@@ -14,6 +14,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useClaim } from '@/components/claim';
+import { glassChip, glassPane } from '@/components/glass';
 import { MarketBasketBar } from '@/components/market-basket-bar';
 import { SpotlightBasket } from '@/components/spotlight-basket';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
@@ -36,6 +37,7 @@ import {
   Screen,
   Subtle,
   colors,
+  fontFor,
   space,
   type,
 } from '@/components/ui-kit';
@@ -154,8 +156,7 @@ function WelcomeCard({
       <View
         style={[
           styles.welcome,
-          { borderColor: accent.ink },
-          isFirst && { backgroundColor: accent.surface, borderWidth: 2 },
+          isFirst && { backgroundColor: accent.surface },
         ]}
       >
         <View
@@ -395,7 +396,7 @@ export default function CustomerShopHome() {
   ) : null;
   const storeInfo = shop ? (
     <>
-      <Text style={styles.sectionTitle}>Store info</Text>
+      <Text style={styles.sectionTitle}>Store Info</Text>
       <ShopMapCard name={shopName} address={shop.address ?? ''} pin={shopPin(shop)} theme={theme} />
     </>
   ) : null;
@@ -670,7 +671,7 @@ export default function CustomerShopHome() {
 
 const signStyles = StyleSheet.create({
   row: { alignItems: 'center', gap: space.tight, marginTop: space.snug },
-  pill: { alignSelf: 'center', borderWidth: 1, borderColor: colors.border },
+  pill: { alignSelf: 'center', ...glassChip },
   note: { ...type.caption, color: colors.subtle, textAlign: 'center' },
 });
 
@@ -680,24 +681,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: space.cosy,
     padding: space.room,
-    borderRadius: 18,
-    borderWidth: 1.5,
-    backgroundColor: colors.card,
+    ...glassPane,
   },
   welcomeMark: {
     width: 48,
     height: 48,
-    borderRadius: 24,
+    borderRadius: 12,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  welcomeInitials: { ...type.label, fontSize: 16 },
-  welcomeTitle: { ...type.section, color: colors.text, marginBottom: 2 },
+  welcomeInitials: { ...type.label, fontSize: 17, ...fontFor(700) },
+  welcomeTitle: { ...type.body, fontSize: 17, ...fontFor(600), color: colors.text, marginBottom: 2 },
   /** The one connection that changes what the app is for gets the larger voice. */
-  welcomeTitleFirst: { ...type.title, fontSize: 20, marginBottom: space.tight },
-  welcomeBody: { ...type.body, color: colors.subtle },
+  welcomeTitleFirst: { ...type.section, marginBottom: space.tight },
+  welcomeBody: { ...type.body, fontSize: 15, lineHeight: 20, color: colors.subtle },
 
-  sectionTitle: { ...type.title, color: colors.text, marginTop: space.cosy },
+  sectionTitle: {
+    ...type.section,
+    fontSize: 22,
+    lineHeight: 28,
+    letterSpacing: -0.5,
+    color: colors.text,
+    marginTop: space.section,
+  },
 
 
 });

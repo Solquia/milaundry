@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GLASS_TRAY, glassChip } from './glass';
 import { RADII, colors, space, type } from './ui-kit';
 
 export function SalesSheet({
@@ -89,7 +90,8 @@ const styles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(11, 27, 43, 0.45)' },
   scrim: { flex: 1 },
   sheet: {
-    backgroundColor: colors.card,
+    // Solid tray, not see-through glass: over the dark scrim a clear pane reads grey.
+    backgroundColor: GLASS_TRAY,
     borderTopLeftRadius: RADII.sheet,
     borderTopRightRadius: RADII.sheet,
     paddingHorizontal: space.room,
@@ -113,7 +115,7 @@ const styles = StyleSheet.create({
     borderRadius: RADII.pill,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    ...glassChip,
   },
   body: { gap: space.cosy, paddingBottom: space.room },
 });

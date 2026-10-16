@@ -332,9 +332,9 @@ function BookingPage({ storefront, slug, serviceId, cart }: BookingPageProps) {
 const styles = StyleSheet.create({
   body: { gap: space.section },
   who: { flexDirection: 'row', flexWrap: 'wrap', gap: space.snug, alignItems: 'baseline' },
-  whoText: { ...type.caption, color: colors.subtle },
-  whoLink: { ...type.label },
-  sign: { borderWidth: 1, borderColor: colors.border },
+  whoText: { ...type.caption, fontSize: 15, color: colors.subtle },
+  whoLink: { ...type.body, fontSize: 15 },
+  sign: { borderWidth: StyleSheet.hairlineWidth, borderColor: colors.borderStrong },
   closedBody: { ...type.body, color: colors.text },
   notice: { padding: space.gulf, marginTop: space.gulf * 2 },
   noticeTitle: { ...type.title, color: colors.text, textAlign: 'center' },

@@ -2,7 +2,7 @@ import type { PreferredMethod } from './domain/customer-book';
 import type { OrderStatus } from './domain/order-status';
 import type { OrderType, PaymentStatus } from './domain/order-tags';
 import type { PricingUnit } from './domain/pricing';
-import type { RewardBenefit, RewardKind } from './domain/rewards';
+import type { OrderRewardKind, RewardBenefit } from './domain/rewards';
 import type { WeightPrice } from './domain/weight-prices';
 import type { ServiceCategory } from './domain/service-catalog';
 import type { ShopAccountRole } from './domain/shop-account';
@@ -154,12 +154,14 @@ export interface OrderRow {
   payment_proof_path: string | null;
   /** The reference number off that receipt, for the shop to match by eye. */
   payment_reference: string | null;
+  /** When the customer sent their payment choice to the shop (0047); null if never sent. */
+  payment_choice_sent_at: string | null;
   claim_token: string;
   claimed_at: string | null;
   notes: string;
   /** The loyalty reward on this order, snapshotted when applied (0046). */
   reward_id: string | null;
-  reward_kind: RewardKind | null;
+  reward_kind: OrderRewardKind | null;
   reward_benefit: RewardBenefit | null;
   reward_value: number | null;
   /** Already taken off final_total; 0 until the order is priced. */

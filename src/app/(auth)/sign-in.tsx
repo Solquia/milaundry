@@ -18,6 +18,7 @@ import {
   space,
   type,
 } from '@/components/ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 import { useAuth } from '@/lib/auth';
 import { friendlyAuthError } from '@/lib/domain/auth-error';
 import { MIN_PASSWORD_LENGTH } from '@/lib/domain/credentials';
@@ -301,12 +302,12 @@ const styles = StyleSheet.create({
     marginLeft: -4,
     marginBottom: space.snug,
   },
-  backText: { ...type.label, color: colors.actionInk },
+  backText: { ...type.body, fontSize: 17, color: colors.actionInk },
   pressed: { opacity: 0.6 },
   eyebrow: {
     ...type.caption,
-    fontWeight: '600',
-    letterSpacing: 2,
+    ...fontFor(600),
+    letterSpacing: 0.2,
     color: colors.subtle,
   },
   links: { gap: space.cosy, alignItems: 'center' },
@@ -314,8 +315,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: space.cosy,
     padding: space.room,
-    borderRadius: 14,
-    backgroundColor: colors.actionSurface,
+    borderRadius: 18,
+    borderCurve: 'continuous',
+    backgroundColor: colors.card,
   },
   ownerHelpCopy: { flex: 1, gap: space.tight },
   ownerHelpTitle: { ...type.label, color: colors.text },
@@ -331,9 +333,7 @@ const styles = StyleSheet.create({
     paddingLeft: 12,
     paddingRight: 10,
     borderRadius: 20,
-    backgroundColor: colors.actionSurface,
-    borderWidth: 1,
-    borderColor: colors.actionMuted,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
   chipTap: {
     flexDirection: 'row',

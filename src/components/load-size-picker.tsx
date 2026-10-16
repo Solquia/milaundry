@@ -23,6 +23,7 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
 
 import { WeightScale } from './quantity-picker';
 import { SERVICE_CUTOUTS } from './service-photo';
+import { glassChip, useIsGlass } from './glass';
 import { RADII, colors, fontFor, space, type, useTint } from './ui-kit';
 
 /**
@@ -159,6 +160,7 @@ function SizeCard({
   onPress: () => void;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const baskets = Math.min(size.baskets, MAX_BASKETS_SHOWN);
   return (
     <Pressable
@@ -168,6 +170,7 @@ function SizeCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.pick,
+        isGlass && styles.pickGlass,
         isSelected && { borderColor: tint.fill, backgroundColor: tint.surface },
         pressed && styles.pickPressed,
       ]}
@@ -216,7 +219,7 @@ const styles = StyleSheet.create({
   },
   /** The same photo, placed in the disc's own coordinates. */
   stageText: { alignItems: 'center', gap: 2, maxWidth: 420 },
-  eyebrow: { ...type.caption, fontSize: 11, fontFamily: fontFor(700), letterSpacing: 1.2 },
+  eyebrow: { ...type.caption, fontSize: 11, ...fontFor(700), letterSpacing: 1.2 },
   headline: { ...type.value, color: colors.text, textAlign: 'center' },
   hint: { ...type.caption, color: colors.subtle, textAlign: 'center' },
   price: { ...type.section, marginTop: space.tight },
@@ -239,14 +242,16 @@ const styles = StyleSheet.create({
     paddingBottom: space.snug,
     paddingHorizontal: space.tight,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    borderColor: 'transparent',
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
   },
+  pickGlass: { ...glassChip, borderWidth: 1.5 },
   pickPressed: { transform: [{ scale: 0.96 }] },
   pickArt: { flexDirection: 'row', height: 36, alignItems: 'flex-end', justifyContent: 'center' },
   basket: { width: 36, height: 36 },
   basketOverlap: { marginLeft: -18 },
-  pickLabel: { ...type.caption, fontSize: 12, fontFamily: fontFor(600), color: colors.text },
+  pickLabel: { ...type.caption, fontSize: 12, ...fontFor(600), color: colors.text },
   pickMeta: { ...type.caption, fontSize: 11, color: colors.subtle },
 });

@@ -20,7 +20,7 @@ export default function NewOrder() {
 
   return (
     <Screen>
-      <Title>New order</Title>
+      <Title>New Order</Title>
       <ServiceOrderForm
         shopId={shopId}
         submitLabel="Place order"

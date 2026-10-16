@@ -10,7 +10,7 @@
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ErrorText, Field, PasswordField, PhoneField, colors, space, type } from '@/components/ui-kit';
+import { ErrorText, Field, PasswordField, PhoneField, colors, fontFor, space, type } from '@/components/ui-kit';
 import { signInGuest, startGuestSession } from '@/lib/api';
 import {
   friendlyGuestError,
@@ -114,8 +114,8 @@ export function GuestForm({ submitLabel, busyLabel, onSignedIn, theme }: GuestFo
 
 const styles = StyleSheet.create({
   form: { gap: space.cosy },
-  notice: { ...type.caption, padding: space.cosy, borderRadius: 10, overflow: 'hidden' },
-  submit: { minHeight: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  submitText: { ...type.label, fontSize: 16 },
+  notice: { ...type.caption, fontSize: 15, lineHeight: 20, padding: space.cosy, borderRadius: 12, borderCurve: 'continuous', overflow: 'hidden' },
+  submit: { minHeight: 50, borderRadius: 14, borderCurve: 'continuous', alignItems: 'center', justifyContent: 'center' },
+  submitText: { ...type.body, fontSize: 17, letterSpacing: -0.3, ...fontFor(600) },
   fine: { ...type.caption, color: colors.subtle },
 });

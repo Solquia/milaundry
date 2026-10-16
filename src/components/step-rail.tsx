@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { stepAnnouncement, stepRail, type StepSpec } from '@/lib/domain/step-rail';
 
 import { colors, space, type } from './ui-kit';
+import { fontFor } from '@/lib/domain/design-scale';
 
 /**
  * The three colours a rail needs. A storefront swaps `reached` for the shop's
@@ -121,7 +122,7 @@ const styles = StyleSheet.create({
   labelRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   label: { ...type.caption, flexShrink: 1 },
   /** The step you are on is the only one set in the heavier cut. */
-  labelHere: { fontFamily: type.label.fontFamily },
+  labelHere: { ...fontFor(600) },
   /** 3px: a hairline reads as a divider, a bar this weight reads as progress. */
   rule: { height: 3, borderRadius: 2 },
   ruleDone: { opacity: 0.35 },

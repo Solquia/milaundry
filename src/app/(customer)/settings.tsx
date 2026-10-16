@@ -5,9 +5,10 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { AddressBook, type AddressDraftOut } from '@/components/address-book';
 import { BlueField } from '@/components/blue-field';
+import { glassPane } from '@/components/glass';
 import { LaundryPreferencesCard } from '@/components/laundry-preferences';
 import { PaymentPreferenceCard } from '@/components/payment-preference-card';
-import { Button, Screen, colors, elevation, space, type } from '@/components/ui-kit';
+import { RADII, Screen, colors, elevation, fontFor, space, type } from '@/components/ui-kit';
 import {
   deleteAddress,
   getMyAddresses,
@@ -215,8 +216,17 @@ export default function CustomerSettings() {
         </View>
       ))}
 
-      <View style={styles.signOut}>
-        <Button title="Sign out" variant="danger" onPress={confirmSignOut} />
+      {/* iOS sets the way out as a lone red row in its own group: plainly an
+          action, plainly destructive, and nothing like the switches above. */}
+      <View style={[styles.group, styles.signOut]}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sign out"
+          onPress={confirmSignOut}
+          style={({ pressed }) => [styles.signOutRow, pressed && styles.rowPressed]}
+        >
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </Pressable>
       </View>
     </Screen>
   );
@@ -245,18 +255,12 @@ function ToggleRow({
       accessibilityHint={row.caption}
       accessibilityState={{ checked: isOn }}
       onPress={onToggle}
-      style={({ pressed }) => [
-        styles.row,
-        !isFirst && styles.rowDivided,
-        pressed && { backgroundColor: colors.sunken },
-      ]}
+      style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
     >
+      {isFirst ? null : <View style={styles.separator} />}
+      {/* The Settings icon tile: a small rounded square, white glyph on colour. */}
       <View style={[styles.rowIcon, isOn && styles.rowIconOn]}>
-        <Ionicons
-          name={row.icon as never}
-          size={18}
-          color={isOn ? colors.actionInk : colors.subtle}
-        />
+        <Ionicons name={row.icon as never} size={18} color={colors.onAccent} />
       </View>
       <View style={styles.rowText}>
         <Text style={styles.rowLabel}>{row.label}</Text>
@@ -269,85 +273,100 @@ function ToggleRow({
         onValueChange={onToggle}
         accessibilityElementsHidden
         importantForAccessibility="no-hide-descendants"
-        trackColor={{ false: colors.borderStrong, true: colors.action }}
+        trackColor={{ false: '#E9E9EA', true: IOS_GREEN }}
         thumbColor={colors.card}
+        ios_backgroundColor="#E9E9EA"
       />
     </Pressable>
   );
 }
 
+/** The iOS switch's on colour. */
+const IOS_GREEN = '#34C759';
+/** The Settings icon tile, and where a row's words start after it. */
+const TILE = 30;
+const TEXT_INSET = space.room + TILE + space.cosy;
+
 const styles = StyleSheet.create({
   /**
-   * The identity card. The field is absolutely positioned inside it, so the
-   * card clips it — the same living blue the home stands on, cut to a corner.
+   * The identity card, on the home's own blue. The field is absolutely
+   * positioned inside it, so the card clips it to its corner.
    */
   profile: {
-    borderRadius: 24,
+    borderRadius: RADII.card,
+    borderCurve: 'continuous',
     overflow: 'hidden',
     padding: space.section,
-    gap: space.room,
+    gap: space.cosy,
     marginBottom: space.snug,
-    ...elevation.hero,
+    ...elevation.lift,
   },
   profileRow: { flexDirection: 'row', alignItems: 'center', gap: space.room },
   /** Where a photograph would be, if the product ever asks for one. */
   disc: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.34)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
   },
-  discText: { ...type.title, fontSize: 24, color: colors.onAccent },
+  discText: { ...type.section, fontSize: 22, color: colors.onAccent },
   profileWords: { flex: 1, gap: 2 },
-  profileName: { ...type.title, fontSize: 24, color: colors.onAccent },
-  profileLine: { ...type.body, color: 'rgba(255, 255, 255, 0.88)' },
-  profileFacts: { ...type.caption, color: 'rgba(255, 255, 255, 0.78)' },
+  profileName: { ...type.section, fontSize: 22, lineHeight: 28, color: colors.onAccent },
+  profileLine: { ...type.body, fontSize: 15, color: 'rgba(255, 255, 255, 0.85)' },
+  profileFacts: { ...type.caption, color: 'rgba(255, 255, 255, 0.75)' },
 
+  /** A group's header: small, grey, sentence case, set in from the group's edge. */
   sectionLabel: {
-    ...type.label,
-    fontSize: 11,
+    ...type.caption,
     color: colors.subtle,
-    letterSpacing: 0.8,
-    marginBottom: space.snug,
+    marginBottom: space.snug - 2,
     marginTop: space.section,
+    marginLeft: space.room,
   },
   group: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
+    ...glassPane,
+    borderRadius: RADII.card - 4,
     overflow: 'hidden',
-    ...elevation.rest,
   },
 
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.cosy,
-    padding: space.room,
+    minHeight: 56,
+    paddingVertical: space.snug + 2,
+    paddingLeft: space.room,
+    paddingRight: space.cosy,
   },
-  // A hairline between rows only — a border around each would turn one group
-  // of related switches into three separate objects.
-  rowDivided: {
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+  rowPressed: { backgroundColor: 'rgba(255, 255, 255, 0.6)' },
+  /** A hairline between rows only, starting where the words start. */
+  separator: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    left: TEXT_INSET,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: 'rgba(60, 60, 67, 0.12)',
   },
   rowIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: TILE,
+    height: TILE,
+    borderRadius: 7,
+    borderCurve: 'continuous',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.sunken,
+    backgroundColor: '#8E8E93',
   },
-  rowIconOn: { backgroundColor: colors.actionSurface },
-  rowText: { flex: 1, gap: 2 },
-  rowLabel: { ...type.body, fontWeight: '600', color: colors.text },
+  rowIconOn: { backgroundColor: colors.action },
+  rowText: { flex: 1, gap: 1 },
+  rowLabel: { ...type.body, fontSize: 17, color: colors.text },
   rowCaption: { ...type.caption, color: colors.subtle },
 
   // Kept well clear of the switches: nothing that ends a session should be
   // reachable by a thumb that was flicking toggles.
   signOut: { marginTop: space.gulf },
+  signOutRow: { minHeight: 50, alignItems: 'center', justifyContent: 'center' },
+  signOutText: { ...type.body, fontSize: 17, ...fontFor(400), color: colors.dangerInk },
 });

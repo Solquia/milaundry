@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useCallback } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { GLASS_FILL, GLASS_FILL_DENSE, glassChip, useIsGlass } from '@/components/glass';
 import { Reveal } from '@/components/reveal';
 import { SlotPicker } from '@/components/slot-picker';
 import { colors, space, type, useTint } from '@/components/ui-kit';
@@ -188,6 +189,7 @@ function Stop({
   children: React.ReactNode;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const window = windowLabel(slot.hour, hours);
   const day = dayTitle(slot.day, today);
 
@@ -233,6 +235,7 @@ function Stop({
           <View
             style={[
               styles.change,
+              isGlass && styles.changeGlass,
               { borderColor: tint.muted },
               isOpen && { backgroundColor: tint.fill, borderColor: tint.fill },
             ]}
@@ -259,7 +262,7 @@ function Stop({
           <Text style={styles.hint}>{hint}</Text>
         )}
 
-        {isOpen ? <Reveal style={styles.panel}>{children}</Reveal> : null}
+        {isOpen ? <Reveal style={[styles.panel, isGlass && styles.panelGlass]}>{children}</Reveal> : null}
       </View>
     </View>
   );
@@ -322,6 +325,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     backgroundColor: colors.card,
   },
+  changeGlass: { backgroundColor: GLASS_FILL_DENSE },
   changeText: { ...type.label },
   changeTextOpen: { color: colors.onAccent },
 
@@ -340,9 +344,10 @@ const styles = StyleSheet.create({
     marginTop: space.tight,
     padding: space.cosy,
     borderRadius: RADII.control,
+    borderCurve: 'continuous',
     backgroundColor: colors.sunken,
-    borderWidth: 1,
-    borderColor: colors.border,
   },
+  // Lighter than the chips inside it, so they still stand off it.
+  panelGlass: { ...glassChip, backgroundColor: GLASS_FILL, borderRadius: RADII.control },
 
 });

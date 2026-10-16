@@ -11,6 +11,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
+import { GLASS_EDGE, GLASS_FILL_DENSE, glassPane, useIsGlass } from './glass';
 import { ServicePhoto } from './service-photo';
 import { ACCENTS, RADII, colors, elevation, space, type } from './ui-kit';
 import { isLoad, type Cart } from '@/lib/domain/market-cart';
@@ -24,6 +25,7 @@ import {
   type SpotlightService,
 } from '@/lib/domain/spotlight';
 import { gridRows } from '@/lib/domain/web-layout';
+import { fontFor } from '@/lib/domain/design-scale';
 
 type Accent = (typeof ACCENTS)[number];
 
@@ -199,13 +201,14 @@ export function ProductCard({
   const tag = cardTag(service, lowestId);
   const isLowest = service.id === lowestId;
   const inBasket = quantity > 0;
+  const isGlass = useIsGlass();
   // The card and its add control are siblings: an accessible Pressable folds
   // everything inside it into one node, which would hide "Remove one".
   return (
     <View
       style={[
         card.card,
-        elevation.rest,
+        isGlass ? card.cardGlass : elevation.rest,
         width !== undefined ? { width } : card.stretch,
         inBasket && { borderColor: accent.ink },
       ]}
@@ -284,6 +287,7 @@ export function ServiceGrid<T extends SpotlightService>({
 }: ServiceGridProps<T>) {
   const [width, setWidth] = useState(0);
   const columns = columnsFor(width);
+  const isGlass = useIsGlass();
   return (
     <View style={grid.wrap} onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
       {sections.map((section) => (
@@ -292,7 +296,7 @@ export function ServiceGrid<T extends SpotlightService>({
             <Text style={grid.title} accessibilityRole="header">
               {section.title}
             </Text>
-            <Text style={grid.meta}>{section.services.length}</Text>
+            <Text style={[grid.meta, isGlass && grid.metaGlass]}>{section.services.length}</Text>
           </View>
           {gridRows(section.services, columns).map((row, rowIndex) => (
             <View key={rowIndex} style={grid.row}>
@@ -344,7 +348,7 @@ const circles = StyleSheet.create({
   face: { flex: 1, borderRadius: 30 },
   allFace: { alignItems: 'center', justifyContent: 'center' },
   label: { ...type.caption, fontSize: 12, color: colors.subtle, textAlign: 'center' },
-  labelOn: { fontWeight: '700' },
+  labelOn: { ...fontFor(700) },
 });
 
 const WELL = 124;
@@ -352,15 +356,18 @@ const WELL = 124;
 const card = StyleSheet.create({
   card: {
     backgroundColor: colors.card,
-    borderRadius: RADII.card + 2,
+    borderRadius: RADII.card - 2,
+    borderCurve: 'continuous',
     borderWidth: 1.5,
     borderColor: 'transparent',
     padding: space.snug,
+    ...elevation.rest,
   },
+  cardGlass: { ...glassPane, borderWidth: 1.5, borderRadius: RADII.card - 2 },
   stretch: { flex: 1 },
   tap: { flex: 1 },
   pressed: { opacity: 0.92 },
-  well: { height: WELL, borderRadius: RADII.control + 2 },
+  well: { height: WELL, borderRadius: RADII.control, borderCurve: 'continuous' },
   tag: {
     position: 'absolute',
     top: space.snug,
@@ -373,10 +380,10 @@ const card = StyleSheet.create({
     borderRadius: RADII.pill,
   },
   tagPlain: { backgroundColor: 'rgba(255,255,255,0.92)' },
-  tagText: { ...type.caption, fontSize: 10.5, fontWeight: '800' },
+  tagText: { ...type.caption, fontSize: 11, lineHeight: 14, ...fontFor(600) },
   words: { paddingTop: space.snug, paddingHorizontal: 2, gap: 2, flex: 1 },
-  name: { ...type.label, fontSize: 14.5, color: colors.text, minHeight: 36 },
-  blurb: { ...type.caption, fontSize: 11.5, color: colors.subtle, paddingRight: 40 },
+  name: { ...type.label, fontSize: 15, lineHeight: 19, color: colors.text, minHeight: 38 },
+  blurb: { ...type.caption, fontSize: 12, lineHeight: 16, color: colors.subtle, paddingRight: 40 },
   price: { ...type.label, fontSize: 17, color: colors.text, marginTop: 'auto', paddingTop: space.tight, paddingRight: 44 },
   unit: { ...type.caption, fontSize: 12, color: colors.subtle },
   add: { position: 'absolute', right: space.snug, bottom: space.snug },
@@ -386,18 +393,20 @@ const grid = StyleSheet.create({
   wrap: { gap: space.section },
   section: { gap: space.snug + 2 },
   head: { flexDirection: 'row', alignItems: 'center', gap: space.snug },
-  title: { ...type.label, fontSize: 16, color: colors.text },
+  title: { ...type.section, fontSize: 20, lineHeight: 25, color: colors.text },
   meta: {
     ...type.caption,
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    ...fontFor(600),
     color: colors.subtle,
-    backgroundColor: colors.card,
+    backgroundColor: 'rgba(118, 118, 128, 0.12)',
     borderRadius: RADII.pill,
     paddingHorizontal: 7,
     paddingVertical: 1,
     overflow: 'hidden',
   },
+  // A Text, so the chip's fill and edge rather than the View-typed glassChip.
+  metaGlass: { backgroundColor: GLASS_FILL_DENSE, borderWidth: 1, borderColor: GLASS_EDGE },
   row: { flexDirection: 'row', gap: space.cosy - 2 },
   cell: { flex: 1 },
 });

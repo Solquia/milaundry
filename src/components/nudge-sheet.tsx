@@ -12,6 +12,7 @@ import { formatMoney } from '@/lib/domain/money';
 import { orderContact } from '@/lib/domain/order-contact';
 
 import { SalesSheet } from './sales-sheet';
+import { glassChip } from './glass';
 import { RADII, TAG_TONES, colors, space, type } from './ui-kit';
 
 const DAY = 86_400_000;
@@ -128,8 +129,8 @@ const styles = StyleSheet.create({
     gap: 5,
     paddingHorizontal: space.cosy,
     minHeight: 36,
+    ...glassChip,
     borderRadius: RADII.pill,
-    backgroundColor: colors.card,
   },
   chipPrimary: { backgroundColor: colors.action },
   chipText: { ...type.caption, fontWeight: '700', color: colors.actionInk },

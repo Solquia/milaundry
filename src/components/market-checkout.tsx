@@ -27,6 +27,7 @@ import { HeavyItemArt, extraCloths } from './heavy-items';
 import { ServicePhoto } from './service-photo';
 import { ServiceScene } from './service-scene';
 import { SpotlightLoadSizes } from './spotlight-load-sizes';
+import { glassChip, glassPane, useIsGlass } from './glass';
 import { RADII, colors, elevation, formatMoney, space, type, useTint } from './ui-kit';
 import { clampWeight } from '@/lib/domain/booking-estimate';
 import { formatMoneyCompact } from '@/lib/domain/money';
@@ -113,8 +114,9 @@ export function MarketBasketPage(props: MarketBasketPageProps) {
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.card, elevation.rest]}>
+    <View style={[styles.card, isGlass ? styles.cardGlass : elevation.rest]}>
       <Text style={styles.cardTitle} accessibilityRole="header">
         {title}
       </Text>
@@ -513,9 +515,16 @@ function Tile({
   isToggle?: boolean;
 }) {
   const tint = useTint();
+  const isGlass = useIsGlass();
   const isIn = count > 0;
   return (
-    <View style={[styles.tile, isIn && { borderColor: tint.ink, backgroundColor: tint.surface }]}>
+    <View
+      style={[
+        styles.tile,
+        isGlass && styles.tileGlass,
+        isIn && { borderColor: tint.ink, backgroundColor: tint.surface },
+      ]}
+    >
       <Pressable
         accessibilityRole={isToggle ? 'checkbox' : 'button'}
         accessibilityState={isToggle ? { checked: isIn } : undefined}
@@ -552,8 +561,15 @@ function Tile({
 function Notes({ washSummary, washNotes, washProblem }: MarketBasketPageProps) {
   const [isOpen, setIsOpen] = useState(Boolean(washProblem));
   const open = isOpen || Boolean(washProblem);
+  const isGlass = useIsGlass();
   return (
-    <View style={[styles.card, elevation.rest, washProblem ? styles.cardProblem : null]}>
+    <View
+      style={[
+        styles.card,
+        isGlass ? styles.cardGlass : elevation.rest,
+        washProblem ? styles.cardProblem : null,
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ expanded: open }}
@@ -581,6 +597,8 @@ const styles = StyleSheet.create({
     padding: space.room,
     gap: space.cosy,
   },
+  // The customer app's frosted card; the shop's web page keeps the white.
+  cardGlass: { ...glassPane, borderRadius: RADII.card },
   cardProblem: { borderWidth: 1, borderColor: colors.dangerInk },
   cardTitle: { ...type.section, color: colors.text },
   problem: { ...type.caption, color: colors.dangerInk },
@@ -671,6 +689,7 @@ const styles = StyleSheet.create({
     paddingBottom: 44,
     backgroundColor: colors.card,
   },
+  tileGlass: { ...glassChip, borderWidth: 1.5 },
   tileArt: {
     width: '100%',
     height: 84,

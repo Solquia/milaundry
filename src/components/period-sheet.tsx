@@ -9,6 +9,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { PERIOD_PRESETS, isSamePeriod, type SalesPeriod } from '@/lib/domain/sales-period';
 
 import { SalesSheet } from './sales-sheet';
+import { glassChip } from './glass';
 import { RADII, colors, space, type } from './ui-kit';
 
 export function PeriodSheet({
@@ -61,8 +62,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     minHeight: 50,
     paddingHorizontal: space.room,
+    ...glassChip,
     borderRadius: RADII.control,
-    backgroundColor: colors.sunken,
   },
   rowOn: { backgroundColor: colors.actionSurface },
   label: { ...type.body, color: colors.text },
