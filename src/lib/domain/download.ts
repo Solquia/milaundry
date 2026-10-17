@@ -8,14 +8,14 @@
 
 export const APP_NAME = 'Milaundry';
 export const APK_FILE_NAME = 'Milaundry.apk';
-export const APK_VERSION = '1.0.4';
+export const APK_VERSION = '1.0.5';
 
 /**
  * The current release APK (production-apk profile). Expo hosts it; the page gives it the product's
  * own file name so a Downloads folder reads as the app, not as a hash.
  */
 export const APK_URL =
-  'https://expo.dev/artifacts/eas/ISC1Aq-RuyX7iwwFL-GsXQVpR3VwnvKz3hlC96al3Kk.apk';
+  'https://expo.dev/artifacts/eas/JUvfIjGVX8POoZDSiLGHPTsnojBXBWVR3RNeriEnGrE.apk';
 
 export type DownloadAudience = 'android' | 'ios' | 'other' | 'installed';
 
