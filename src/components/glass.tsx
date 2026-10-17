@@ -33,6 +33,13 @@ const WEB_BLUR: ViewStyle =
     ? ({ backdropFilter: 'blur(24px) saturate(160%)' } as unknown as ViewStyle)
     : {};
 
+/**
+ * Android draws its elevation shadow under the whole view, and a translucent
+ * pane lets it show through as a grey slab inside the glass. Panes there stand
+ * on their edge and the wash alone; iOS and the web keep the soft shadow.
+ */
+export const GLASS_ELEVATION = Platform.OS === 'android' ? 0 : 2;
+
 /** A pane: translucent fill, hairline edge, the wide soft shadow. */
 export const glassPane: ViewStyle = {
   backgroundColor: GLASS_FILL,
@@ -44,7 +51,7 @@ export const glassPane: ViewStyle = {
   shadowOpacity: 0.08,
   shadowRadius: 24,
   shadowOffset: { width: 0, height: 10 },
-  elevation: 2,
+  elevation: GLASS_ELEVATION,
   ...WEB_BLUR,
 };
 

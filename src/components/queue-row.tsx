@@ -25,7 +25,7 @@ import {
 
 import type { OrderStatus } from '@/lib/domain/order-status';
 
-import { GLASS_EDGE } from './glass';
+import { GLASS_EDGE, GLASS_ELEVATION } from './glass';
 import { GlyphTile } from './stage-glyph';
 import { RADII, STATUS_COLORS, TAG_TONES, colors, space, type } from './ui-kit';
 import { fontFor } from '@/lib/domain/design-scale';
@@ -177,7 +177,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    elevation: GLASS_ELEVATION,
   },
   pressed: { transform: [{ scale: 0.98 }] },
   // minWidth 0 lets a long name shrink instead of shoving the total off the row.

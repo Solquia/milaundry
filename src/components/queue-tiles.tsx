@@ -21,7 +21,7 @@ import type { BoardView } from '@/lib/domain/order-board';
 import type { QueueStats } from '@/lib/domain/order-queue';
 import { fontFor } from '@/lib/domain/design-scale';
 
-import { GLASS_EDGE } from './glass';
+import { GLASS_EDGE, GLASS_ELEVATION } from './glass';
 import { GlyphTile } from './stage-glyph';
 import { colors, space, type } from './ui-kit';
 
@@ -182,7 +182,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.07,
     shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 2,
+    elevation: GLASS_ELEVATION,
   },
   glow: { position: 'absolute', top: 0, left: 0, right: 0, height: '60%' },
   pressed: { transform: [{ scale: 0.97 }] },
