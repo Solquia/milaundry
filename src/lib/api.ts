@@ -25,6 +25,7 @@ import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
+import type { AddonSales } from './domain/addon-inventory';
 import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
 import type { Expense, ExpenseInput } from './domain/expense-metrics';
 import type { RecurringExpense, RecurringInput } from './domain/expense-recurring';
@@ -1102,6 +1103,21 @@ export async function updateShopAddon(
   >
 ): Promise<void> {
   const { error } = await supabase.from('shop_addons').update(patch).eq('id', addonId);
+  if (error) throw new Error(error.message);
+}
+
+/** What each add-on has sold: since its last count, lately, and ever (0049). */
+export async function getAddonSales(shopId: string, days: number): Promise<AddonSales[]> {
+  const { data, error } = await supabase.rpc('get_addon_sales', { p_shop_id: shopId, p_days: days });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as (Omit<AddonSales, 'revenue_recent'> & { revenue_recent: number | string })[]).map(
+    (row) => ({ ...row, revenue_recent: Number(row.revenue_recent) })
+  );
+}
+
+/** The owner's count of one add-on on the shelf, timed by the server. Null stops tracking it. */
+export async function setAddonStock(addonId: string, count: number | null): Promise<void> {
+  const { error } = await supabase.rpc('set_addon_stock', { p_addon_id: addonId, p_count: count });
   if (error) throw new Error(error.message);
 }
 

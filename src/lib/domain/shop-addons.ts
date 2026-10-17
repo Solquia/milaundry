@@ -54,6 +54,9 @@ export interface ShopAddon {
   sort_order: number;
   /** The most of this one item a customer may put on a booking. At least 1. */
   max_quantity: number;
+  /** The owner's last count of the shelf; absent or null when not tracked (0049). */
+  stock_count?: number | null;
+  stock_counted_at?: string | null;
 }
 
 /**
