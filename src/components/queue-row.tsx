@@ -25,7 +25,7 @@ import {
 
 import type { OrderStatus } from '@/lib/domain/order-status';
 
-import { GLASS_EDGE, GLASS_ELEVATION } from './glass';
+import { GLASS_EDGE, GLASS_ELEVATION, glassFill } from './glass';
 import { GlyphTile } from './stage-glyph';
 import { RADII, STATUS_COLORS, TAG_TONES, colors, space, type } from './ui-kit';
 import { fontFor } from '@/lib/domain/design-scale';
@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     paddingRight: space.snug + 2,
     borderRadius: 20,
     borderCurve: 'continuous',
-    backgroundColor: 'rgba(255, 255, 255, 0.86)',
+    backgroundColor: glassFill(0.86),
     borderWidth: 1.5,
     borderColor: GLASS_EDGE,
     shadowColor: '#1B2559',

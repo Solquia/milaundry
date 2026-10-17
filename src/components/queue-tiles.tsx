@@ -21,7 +21,7 @@ import type { BoardView } from '@/lib/domain/order-board';
 import type { QueueStats } from '@/lib/domain/order-queue';
 import { fontFor } from '@/lib/domain/design-scale';
 
-import { GLASS_EDGE, GLASS_ELEVATION } from './glass';
+import { GLASS_EDGE, GLASS_ELEVATION, glassFill } from './glass';
 import { GlyphTile } from './stage-glyph';
 import { colors, space, type } from './ui-kit';
 
@@ -175,7 +175,7 @@ const styles = StyleSheet.create({
     borderCurve: 'continuous',
     overflow: 'hidden',
     // Near-white glass: the hue lives in the symbol and the number.
-    backgroundColor: 'rgba(255, 255, 255, 0.86)',
+    backgroundColor: glassFill(0.86),
     borderWidth: 1.5,
     borderColor: GLASS_EDGE,
     shadowColor: '#1B2559',

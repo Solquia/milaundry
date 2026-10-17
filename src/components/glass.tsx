@@ -16,12 +16,26 @@ import React, { createContext, useContext, useId } from 'react';
 import { Platform, StyleSheet, View, type ViewStyle } from 'react-native';
 import Svg, { Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+/**
+ * Android has no backdrop blur, and a translucent view there shows whatever
+ * the system draws beneath it — its own elevation shadow, the layers of the
+ * views around it — as grey slabs and ghost shapes inside the glass. So on
+ * Android a pane is solid: white, or its tint already mixed into white, with
+ * a faint grey hairline to hold its edge. iOS and the web keep the frost.
+ */
+const IS_SOLID = Platform.OS === 'android';
+
+/** White at `alpha` over the wash; solid white on Android. */
+export function glassFill(alpha: number): string {
+  return IS_SOLID ? '#FFFFFF' : `rgba(255, 255, 255, ${alpha})`;
+}
+
 /** Frosted fill: white at partial strength, so the wash shows through. */
-export const GLASS_FILL = 'rgba(255, 255, 255, 0.66)';
+export const GLASS_FILL = glassFill(0.66);
 /** A denser pane, for rows of text that need more contrast. */
-export const GLASS_FILL_DENSE = 'rgba(255, 255, 255, 0.82)';
+export const GLASS_FILL_DENSE = glassFill(0.82);
 /** The bright hairline a pane of glass catches along its edge. */
-export const GLASS_EDGE = 'rgba(255, 255, 255, 0.95)';
+export const GLASS_EDGE = IS_SOLID ? 'rgba(60, 60, 67, 0.10)' : 'rgba(255, 255, 255, 0.95)';
 /** The frosted tray a glass card sits in, like the Wallet card's frame. */
 export const GLASS_TRAY = '#F4F5FA';
 /** Under the glass: a cool off-white the wash is painted over. */
@@ -33,12 +47,8 @@ const WEB_BLUR: ViewStyle =
     ? ({ backdropFilter: 'blur(24px) saturate(160%)' } as unknown as ViewStyle)
     : {};
 
-/**
- * Android draws its elevation shadow under the whole view, and a translucent
- * pane lets it show through as a grey slab inside the glass. Panes there stand
- * on their edge and the wash alone; iOS and the web keep the soft shadow.
- */
-export const GLASS_ELEVATION = Platform.OS === 'android' ? 0 : 2;
+/** Android's lift for a pane: safe now the pane is solid there. */
+export const GLASS_ELEVATION = 2;
 
 /** A pane: translucent fill, hairline edge, the wide soft shadow. */
 export const glassPane: ViewStyle = {
@@ -64,8 +74,20 @@ export const glassChip: ViewStyle = {
   ...WEB_BLUR,
 };
 
-/** A #RRGGBB colour at some alpha, as #RRGGBBAA. */
+/**
+ * A #RRGGBB colour at some alpha: as #RRGGBBAA, or on Android already laid
+ * over white as a solid #RRGGBB, which looks the same over a light page.
+ */
 function withAlpha(hex: string, alpha: number): string {
+  if (IS_SOLID) {
+    const over = (start: number) => {
+      const channel = parseInt(hex.slice(start, start + 2), 16);
+      return Math.round(255 + (channel - 255) * alpha)
+        .toString(16)
+        .padStart(2, '0');
+    };
+    return `#${over(1)}${over(3)}${over(5)}`;
+  }
   return `${hex}${Math.round(alpha * 255)
     .toString(16)
     .padStart(2, '0')}`;
