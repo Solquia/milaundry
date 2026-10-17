@@ -71,11 +71,12 @@ describe('downloadPage', () => {
   test('iPhone is sent to the App Store listing, not handed an APK it cannot open', () => {
     const page = downloadPage('ios');
     expect(page.action.kind).toBe('store');
-    expect(page.action.label).toBe('Get it on the App Store');
+    expect(page.action.label).toBe('Download app');
+    expect(page.lede).toBe(downloadPage('android').lede);
     expect(APP_STORE_URL).toBe('https://apps.apple.com/app/id6814431884');
     expect(page.apk).toBeNull();
-    expect(page.lede.toLowerCase()).not.toMatch(/android/);
-    expect(page.steps).toHaveLength(0);
+    expect(page.steps.map((step) => step.n)).toEqual([1, 2, 3]);
+    expect(page.steps.map((step) => step.body).join(' ').toLowerCase()).not.toMatch(/android|apk/);
   });
 
   test('a laptop still offers the APK, and says it installs on a phone', () => {

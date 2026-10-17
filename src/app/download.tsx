@@ -105,7 +105,7 @@ export default function Download() {
           ) : null}
 
           <Text style={styles.version}>
-            {page.action.kind === 'store' ? 'iPhone' : 'Android preview'} · {page.version}
+            {page.action.kind === 'store' ? 'App Store' : 'Android preview'} · {page.version}
           </Text>
         </View>
       </ScrollView>

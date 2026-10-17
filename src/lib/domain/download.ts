@@ -74,6 +74,25 @@ const INSTALL_STEPS: DownloadStep[] = [
   },
 ];
 
+/** An iPhone installs from the App Store, so its three steps end there instead of in Files. */
+const IPHONE_STEPS: DownloadStep[] = [
+  {
+    n: 1,
+    title: 'Download the app',
+    body: 'Opens Milaundry in the App Store.',
+  },
+  {
+    n: 2,
+    title: 'Tap Get',
+    body: 'Confirm with Face ID or your passcode. The app is free.',
+  },
+  {
+    n: 3,
+    title: 'Open Milaundry',
+    body: 'Find it on your Home Screen once it finishes.',
+  },
+];
+
 export function downloadPage(audience: DownloadAudience): DownloadPage {
   if (audience === 'installed') {
     return {
@@ -92,10 +111,10 @@ export function downloadPage(audience: DownloadAudience): DownloadPage {
       name: APP_NAME,
       version: APK_VERSION,
       headline: APP_NAME,
-      lede: 'Put the laundry app on this iPhone.',
-      action: { kind: 'store', label: 'Get it on the App Store', url: APP_STORE_URL },
+      lede: 'Put the laundry app on this phone.',
+      action: { kind: 'store', label: 'Download app', url: APP_STORE_URL },
       apk: null,
-      steps: [],
+      steps: IPHONE_STEPS,
     };
   }
 
