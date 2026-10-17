@@ -19,7 +19,7 @@ import { useRouter } from 'expo-router';
 import { Image } from 'expo-image';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
-import { Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Linking, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { BlueField } from '@/components/blue-field';
@@ -52,8 +52,8 @@ export default function Download() {
       startApkDownload(page.apk.url, page.apk.fileName);
       return;
     }
-    if (page.action.kind === 'web') {
-      router.push('/welcome' as never);
+    if (page.action.kind === 'store') {
+      void Linking.openURL(page.action.url);
       return;
     }
     router.replace('/' as never);
@@ -104,7 +104,9 @@ export default function Download() {
             </View>
           ) : null}
 
-          <Text style={styles.version}>Android preview · {page.version}</Text>
+          <Text style={styles.version}>
+            {page.action.kind === 'store' ? 'iPhone' : 'Android'} · {page.version}
+          </Text>
         </View>
       </ScrollView>
     </View>

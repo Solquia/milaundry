@@ -2,6 +2,7 @@ import {
   APK_FILE_NAME,
   APK_URL,
   APP_NAME,
+  APP_STORE_URL,
   downloadAudience,
   downloadPage,
 } from '../download';
@@ -67,11 +68,13 @@ describe('downloadPage', () => {
     expect(downloadPage('other').action.label).toBe('Download app');
   });
 
-  test('iPhone is told this preview is Android, and is offered the web app instead', () => {
+  test('iPhone is sent to the App Store listing, not handed an APK it cannot open', () => {
     const page = downloadPage('ios');
-    expect(page.action.kind).toBe('web');
+    expect(page.action.kind).toBe('store');
+    expect(page.action.label).toBe('Get it on the App Store');
+    expect(APP_STORE_URL).toBe('https://apps.apple.com/app/id6814431884');
     expect(page.apk).toBeNull();
-    expect(page.lede.toLowerCase()).toMatch(/android/);
+    expect(page.lede.toLowerCase()).not.toMatch(/android/);
     expect(page.steps).toHaveLength(0);
   });
 

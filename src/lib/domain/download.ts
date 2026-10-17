@@ -17,11 +17,14 @@ export const APK_VERSION = '1.0.5';
 export const APK_URL =
   'https://expo.dev/artifacts/eas/0N8DL8wvmHsi5cgvrB9w2_Nh8566gfjE_YdeNlqT0eA.apk';
 
+/** The live App Store listing (eas.json ascAppId). iPhones are sent here instead of the APK. */
+export const APP_STORE_URL = 'https://apps.apple.com/app/id6814431884';
+
 export type DownloadAudience = 'android' | 'ios' | 'other' | 'installed';
 
 export type DownloadAction =
   | { kind: 'apk'; label: string }
-  | { kind: 'web'; label: string }
+  | { kind: 'store'; label: string; url: string }
   | { kind: 'home'; label: string };
 
 export interface DownloadStep {
@@ -89,8 +92,8 @@ export function downloadPage(audience: DownloadAudience): DownloadPage {
       name: APP_NAME,
       version: APK_VERSION,
       headline: APP_NAME,
-      lede: 'This preview is for Android. On iPhone, use the web app.',
-      action: { kind: 'web', label: 'Continue in the browser' },
+      lede: 'Put the laundry app on this iPhone.',
+      action: { kind: 'store', label: 'Get it on the App Store', url: APP_STORE_URL },
       apk: null,
       steps: [],
     };
