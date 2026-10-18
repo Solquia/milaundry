@@ -1,14 +1,17 @@
 import { Redirect, Tabs, useRouter , usePathname } from 'expo-router';
 import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DoorbellBanner } from '@/components/doorbell-banner';
 import { GLASS_TRAY, GlassProvider } from '@/components/glass';
 import { SettingsButton } from '@/components/header-button';
 import { RaisedTabBar, type TabBarProps } from '@/components/raised-tab-bar';
+import { SideTabBar } from '@/components/side-tab-bar';
 import { Loading, colors, space, type } from '@/components/ui-kit';
+import { ViewportProvider } from '@/components/viewport';
 import { useAuth } from '@/lib/auth';
+import { deskLayout, deskSceneWidth } from '@/lib/domain/desk-layout';
 import { routeForRole, screenFromPathname } from '@/lib/domain/route-groups';
 import {
   canOpenMerchantRoute,
@@ -29,8 +32,11 @@ import { useViewAsShop } from '@/lib/view-as-shop-context';
 // It is a render function, not a component: React Navigation calls
 // `tabBar(props)` directly, and a component-shaped name here had React
 // Compiler plant a hook where no component runs.
-function makeTabBar(tabs: readonly TabConfig[]) {
-  const renderTabBar = (props: TabBarProps) => <RaisedTabBar {...props} tabs={tabs} />;
+// On a laptop the same tabs run down the left edge instead (`desk-layout.ts`).
+function makeTabBar(tabs: readonly TabConfig[], isDesk: boolean, shopName: string | null) {
+  const renderTabBar = isDesk
+    ? (props: TabBarProps) => <SideTabBar {...props} tabs={tabs} shopName={shopName} />
+    : (props: TabBarProps) => <RaisedTabBar {...props} tabs={tabs} />;
   return renderTabBar;
 }
 
@@ -43,15 +49,42 @@ function ShopDoorbellHost() {
   );
 }
 
+/**
+ * One screen on the desk, told the width it was laid out for. `Screen` reads
+ * that through `useViewport()` and centres its content at it, so the page's
+ * light still fills the working area edge to edge.
+ */
+function DeskScene({
+  width,
+  height,
+  children,
+}: {
+  width: number;
+  height: number;
+  children: React.ReactNode;
+}) {
+  return (
+    <ViewportProvider width={width} height={height}>
+      {children}
+    </ViewportProvider>
+  );
+}
+
 export default function MerchantLayout() {
   const { session, profile, isLoading } = useAuth();
   const { viewAsShop, exitViewAs } = useViewAsShop();
   // An owner sees the whole dashboard; staff see the counter (orders, a new
   // order, prices). The database refuses the rest to a staff session anyway,
   // so the tabs only hide what would fail.
-  const { shopRole, isLoading: isShopLoading } = useActiveShop();
+  const { shop, shopRole, isLoading: isShopLoading } = useActiveShop();
   const tabs = tabsForShopRole(shopRole);
-  const renderTabBar = useMemo(() => makeTabBar(tabs), [tabs]);
+  const window = useWindowDimensions();
+  const desk = deskLayout(Platform.OS, window.width);
+  const shopName = shop?.name ?? null;
+  const renderTabBar = useMemo(
+    () => makeTabBar(tabs, desk.isDesk, shopName),
+    [tabs, desk.isDesk, shopName],
+  );
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
@@ -115,8 +148,22 @@ export default function MerchantLayout() {
           // The grey circle in the header was the Expo dev-client button, which
           // does not ship in a production build — until now the app had no
           // account affordance at all beyond a text link in the order list.
-          headerRight: () => <SettingsButton />,
+          // On a laptop settings has its own row in the sidebar.
+          headerRight: desk.isDesk ? undefined : () => <SettingsButton />,
+          tabBarPosition: desk.isDesk ? 'left' : 'bottom',
         }}
+        screenLayout={
+          desk.isDesk
+            ? ({ route, children }) => (
+                <DeskScene
+                  width={deskSceneWidth(route.name, desk.contentWidth)}
+                  height={window.height}
+                >
+                  {children}
+                </DeskScene>
+              )
+            : undefined
+        }
         tabBar={renderTabBar}
       >
         {MERCHANT_TABS.map((tab) => (

@@ -16,6 +16,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import { STATUS_LABELS, type OrderStatus } from '@/lib/domain/order-status';
 import { useBrandTint, type BrandTint } from './brand-tint';
 import { GlassBackdrop, glassPane, useIsGlass } from './glass';
+import { useViewport } from './viewport';
 import { CLAIMED_TAG, PAID_TAG, RECEIPT_TAG, UNPAID_TAG } from '@/lib/domain/order-tags';
 import { CROWN, RADII, TYPE_ROLES, fontFor } from '@/lib/domain/design-scale';
 import { PH_DIAL_CODE, formatPhoneInput } from '@/lib/domain/phone-input';
@@ -348,13 +349,18 @@ export function Screen({
 }: ScreenProps) {
   const insets = useSafeAreaInsets();
   const isGlass = useIsGlass();
+  // The column this screen is drawn in. On a phone it is the screen; on a
+  // laptop the merchant dashboard narrows it (`desk-layout.ts`), and the
+  // light behind still runs the whole window while the content keeps a
+  // width a phone layout can stand at.
+  const column = { width: '100%', maxWidth: useViewport().width, alignSelf: 'center' } as const;
   const content = scroll ? (
     // `handled` matters at a counter: after typing a customer name, the first
     // tap on a stepper used to be swallowed dismissing the keyboard, and the
     // owner had no way to tell the tap had not registered.
     <ScrollView
       ref={scrollRef}
-      contentContainerStyle={[styles.screenContent, center && styles.screenCentered]}
+      contentContainerStyle={[styles.screenContent, column, center && styles.screenCentered]}
       keyboardShouldPersistTaps="handled"
       keyboardDismissMode="on-drag"
     >
@@ -362,7 +368,7 @@ export function Screen({
     </ScrollView>
   ) : (
     <View
-      style={[styles.screenContent, { flex: 1 }, center && styles.screenCentered]}
+      style={[styles.screenContent, column, { flex: 1 }, center && styles.screenCentered]}
     >
       {children}
     </View>
@@ -374,7 +380,11 @@ export function Screen({
     <SafeAreaView style={[styles.screen, isGlass && styles.screenGlass]} edges={['left', 'right']}>
       {/* The customer app's light: the panes on this screen frost over it. */}
       {isGlass ? <GlassBackdrop /> : null}
-      {header ? <View style={styles.screenHeader}>{header}</View> : null}
+      {header ? (
+        <View style={styles.screenHeader}>
+          <View style={column}>{header}</View>
+        </View>
+      ) : null}
       {content}
       {footer ? (
         <View
@@ -384,7 +394,7 @@ export function Screen({
             isBottomBare && { paddingBottom: space.cosy + insets.bottom },
           ]}
         >
-          {footer}
+          <View style={[styles.screenFooterInner, column]}>{footer}</View>
         </View>
       ) : null}
     </SafeAreaView>
@@ -700,6 +710,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  screenFooterInner: { gap: space.snug },
   screenFooterGlass: {
     backgroundColor: 'rgba(255, 255, 255, 0.78)',
     borderTopColor: 'rgba(255, 255, 255, 0.95)',

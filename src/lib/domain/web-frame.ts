@@ -13,6 +13,7 @@
  * those routes take the window they were opened in and answer it through
  * `web-layout.ts`.
  */
+import { isDeskWidth } from '@/lib/domain/desk-layout';
 
 /**
  * The column, in CSS pixels: the widest phone anyone is likely to hold, so
@@ -46,6 +47,12 @@ export function frameLayout(input: {
   viewportWidth: number;
   /** The address on screen. Public shop pages take the whole window. */
   pathname?: string | null;
+  /**
+   * True inside the merchant dashboard. Its addresses (`/orders`, `/scan`,
+   * `/settings`) are the customer app's too, so the route group, not the
+   * path, says which one is on screen. See `desk-layout.ts`.
+   */
+  isMerchant?: boolean;
 }): FrameLayout {
   // `!(w > FRAME)` rather than `w <= FRAME`: an unmeasured width arrives as 0
   // or NaN, and NaN fails both comparisons. Not framing is the safe answer —
@@ -54,6 +61,9 @@ export function frameLayout(input: {
     return { isFramed: false, width: input.viewportWidth };
   }
   if (hasOwnWebLayout(input.pathname)) {
+    return { isFramed: false, width: input.viewportWidth };
+  }
+  if (input.isMerchant && isDeskWidth(input.platform, input.viewportWidth)) {
     return { isFramed: false, width: input.viewportWidth };
   }
   return { isFramed: true, width: FRAME_MAX_WIDTH };

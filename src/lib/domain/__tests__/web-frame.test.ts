@@ -61,6 +61,24 @@ describe('frameLayout', () => {
     }
   });
 
+  it('lets the merchant dashboard take a laptop window', () => {
+    expect(frameLayout({ platform: 'web', viewportWidth: 1440, pathname: '/orders', isMerchant: true })).toEqual({
+      isFramed: false,
+      width: 1440,
+    });
+  });
+
+  it('keeps the merchant dashboard in the column on a tablet, and the customer app always', () => {
+    expect(frameLayout({ platform: 'web', viewportWidth: 800, pathname: '/orders', isMerchant: true })).toEqual({
+      isFramed: true,
+      width: FRAME_MAX_WIDTH,
+    });
+    expect(frameLayout({ platform: 'web', viewportWidth: 1440, pathname: '/orders' })).toEqual({
+      isFramed: true,
+      width: FRAME_MAX_WIDTH,
+    });
+  });
+
   it('measures the column against a real phone, not a tablet', () => {
     expect(FRAME_MAX_WIDTH).toBeGreaterThanOrEqual(390);
     expect(FRAME_MAX_WIDTH).toBeLessThanOrEqual(440);

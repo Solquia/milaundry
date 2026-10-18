@@ -27,6 +27,11 @@ import { glassChip } from './glass';
 import { APP_TONE, type QuantityTone } from './quantity-picker';
 import { ServiceTileCard } from './service-tile-card';
 import { RADII, colors, space, type } from './ui-kit';
+import { useViewport } from '@/components/viewport';
+import { deskColumns } from '@/lib/domain/desk-layout';
+
+/** The narrowest a service tile is drawn before the row drops a column. */
+const TILE_MIN_WIDTH = 270;
 
 export const ALL_CATEGORIES = 'all';
 
@@ -115,10 +120,13 @@ export function ServiceMenu({
     [groups]
   );
   const bookTone = { bg: tone.brand, ink: colors.onAccent };
+  // Two tiles a row on a phone, the pair it was drawn as; up to four on a
+  // laptop, so each tile keeps its proportions instead of stretching.
+  const columns = Math.max(2, deskColumns(useViewport().width, TILE_MIN_WIDTH, 4));
 
   return (
     <View style={styles.menu}>
-      {gridRows(tiles, 2).map((row, index) => (
+      {gridRows(tiles, columns).map((row, index) => (
         <View key={index} style={styles.row}>
           {row.map((entry, column) =>
             entry ? (

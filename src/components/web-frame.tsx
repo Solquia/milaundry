@@ -1,4 +1,4 @@
-import { usePathname } from 'expo-router';
+import { usePathname, useSegments } from 'expo-router';
 import React from 'react';
 import { Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
 
@@ -13,17 +13,20 @@ const BACKDROP = '#E3E3E8';
  * tells the tree inside how wide it really is.
  *
  * A shop's public page (`/s/`, `/track/`, `/claim/`, `/join/`) takes the
- * window instead — those routes have their own layout. A phone's browser,
+ * window instead — those routes have their own layout — and so does the
+ * merchant dashboard on a laptop (`domain/desk-layout.ts`). A phone's browser,
  * and every native screen, falls straight through. The reasoning is in
  * `domain/web-frame.ts`.
  */
 export function WebFrame({ children }: { children: React.ReactNode }) {
   const window = useWindowDimensions();
   const pathname = usePathname();
+  const segments = useSegments();
   const frame = frameLayout({
     platform: Platform.OS,
     viewportWidth: window.width,
     pathname,
+    isMerchant: segments[0] === '(merchant)',
   });
 
   return (

@@ -48,6 +48,8 @@ import {
 } from '@/lib/domain/order-queue';
 import type { OrderStatus } from '@/lib/domain/order-status';
 import { useActiveShop } from '@/lib/use-active-shop';
+import { useViewport } from '@/components/viewport';
+import { chunkRows, deskColumns } from '@/lib/domain/desk-layout';
 import { useHaptic } from '@/lib/use-app-settings';
 import { fontFor } from '@/lib/domain/design-scale';
 
@@ -247,6 +249,13 @@ export default function MerchantOrders() {
   }, [all, view, query, isQueue]);
   /* eslint-enable react-hooks/exhaustive-deps */
   const toCheck = useMemo(() => claimsToCheck(all), [all]);
+  // One column on a phone; on a laptop the cards stand side by side in rows,
+  // each still the width it was drawn at, so a morning's queue fits on screen.
+  const columns = deskColumns(useViewport().width);
+  const rowSections = useMemo(
+    () => sections.map((section) => ({ ...section, data: chunkRows(section.data, columns) })),
+    [sections, columns],
+  );
 
   const chooseView = (next: BoardView) => {
     rememberedView = next;
@@ -394,17 +403,27 @@ export default function MerchantOrders() {
 
       <SectionList
         style={styles.fill}
-        sections={sections}
-        keyExtractor={(order) => order.id}
-        renderItem={({ item }) => (
-          <QueueRow
-            order={item}
-            now={now}
-            action={view === 'stuck' ? stuckAction(item) : rowAction(item)}
-            isBusy={busyId === item.id}
-            onOpen={() => openOrder(item.id)}
-            onAction={(action) => runAction(item, action)}
-          />
+        sections={rowSections}
+        keyExtractor={(row) => row.map((order) => order.id).join('|')}
+        renderItem={({ item: row }) => (
+          <View style={styles.row}>
+            {row.map((item) => (
+              <View key={item.id} style={styles.cell}>
+                <QueueRow
+                  order={item}
+                  now={now}
+                  action={view === 'stuck' ? stuckAction(item) : rowAction(item)}
+                  isBusy={busyId === item.id}
+                  onOpen={() => openOrder(item.id)}
+                  onAction={(action) => runAction(item, action)}
+                />
+              </View>
+            ))}
+            {/* Empty cells hold a short last row to the grid. */}
+            {Array.from({ length: columns - row.length }, (_, index) => (
+              <View key={`pad-${index}`} style={styles.cell} />
+            ))}
+          </View>
         )}
         renderSectionHeader={({ section }) =>
           showsHeadings ? (
@@ -480,4 +499,6 @@ const styles = StyleSheet.create({
   headingOverdue: { color: colors.dangerInk },
   headingGap: { height: space.snug },
   gap: { height: 6 },
+  row: { flexDirection: 'row', gap: space.snug },
+  cell: { flex: 1, minWidth: 0 },
 });

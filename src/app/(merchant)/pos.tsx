@@ -44,6 +44,7 @@ import {
   glassChip,
   glassPane,
 } from '@/components/glass';
+import { useViewport } from '@/components/viewport';
 import { Odometer } from '@/components/odometer';
 import {
   SlipCode,
@@ -170,6 +171,9 @@ function TillShell({
   footer: React.ReactNode;
   scroll?: boolean;
 }) {
+  // On a laptop the work and the decision under it keep to the column the
+  // dashboard gives them; the shop's light still runs the window.
+  const column = { width: '100%', maxWidth: useViewport().width, alignSelf: 'center' } as const;
   return (
     <SafeAreaView style={styles.shell} edges={['left', 'right']}>
       <GlassBackdrop />
@@ -180,7 +184,7 @@ function TillShell({
       >
         {scroll ? (
           <ScrollView
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[styles.content, column]}
             keyboardShouldPersistTaps="handled"
             keyboardDismissMode="on-drag"
           >
@@ -189,7 +193,9 @@ function TillShell({
         ) : (
           children
         )}
-        <View style={styles.footer}>{footer}</View>
+        <View style={styles.footer}>
+          <View style={[styles.footerInner, column]}>{footer}</View>
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -224,6 +230,7 @@ export default function Pos() {
   const queryClient = useQueryClient();
   const haptic = useHaptic();
   const { shop, shopRole, isLoading, error: shopError } = useActiveShop();
+  const menuColumn = { width: '100%', maxWidth: useViewport().width, alignSelf: 'center' } as const;
 
   const [step, setStep] = useState<TillStep>('items');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
@@ -743,11 +750,11 @@ export default function Pos() {
       {/* A shop with a price guide works the counter in steps — one
           step at a time, what then which then size — rather than a tile per service. */}
       {hasGuide ? null : (
-        <View style={styles.stripWrap}>
+        <View style={[styles.stripWrap, menuColumn]}>
           <CategoryStrip groups={groups} active={category} onChange={setCategory} tone={tone} />
         </View>
       )}
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, menuColumn]} keyboardShouldPersistTaps="handled">
         {hasGuide ? (
           <ServiceSteps
             sections={counterBoards(guideMenu(services ?? []))}
@@ -837,6 +844,7 @@ const styles = StyleSheet.create({
   totalValue: { ...type.value, color: colors.text },
   totalMuted: { color: colors.subtle },
   buttons: { flexDirection: 'row', gap: space.snug },
+  footerInner: { gap: space.snug },
 
   /**
    * Clear of the raised tab button. The saved slip draws its own frame rather
