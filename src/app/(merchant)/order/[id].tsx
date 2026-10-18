@@ -8,6 +8,7 @@ import { CollectPayment, ProofReview } from '@/components/collect-payment';
 import { OrderHero } from '@/components/order-hero';
 import { OrderHolderCard } from '@/components/order-holder-card';
 import { OrderLines } from '@/components/order-lines';
+import { OrderProfitCard } from '@/components/order-profit-card';
 import { OrderRewardsCard } from '@/components/order-rewards-card';
 import { OrderTimeline } from '@/components/order-timeline';
 import { SentPrice, WeighModal, settleLead } from '@/components/price-handoff';
@@ -37,6 +38,7 @@ import {
 } from '@/lib/api';
 import { changeFor } from '@/lib/domain/cash-payment';
 import { cancelOrderPrompt, markPaidPrompt } from '@/lib/domain/confirm-prompts';
+import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { shortOrderId } from '@/lib/domain/order-card';
 import { isHeldForPayment, settleStep } from '@/lib/domain/order-settlement';
@@ -62,7 +64,7 @@ export default function MerchantOrderDetail() {
   const queryClient = useQueryClient();
   const now = useMemo(() => new Date(), []);
   const [error, setError] = useState('');
-  const { shop: activeShop } = useActiveShop();
+  const { shop: activeShop, shopRole } = useActiveShop();
   const printer = usePrinter();
   const [receipt, setReceipt] = useState('');
   const [isPending, setIsPending] = useState(false);
@@ -230,6 +232,7 @@ export default function MerchantOrderDetail() {
       />
       <OrderTimeline status={order.status} history={history ?? []} now={now} />
       <OrderLines order={order} now={now} />
+      {canManageShop(shopRole) ? <OrderProfitCard order={order} /> : null}
 
       {/* The first weighing opens from the footer; this card stays for a
           correction once a price has been sent. */}

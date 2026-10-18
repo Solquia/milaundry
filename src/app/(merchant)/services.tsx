@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NoShopState } from '@/components/no-shop-state';
 import { AddonInventory } from '@/components/addon-inventory';
+import { ServiceCosts } from '@/components/service-costs';
 import { MerchantAddons } from '@/components/merchant-addons';
 import { MerchantRewards } from '@/components/merchant-rewards';
 import { PriceBoard } from '@/components/price-board';
@@ -33,7 +34,7 @@ import { STARTER_SERVICES } from '@/lib/domain/service-catalog';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
-type PricesMode = 'services' | 'addons' | 'stock' | 'rewards';
+type PricesMode = 'services' | 'addons' | 'stock' | 'costs' | 'rewards';
 
 /**
  * Services or add-ons: the two price lists an owner keeps. Pinned above the
@@ -44,6 +45,7 @@ const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
   { key: 'services', label: 'Services' },
   { key: 'addons', label: 'Add-ons' },
   { key: 'stock', label: 'Stock' },
+  { key: 'costs', label: 'Costs' },
   { key: 'rewards', label: 'Rewards' },
 ];
 
@@ -174,6 +176,7 @@ export default function MerchantServices() {
   // pricing decision, not a counter one.
   const isRewards = isOwner && mode === 'rewards';
   const isStock = isOwner && mode === 'stock';
+  const isCosts = isOwner && mode === 'costs';
   const header = (
     <View style={styles.headerRow}>
       {isOwner ? (
@@ -183,7 +186,7 @@ export default function MerchantServices() {
       ) : (
         <Text style={styles.headerTitle}>Services</Text>
       )}
-      {isAddons || isRewards || isStock ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
+      {isAddons || isRewards || isStock || isCosts ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
     </View>
   );
 
@@ -199,6 +202,14 @@ export default function MerchantServices() {
     return (
       <Screen key="stock" header={header}>
         <AddonInventory shopId={shop.id} />
+      </Screen>
+    );
+  }
+
+  if (isCosts) {
+    return (
+      <Screen key="costs" header={header}>
+        <ServiceCosts shopId={shop.id} />
       </Screen>
     );
   }
