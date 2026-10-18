@@ -25,7 +25,7 @@ import type { NewShopAccount, ShopAccountRole } from './domain/shop-account';
 import type { StarterService } from './domain/service-catalog';
 import type { PreferredMethod, SavedAddress } from './domain/customer-book';
 import { normalizePreferences, type LaundryPreferences } from './domain/laundry-preferences';
-import type { AddonSales } from './domain/addon-inventory';
+import type { AddonCost, AddonSales } from './domain/addon-inventory';
 import type { AddonGroupRules, AddonKind, ShopAddon } from './domain/shop-addons';
 import type { Expense, ExpenseInput } from './domain/expense-metrics';
 import type { RecurringExpense, RecurringInput } from './domain/expense-recurring';
@@ -1118,6 +1118,32 @@ export async function getAddonSales(shopId: string, days: number): Promise<Addon
 /** The owner's count of one add-on on the shelf, timed by the server. Null stops tracking it. */
 export async function setAddonStock(addonId: string, count: number | null): Promise<void> {
   const { error } = await supabase.rpc('set_addon_stock', { p_addon_id: addonId, p_count: count });
+  if (error) throw new Error(error.message);
+}
+
+/** Puts back the count from before the last one, for a count or delivery typed wrong (0050). */
+export async function undoAddonStock(addonId: string): Promise<void> {
+  const { error } = await supabase.rpc('undo_addon_stock', { p_addon_id: addonId });
+  if (error) throw new Error(error.message);
+}
+
+type AddonCostRow = { addon_id: string; unit_cost: number | string | null; cost_recent: number | string | null };
+
+/** What each add-on costs the shop and what its recent sales cost (0050). Owners only. */
+export async function getAddonCosts(shopId: string, days: number): Promise<AddonCost[]> {
+  const { data, error } = await supabase.rpc('get_addon_costs', { p_shop_id: shopId, p_days: days });
+  if (error) throw new Error(error.message);
+  const toNumber = (value: number | string | null) => (value === null ? null : Number(value));
+  return ((data ?? []) as AddonCostRow[]).map((row) => ({
+    addon_id: row.addon_id,
+    unit_cost: toNumber(row.unit_cost),
+    cost_recent: toNumber(row.cost_recent),
+  }));
+}
+
+/** The owner's cost for one pack of an add-on, from now on (0050). */
+export async function setAddonCost(addonId: string, unitCost: number): Promise<void> {
+  const { error } = await supabase.rpc('set_addon_cost', { p_addon_id: addonId, p_unit_cost: unitCost });
   if (error) throw new Error(error.message);
 }
 

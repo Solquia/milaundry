@@ -2,7 +2,9 @@ import {
   LOW_STOCK_AT,
   STOCK_LIMIT,
   bestSellers,
+  parseCostInput,
   parseStockInput,
+  profitPerPack,
   restockOrder,
   restockedCount,
   stockLines,
@@ -127,6 +129,7 @@ describe('stockSummary', () => {
       left: 22,
       soldRecent: 9,
       revenueRecent: 120.3,
+      profitRecent: null,
       needRestock: 2,
       uncounted: 1,
     });
@@ -179,5 +182,57 @@ describe('restockedCount', () => {
 
   test('never past the limit', () => {
     expect(restockedCount({ left: STOCK_LIMIT }, 1)).toBe(STOCK_LIMIT);
+  });
+});
+
+describe('costs and profit', () => {
+  test('profit is what sold less what those packs cost', () => {
+    const [line] = stockLines(
+      [addon({ id: 'a', price: 15 })],
+      [sales({ addon_id: 'a', sold_recent: 4, revenue_recent: 60 })],
+      [{ addon_id: 'a', unit_cost: 9, cost_recent: 36 }]
+    );
+    expect(line.unitCost).toBe(9);
+    expect(line.profitRecent).toBe(24);
+    expect(profitPerPack(line)).toBe(6);
+  });
+
+  test('an add-on with no cost entered has no profit, not zero', () => {
+    const [line] = stockLines([addon({ id: 'a' })], [sales({ addon_id: 'a', revenue_recent: 30 })]);
+    expect(line.unitCost).toBeNull();
+    expect(line.profitRecent).toBeNull();
+    expect(profitPerPack(line)).toBeNull();
+  });
+
+  test('the summary adds up only the add-ons with a cost', () => {
+    const lines = stockLines(
+      [addon({ id: 'a' }), addon({ id: 'b' })],
+      [sales({ addon_id: 'a', revenue_recent: 30.1 }), sales({ addon_id: 'b', revenue_recent: 50 })],
+      [{ addon_id: 'a', unit_cost: 9, cost_recent: 18.05 }]
+    );
+    expect(stockSummary(lines).profitRecent).toBe(12.05);
+  });
+
+  test('the summary has no profit when nothing is costed', () => {
+    const lines = stockLines([addon({ id: 'a' })], [sales({ addon_id: 'a' })]);
+    expect(stockSummary(lines).profitRecent).toBeNull();
+  });
+});
+
+describe('parseCostInput', () => {
+  test('blank keeps the cost as it is', () => {
+    expect(parseCostInput('  ')).toEqual({ ok: true, value: null });
+  });
+
+  test('reads pesos, with or without the sign, to the centavo', () => {
+    expect(parseCostInput('9.5')).toEqual({ ok: true, value: 9.5 });
+    expect(parseCostInput('₱12')).toEqual({ ok: true, value: 12 });
+    expect(parseCostInput('1.005')).toEqual({ ok: true, value: 1 });
+  });
+
+  test('refuses words, negatives and silly amounts', () => {
+    expect(parseCostInput('ten').ok).toBe(false);
+    expect(parseCostInput('-1').ok).toBe(false);
+    expect(parseCostInput('100001').ok).toBe(false);
   });
 });

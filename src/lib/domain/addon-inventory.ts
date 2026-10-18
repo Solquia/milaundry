@@ -18,12 +18,23 @@ export interface AddonSales {
   revenue_recent: number;
 }
 
+/** What one add-on costs the shop, as `get_addon_costs` reports it (0050). Owners only. */
+export interface AddonCost {
+  addon_id: string;
+  /** The cost per pack now, or null when the owner never entered one. */
+  unit_cost: number | null;
+  /** What the packs sold lately cost, each at the cost in force when it sold. */
+  cost_recent: number | null;
+}
+
 /** "Best sellers" and the sales figures look back this far. */
 export const RECENT_DAYS = 30;
 /** This many left or fewer and the shelf needs topping up. */
 export const LOW_STOCK_AT = 5;
 /** The most one count may say. The database agrees. */
 export const STOCK_LIMIT = 100_000;
+/** The dearest a pack may cost. The database agrees. */
+export const COST_LIMIT = 100_000;
 const BEST_SELLER_COUNT = 3;
 
 export type StockStatus = 'untracked' | 'out' | 'low' | 'ok';
@@ -38,6 +49,10 @@ export interface StockLine {
   soldRecent: number;
   soldTotal: number;
   revenueRecent: number;
+  /** What one pack cost the shop, or null when not entered. */
+  unitCost: number | null;
+  /** Revenue less what the packs cost, or null when no cost is entered. */
+  profitRecent: number | null;
   status: StockStatus;
 }
 
@@ -51,10 +66,18 @@ export function stockStatus(left: number | null): StockStatus {
 const NO_SALES = { sold_since_count: 0, sold_recent: 0, sold_total: 0, revenue_recent: 0 };
 
 /** One line per add-on, in the shelf's own order, with its sales and what is left. */
-export function stockLines(addons: readonly ShopAddon[], sales: readonly AddonSales[]): StockLine[] {
+export function stockLines(
+  addons: readonly ShopAddon[],
+  sales: readonly AddonSales[],
+  costs: readonly AddonCost[] = []
+): StockLine[] {
   const byId = new Map(sales.map((row) => [row.addon_id, row]));
+  const costById = new Map(costs.map((row) => [row.addon_id, row]));
   return addons.map((addon) => {
     const sold = byId.get(addon.id) ?? NO_SALES;
+    const cost = costById.get(addon.id);
+    const unitCost = cost?.unit_cost ?? null;
+    const costRecent = cost?.cost_recent ?? null;
     const counted = addon.stock_count ?? null;
     // More sold than counted means the count was short; nothing is left either way.
     const left = counted === null ? null : Math.max(0, counted - sold.sold_since_count);
@@ -66,6 +89,11 @@ export function stockLines(addons: readonly ShopAddon[], sales: readonly AddonSa
       soldRecent: sold.sold_recent,
       soldTotal: sold.sold_total,
       revenueRecent: sold.revenue_recent,
+      unitCost,
+      profitRecent:
+        unitCost === null || costRecent === null
+          ? null
+          : (Math.round(sold.revenue_recent * 100) - Math.round(costRecent * 100)) / 100,
       status: stockStatus(left),
     };
   });
@@ -89,6 +117,8 @@ export interface StockSummary {
   left: number;
   soldRecent: number;
   revenueRecent: number;
+  /** Profit across the add-ons with a cost entered, or null when none has one. */
+  profitRecent: number | null;
   /** Counted add-ons that are low or out. */
   needRestock: number;
   /** Add-ons the owner has not counted yet. */
@@ -97,10 +127,13 @@ export interface StockSummary {
 
 export function stockSummary(lines: readonly StockLine[]): StockSummary {
   const cents = lines.reduce((sum, line) => sum + Math.round(line.revenueRecent * 100), 0);
+  const costed = lines.filter((line) => line.profitRecent !== null);
+  const profitCents = costed.reduce((sum, line) => sum + Math.round((line.profitRecent ?? 0) * 100), 0);
   return {
     left: lines.reduce((sum, line) => sum + (line.left ?? 0), 0),
     soldRecent: lines.reduce((sum, line) => sum + line.soldRecent, 0),
     revenueRecent: cents / 100,
+    profitRecent: costed.length === 0 ? null : profitCents / 100,
     needRestock: lines.filter((line) => line.status === 'out' || line.status === 'low').length,
     uncounted: lines.filter((line) => line.status === 'untracked').length,
   };
@@ -124,6 +157,24 @@ export function parseStockInput(text: string): StockInput {
   }
   if (value > STOCK_LIMIT) return { ok: false, error: 'That is more than one shelf can hold.' };
   return { ok: true, value };
+}
+
+export type CostInput = { ok: true; value: number | null } | { ok: false; error: string };
+
+/** A typed cost per pack in pesos. Blank leaves the cost as it is. */
+export function parseCostInput(text: string): CostInput {
+  const trimmed = text.trim().replace(/^₱/, '').trim();
+  if (trimmed === '') return { ok: true, value: null };
+  const value = Number(trimmed);
+  if (!Number.isFinite(value) || value < 0) return { ok: false, error: 'Type the cost in pesos, like 9.50.' };
+  if (value > COST_LIMIT) return { ok: false, error: 'That cost is too high for one pack.' };
+  return { ok: true, value: Math.round(value * 100) / 100 };
+}
+
+/** What one pack makes at today's price and cost, or null with no cost entered. */
+export function profitPerPack(line: Pick<StockLine, 'addon' | 'unitCost'>): number | null {
+  if (line.unitCost === null) return null;
+  return (Math.round(line.addon.price * 100) - Math.round(line.unitCost * 100)) / 100;
 }
 
 /** The new count after a delivery of `received` lands on what is left. */

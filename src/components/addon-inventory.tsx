@@ -11,12 +11,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getAddonSales, getShopAddons, setAddonStock } from '@/lib/api';
+import {
+  getAddonCosts,
+  getAddonSales,
+  getShopAddons,
+  setAddonCost,
+  setAddonStock,
+  undoAddonStock,
+} from '@/lib/api';
 import {
   RECENT_DAYS,
   STOCK_STATUS_LABEL,
   bestSellers,
+  parseCostInput,
   parseStockInput,
+  profitPerPack,
   restockOrder,
   restockedCount,
   stockLines,
@@ -24,7 +33,7 @@ import {
   type StockLine,
   type StockStatus,
 } from '@/lib/domain/addon-inventory';
-import { formatMoneyCompact } from '@/lib/domain/money';
+import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
 import { ADDON_KIND_SHORT } from '@/lib/domain/shop-addons';
 
 import { AddonPicture } from './addon-shelf';
@@ -99,17 +108,25 @@ function BestSellers({ lines }: { lines: StockLine[] }) {
   );
 }
 
-type Editing = 'delivery' | 'count' | null;
+type Editing = 'delivery' | 'count' | 'erase' | null;
+
+/** "Sells ₱15 · Cost ₱9 · ₱6 profit each", or a nudge to enter the cost. */
+function priceLine(line: StockLine): string {
+  const sells = `Sells ${formatMoney(line.addon.price)}`;
+  const profit = profitPerPack(line);
+  if (line.unitCost === null || profit === null) return `${sells} · No cost entered yet`;
+  return `${sells} · Cost ${formatMoney(line.unitCost)} · ${formatMoney(profit)} profit each`;
+}
 
 function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
   const [editing, setEditing] = useState<Editing>(null);
   const [text, setText] = useState('');
+  const [costText, setCostText] = useState('');
   const [error, setError] = useState('');
   const tone = STATUS_TONE[line.status];
   const isCounted = line.left !== null;
 
-  const save = useMutation({
-    mutationFn: (count: number) => setAddonStock(line.addon.id, count),
+  const done = {
     onSuccess: () => {
       setEditing(null);
       setText('');
@@ -117,11 +134,23 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
       onSaved();
     },
     onError: (err: Error) => setError(err.message),
+  };
+
+  // The cost first: a delivery saved without its cost would show a profit
+  // worked out from the old one.
+  const save = useMutation({
+    mutationFn: async ({ count, cost }: { count: number; cost: number | null }) => {
+      if (cost !== null && cost !== line.unitCost) await setAddonCost(line.addon.id, cost);
+      await setAddonStock(line.addon.id, count);
+    },
+    ...done,
   });
+  const erase = useMutation({ mutationFn: () => undoAddonStock(line.addon.id), ...done });
 
   const open = (mode: Exclude<Editing, null>) => {
     setError('');
     setText(mode === 'count' && line.left !== null ? String(line.left) : '');
+    setCostText(line.unitCost === null ? '' : String(line.unitCost));
     setEditing((current) => (current === mode ? null : mode));
   };
 
@@ -131,8 +160,15 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
       setError(parsed.error);
       return;
     }
-    save.mutate(editing === 'delivery' ? restockedCount(line, parsed.value) : parsed.value);
+    const cost = parseCostInput(costText);
+    if (!cost.ok) {
+      setError(cost.error);
+      return;
+    }
+    const count = editing === 'delivery' ? restockedCount(line, parsed.value) : parsed.value;
+    save.mutate({ count, cost: cost.value });
   };
+  const isBusy = save.isPending || erase.isPending;
 
   return (
     <View style={[styles.row, !line.addon.is_active && styles.rowHidden]}>
@@ -148,6 +184,7 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
             {ADDON_KIND_SHORT[line.addon.kind]}
             {line.addon.is_active ? '' : ' · Hidden from customers'}
           </Text>
+          <Text style={styles.meta}>{priceLine(line)}</Text>
           <View style={[styles.pill, { backgroundColor: tone.bg }]}>
             <Text style={[styles.pillText, { color: tone.ink }]}>{STOCK_STATUS_LABEL[line.status]}</Text>
           </View>
@@ -179,6 +216,12 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
         <Text style={styles.soldText}>
           <Text style={styles.soldStrong}>{line.soldTotal}</Text> all time
         </Text>
+        {line.profitRecent !== null ? (
+          <Text style={styles.soldText}>
+            <Text style={styles.soldStrong}>{formatMoney(line.profitRecent)}</Text>
+            {` profit in ${RECENT_DAYS} days`}
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.actions}>
@@ -205,8 +248,31 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
           </Text>
         </Pressable>
       </View>
+      {isCounted ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: editing === 'erase' }}
+          accessibilityLabel={`Erase the last count or delivery of ${line.addon.name}`}
+          onPress={() => open('erase')}
+          style={styles.eraseLink}
+        >
+          <Text style={styles.eraseText}>Typed it wrong? Erase last entry</Text>
+        </Pressable>
+      ) : null}
 
-      {editing ? (
+      {editing === 'erase' ? (
+        <View style={styles.editor}>
+          <Text style={styles.meta}>
+            {`This puts ${line.addon.name} back to how it was before your last count or delivery. Press again to go back further.`}
+          </Text>
+          <Button
+            title={erase.isPending ? 'Erasing…' : 'Erase last entry'}
+            variant="outline"
+            onPress={() => erase.mutate()}
+            disabled={isBusy}
+          />
+        </View>
+      ) : editing ? (
         <View style={styles.editor}>
           <Field
             label={
@@ -220,10 +286,17 @@ function StockRow({ line, onSaved }: { line: StockLine; onSaved: () => void }) {
             placeholder="0"
             autoFocus
           />
+          <Field
+            label={`What did one pack cost you? (Customers and staff see ${formatMoney(line.addon.price)})`}
+            value={costText}
+            onChangeText={setCostText}
+            keyboardType="decimal-pad"
+            placeholder="₱0.00"
+          />
           <Button
             title={save.isPending ? 'Saving…' : editing === 'delivery' ? 'Add to stock' : 'Save count'}
             onPress={submit}
-            disabled={save.isPending}
+            disabled={isBusy}
           />
         </View>
       ) : null}
@@ -239,13 +312,18 @@ export function AddonInventory({ shopId }: { shopId: string }) {
     queryKey: ['addon-sales', shopId, RECENT_DAYS],
     queryFn: () => getAddonSales(shopId, RECENT_DAYS),
   });
+  const costs = useQuery({
+    queryKey: ['addon-costs', shopId, RECENT_DAYS],
+    queryFn: () => getAddonCosts(shopId, RECENT_DAYS),
+  });
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['shop-addons', shopId] });
     void queryClient.invalidateQueries({ queryKey: ['addon-sales', shopId] });
+    void queryClient.invalidateQueries({ queryKey: ['addon-costs', shopId] });
   };
 
-  const error = addons.error ?? sales.error;
+  const error = addons.error ?? sales.error ?? costs.error;
   if (error) {
     return (
       <View style={styles.pane}>
@@ -254,9 +332,9 @@ export function AddonInventory({ shopId }: { shopId: string }) {
       </View>
     );
   }
-  if (!addons.data || !sales.data) return <Loading />;
+  if (!addons.data || !sales.data || !costs.data) return <Loading />;
 
-  const lines = stockLines(addons.data, sales.data);
+  const lines = stockLines(addons.data, sales.data, costs.data);
   if (lines.length === 0) {
     return (
       <View style={styles.pane}>
@@ -279,7 +357,14 @@ export function AddonInventory({ shopId }: { shopId: string }) {
           <Tile label="Left in shop" value={String(summary.left)} />
           <Tile label={`Sold · ${RECENT_DAYS} days`} value={String(summary.soldRecent)} />
           <Tile label={`Earned · ${RECENT_DAYS} days`} value={formatMoneyCompact(summary.revenueRecent)} />
+          <Tile
+            label={`Profit · ${RECENT_DAYS} days`}
+            value={summary.profitRecent === null ? '—' : formatMoneyCompact(summary.profitRecent)}
+          />
         </View>
+        {summary.profitRecent === null ? (
+          <Text style={styles.meta}>Enter what each pack cost you to see your profit. Only you see costs.</Text>
+        ) : null}
         {summary.needRestock > 0 ? (
           <View style={[styles.notice, { backgroundColor: TAG_TONES.owed.bg }]} accessibilityLiveRegion="polite">
             <Text style={[styles.noticeText, { color: TAG_TONES.owed.ink }]}>
@@ -384,4 +469,6 @@ const styles = StyleSheet.create({
   actionText: { ...type.label, color: colors.actionInk },
   actionTextOn: { color: colors.onAccent },
   editor: { gap: space.snug },
+  eraseLink: { alignSelf: 'flex-start', paddingVertical: 4 },
+  eraseText: { ...type.caption, color: colors.actionInk, textDecorationLine: 'underline' },
 });
