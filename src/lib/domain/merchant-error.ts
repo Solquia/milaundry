@@ -23,6 +23,7 @@ export type MerchantAction =
   | 'open-order'
   | 'save-payment'
   | 'move-order'
+  | 'delete-order'
   | 'save-price'
   | 'save-order'
   | 'save-branding'
@@ -40,6 +41,7 @@ const FALLBACKS: Record<MerchantAction, string> = {
   'open-order': 'This order did not open. Try again in a moment.',
   'save-payment': 'The payment was not recorded. Try again in a moment.',
   'move-order': 'The order did not move. Try again in a moment.',
+  'delete-order': 'The order was not deleted. Try again in a moment.',
   'save-price': 'The price was not saved. Try again in a moment.',
   'save-order': 'The order was not saved. Try again in a moment.',
   'save-branding': 'Your shopfront was not saved. Try again in a moment.',

@@ -6,6 +6,7 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { NoShopState } from '@/components/no-shop-state';
 import { ChipRow } from '@/components/chip-row';
+import { ClearOrdersSheet } from '@/components/clear-orders-sheet';
 import { CustomerPulse } from '@/components/customer-pulse';
 import { CustomerRow } from '@/components/customer-row';
 import { SearchField } from '@/components/search-field';
@@ -42,6 +43,8 @@ import { useNow } from '@/lib/use-now';
 const CLOCK_TICK_MS = 5 * 60 * 1000;
 /** Row padding, avatar and gap: hairlines start under the name, not the avatar. */
 const DIVIDER_INSET = space.cosy + 42 + space.cosy;
+/** The clear sheet here lists every order the shop has, not one period's. */
+const ALL_TIME = { start: 0, end: Number.POSITIVE_INFINITY, title: 'All orders' };
 
 function emptyCopy(segment: CustomerSegment, hasQuery: boolean, total: number): string {
   if (hasQuery) return 'Nobody matches that search.';
@@ -71,6 +74,7 @@ export default function MerchantCustomers() {
   const [query, setQuery] = useState('');
   const [segment, setSegment] = useState<CustomerSegment>('all');
   const [sort, setSort] = useState<CustomerSort>('value');
+  const [isClearing, setIsClearing] = useState(false);
 
   const {
     data: orders,
@@ -180,7 +184,19 @@ export default function MerchantCustomers() {
               />
             ) : null}
             <View style={styles.listHead}>
-              <Text style={styles.count}>{people(visible.length)}</Text>
+              <Text style={[styles.count, styles.fill]}>{people(visible.length)}</Text>
+              {/* Owners try the app on themselves first; those orders would
+                  sit in this book and every sales figure for good. */}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Clear test orders"
+                onPress={() => setIsClearing(true)}
+                hitSlop={8}
+                style={({ pressed }) => [styles.sortKey, pressed && styles.pressed]}
+              >
+                <Ionicons name="trash-outline" size={14} color={colors.dangerInk} />
+                <Text style={styles.clearText}>Clear test orders</Text>
+              </Pressable>
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Sorted by ${sortLabel}. Change sort`}
@@ -197,6 +213,13 @@ export default function MerchantCustomers() {
         ListEmptyComponent={
           <EmptyState message={emptyCopy(segment, query.trim().length > 0, book.summary.total)} />
         }
+      />
+      <ClearOrdersSheet
+        visible={isClearing}
+        orders={orders ?? []}
+        frame={ALL_TIME}
+        now={now}
+        onClose={() => setIsClearing(false)}
       />
     </Screen>
   );
@@ -219,12 +242,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    gap: space.room,
     paddingTop: space.tight,
     paddingHorizontal: space.tight,
   },
   count: { ...type.caption, fontWeight: '600', color: colors.subtle },
   sortKey: { flexDirection: 'row', alignItems: 'center', gap: space.tight, minHeight: 32 },
   sortText: { ...type.caption, fontWeight: '700', color: colors.actionInk },
+  clearText: { ...type.caption, fontWeight: '700', color: colors.dangerInk },
   pressed: { opacity: 0.7 },
   // Rows sit in one grouped surface: the card belongs to the list, not to
   // each person, so eleven customers read as one book instead of eleven slabs.

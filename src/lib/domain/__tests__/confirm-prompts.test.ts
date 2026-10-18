@@ -1,6 +1,7 @@
 import {
   cancelOrderPrompt,
   deactivateShopPrompt,
+  deleteOrderPrompt,
   removeMemberPrompt,
   markPaidPrompt,
   removeServicePrompt,
@@ -21,6 +22,22 @@ describe('cancelOrderPrompt', () => {
   it('labels both buttons with their outcome, never Yes/No', () => {
     const prompt = cancelOrderPrompt('#abc12345', 175);
     expect(prompt.confirmLabel).toBe('Cancel order');
+    expect(prompt.dismissLabel).toBe('Keep order');
+  });
+});
+
+describe('deleteOrderPrompt', () => {
+  it('names the order, the amount, and that it cannot be undone', () => {
+    const prompt = deleteOrderPrompt('#fe0f15c5', 175);
+
+    expect(prompt.title).toBe('Delete order #fe0f15c5?');
+    expect(prompt.message).toContain('₱175.00');
+    expect(prompt.message).toContain('cannot be undone');
+  });
+
+  it('labels both buttons with their outcome, never Yes/No', () => {
+    const prompt = deleteOrderPrompt('#abc12345', 175);
+    expect(prompt.confirmLabel).toBe('Delete order');
     expect(prompt.dismissLabel).toBe('Keep order');
   });
 });

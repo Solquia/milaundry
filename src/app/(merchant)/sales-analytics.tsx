@@ -5,6 +5,7 @@ import React, { useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BestsellerRail } from "@/components/bestseller-rail";
+import { ClearOrdersSheet } from "@/components/clear-orders-sheet";
 import { CollectLanes } from "@/components/collect-lanes";
 import { DrawerCard } from "@/components/drawer-card";
 import { GLASS_GROUND, glassPane } from "@/components/glass";
@@ -47,7 +48,7 @@ import { useDayClose, useSalesGoal } from "@/lib/use-sales-screen";
 const TODAY: SalesPeriod = { kind: "day", offset: 0 };
 const GOAL_HISTORY_DAYS = 14;
 
-type Sheet = "period" | "payments" | "nudge" | "goal" | null;
+type Sheet = "period" | "payments" | "nudge" | "goal" | "clear" | null;
 
 /**
  * Full analytics: everything the simple Sales screen leaves out. The chart
@@ -214,6 +215,27 @@ export default function MerchantSalesAnalytics() {
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
         </Pressable>
+
+        {/* Owners try the app on themselves before going live; those orders
+            would skew every figure above, so they can be picked out here. */}
+        <Pressable
+          onPress={() => setSheet("clear")}
+          accessibilityRole="button"
+          accessibilityHint={`Lists the orders taken in ${frame.title.toLowerCase()} so you can delete test runs`}
+          style={({ pressed }) => [
+            styles.customers,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="trash-outline" size={20} color={colors.dangerInk} />
+          <View style={styles.customersWords}>
+            <Text style={styles.customersTitle}>Clear test orders</Text>
+            <Text style={styles.customersHint}>
+              Delete orders that were only a test · {frame.caption}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.subtle} />
+        </Pressable>
       </Screen>
 
       <PeriodSheet
@@ -237,6 +259,13 @@ export default function MerchantSalesAnalytics() {
         shop={shop}
         now={now}
         onError={setNotice}
+        onClose={() => setSheet(null)}
+      />
+      <ClearOrdersSheet
+        visible={sheet === "clear"}
+        orders={all}
+        frame={frame}
+        now={now}
         onClose={() => setSheet(null)}
       />
       {sheet === "goal" ? (

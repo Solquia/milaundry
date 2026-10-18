@@ -326,6 +326,12 @@ export async function getShopOrders(shopId: string): Promise<OrderWithDetails[]>
   return unwrap(result) as unknown as OrderWithDetails[];
 }
 
+/** Erases an order and everything on it, e.g. the owner's own test runs (0052). Owners only. */
+export async function deleteOrder(orderId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_order', { p_order_id: orderId });
+  if (error) throw new Error(error.message);
+}
+
 export async function getOrder(orderId: string): Promise<OrderWithDetails> {
   const result = await supabase
     .from('orders')

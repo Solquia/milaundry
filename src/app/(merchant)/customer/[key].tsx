@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ContactPills } from '@/components/contact-pills';
 import { glassPane } from '@/components/glass';
@@ -11,6 +11,7 @@ import { StatGrid, StatTile } from '@/components/stat-tile';
 import {
   ACCENTS,
   EmptyState,
+  ErrorText,
   Loading,
   Screen,
   colors,
@@ -27,7 +28,9 @@ import {
   customerInitials,
   ordersOfCustomer,
 } from '@/lib/domain/customer-insights';
+import { shortOrderId } from '@/lib/domain/order-card';
 import { useActiveShop } from '@/lib/use-active-shop';
+import { useDeleteOrder } from '@/lib/use-delete-order';
 
 function countLabel(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
@@ -42,6 +45,8 @@ export default function MerchantCustomerDetail() {
   const router = useRouter();
   const { shop, isLoading: isShopLoading } = useActiveShop();
   const now = useMemo(() => new Date(), []);
+  // Owners try the app on themselves first; this clears those test runs.
+  const { confirmDelete, deletingId, error } = useDeleteOrder();
 
   const { data: orders, isLoading } = useQuery({
     queryKey: ['shop-orders', shop?.id],
@@ -133,14 +138,30 @@ export default function MerchantCustomerDetail() {
         <EmptyState message="No orders yet. They connected through your QR but have not booked." />
       ) : (
         theirOrders.map((order) => (
-          <OrderCard
-            key={order.id}
-            order={order}
-            now={now}
-            onPress={() => router.push(`/(merchant)/order/${order.id}`)}
-          />
+          <View key={order.id} style={styles.orderRow}>
+            <OrderCard
+              order={order}
+              now={now}
+              onPress={() => router.push(`/(merchant)/order/${order.id}`)}
+            />
+            {/* A quiet link, not a button: it sits right under the card the
+                owner taps to open, and erases the order for good. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`Delete order ${shortOrderId(order.id)}`}
+              onPress={() => confirmDelete(order)}
+              disabled={deletingId !== null}
+              hitSlop={8}
+              style={styles.deleteLink}
+            >
+              <Text style={styles.deleteText}>
+                {deletingId === order.id ? 'Deleting…' : 'Delete order'}
+              </Text>
+            </Pressable>
+          </View>
         ))
       )}
+      {error ? <ErrorText>{error}</ErrorText> : null}
     </Screen>
   );
 }
@@ -160,4 +181,7 @@ const styles = StyleSheet.create({
   standing: { ...type.caption, color: colors.subtle },
   noPhone: { ...type.caption, color: colors.subtle },
   visits: { ...type.caption, color: colors.subtle },
+  orderRow: { gap: space.snug },
+  deleteLink: { alignSelf: 'flex-end', paddingHorizontal: space.cosy },
+  deleteText: { ...type.caption, fontWeight: '600', color: colors.dangerInk },
 });

@@ -28,6 +28,15 @@ export function cancelOrderPrompt(shortId: string, total: number): ConfirmPrompt
   };
 }
 
+export function deleteOrderPrompt(shortId: string, total: number): ConfirmPrompt {
+  return {
+    title: `Delete order ${shortId}?`,
+    message: `The ${formatMoney(total)} order is erased from this customer, your sales and their stamp card, as if it never happened. Use this for test runs. This cannot be undone.`,
+    confirmLabel: 'Delete order',
+    dismissLabel: 'Keep order',
+  };
+}
+
 export function removeServicePrompt(name: string): ConfirmPrompt {
   return {
     title: `Remove ${name}?`,
