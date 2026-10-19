@@ -40,6 +40,7 @@ import type { ServiceRow } from '@/lib/types';
 
 import { glassChip, glassPane, useIsGlass } from './glass';
 import { Segmented } from './segmented';
+import { ServicePhotoPicker } from './service-photo-picker';
 import { ServiceScene } from './service-scene';
 import { ServiceTileCard, type ShowcaseCardService } from './service-tile-card';
 import { Button, ErrorText, Field, RADII, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
@@ -85,7 +86,8 @@ function unitSuffix(unit: ChargeKind | null): string {
 function previewService(
   draft: ServiceDraft,
   id: string,
-  table: readonly WeightPrice[] | null
+  table: readonly WeightPrice[] | null,
+  imageUrl: string
 ): ShowcaseCardService {
   const price = table ? (table[0]?.price ?? 0) : Number(draft.price.trim());
   const minimum = table ? 0 : Number(draft.minQuantity.trim());
@@ -100,6 +102,7 @@ function previewService(
     max_quantity: draft.unit === 'per_load' && Number.isFinite(loadSize) && loadSize > 0 ? loadSize : 0,
     weight_prices: table ?? [],
     description: draft.description,
+    image_url: imageUrl,
   };
 }
 
@@ -238,6 +241,7 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
   const [weightRows, setWeightRows] = useState<WeightPriceDraft[]>(() =>
     draftsFromWeightPrices(readWeightPrices(service?.weight_prices))
   );
+  const [imageUrl, setImageUrl] = useState(service?.image_url ?? '');
 
   const byTable = draft.priceBy === 'table' && takesWeightTable(draft.unit);
   // One price clears the table: only the table rows are checked, and only when they price it.
@@ -295,13 +299,16 @@ export function ServiceForm({ shopId, service, onDone, onCancel, onGoToAddons }:
       <View style={styles.preview}>
         <View style={styles.previewTile} pointerEvents="none">
           <ServiceTileCard
-            service={previewService(draft, service?.id ?? 'preview', byTable ? table : null)}
+            // Keyed on the photo so a broken old URL's fallback does not stick.
+            key={imageUrl}
+            service={previewService(draft, service?.id ?? 'preview', byTable ? table : null, imageUrl)}
             bookTone={PREVIEW_TONE}
           />
         </View>
         <View style={styles.previewNote}>
           <Text style={styles.previewTitle}>How customers see it</Text>
           <Text style={styles.help}>This tile changes as you type.</Text>
+          <ServicePhotoPicker shopId={shopId} service={service} imageUrl={imageUrl} onChange={setImageUrl} />
         </View>
       </View>
 

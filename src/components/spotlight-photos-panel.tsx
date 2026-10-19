@@ -4,8 +4,8 @@
  * Out of the box every product card shows one of the app's own cut-outs,
  * picked from the service's name and shot to match the rest of the set. An
  * owner with photos of their own work can put theirs on any service instead,
- * and take it back off again ("Use ours"). Drawn inside the spotlight option
- * of the storefront-look card, because it only means anything there.
+ * and take it back off again ("Use ours"). Drawn under the storefront-look
+ * card for every look, since the counter's New Order tiles wear it too.
  *
  * Saved at once, per service, the way the look itself is: the upload goes to
  * the shop's own folder and the URL onto the service row (0042).
@@ -83,8 +83,9 @@ export function SpotlightPhotosPanel({ shopId, accent }: { shopId: string; accen
         <View style={styles.headWords}>
           <Text style={styles.title}>Service photos</Text>
           <Text style={styles.caption}>
-            Use our matching photo set, or upload your own for any service. Square photos of one item on a
-            plain background look best.
+            Use our matching photo set, or upload your own for any service. It shows on your New Order
+            tiles and your customer page right away. Square photos of one item on a plain background look
+            best.
           </Text>
         </View>
       </View>

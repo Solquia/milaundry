@@ -106,8 +106,8 @@ export function StorefrontStyleCard({ shop }: { shop: Shop }) {
         })}
       </View>
       {save.isPending ? <Text style={styles.saving}>Switching…</Text> : null}
-      {/* The spotlight's own choice: our photo set, or the shop's own photos. */}
-      {shown === 'spotlight' ? <SpotlightPhotosPanel shopId={shop.id} accent={accent} /> : null}
+      {/* Every look, and the counter's New Order tiles, wear these photos. */}
+      <SpotlightPhotosPanel shopId={shop.id} accent={accent} />
       <ErrorText>{error}</ErrorText>
     </View>
   );

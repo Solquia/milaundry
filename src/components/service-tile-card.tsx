@@ -63,12 +63,6 @@ interface ServiceTileCardProps {
    * Absent, the card reads its look from its own name.
    */
   look?: ServiceLook;
-  /**
-   * Always the real-life cut-out on white, never the shop's uploaded photo.
-   * The counter's New Order grid uses it: the owner wants the same clean
-   * product shots on every tile, whatever pictures were uploaded for customers.
-   */
-  isCutoutOnly?: boolean;
   /** Basket mode: the card carries − and + and shows what is on the ticket. */
   quantity?: number;
   onAdd?: () => void;
@@ -136,15 +130,13 @@ function CornerArt({
   service,
   look,
   lift,
-  isCutoutOnly,
 }: {
   service: ShowcaseCardService;
   look: ServiceLook;
   lift: Animated.Value;
-  isCutoutOnly: boolean;
 }) {
   const [isPhotoBroken, setIsPhotoBroken] = React.useState(false);
-  const photo = isCutoutOnly ? '' : (service.image_url ?? '').trim();
+  const photo = (service.image_url ?? '').trim();
   const hasPhoto = photo.length > 0 && !isPhotoBroken;
 
   // Under a finger the object leans in toward the name, a little larger.
@@ -185,7 +177,6 @@ export function ServiceTileCard({
   categoryLabel,
   look: givenLook,
   isDisabled = false,
-  isCutoutOnly = false,
   quantity,
   onAdd,
   onRemove,
@@ -267,7 +258,7 @@ export function ServiceTileCard({
         held > 0 && { borderWidth: 2, borderColor: bookTone.bg },
       ]}
     >
-      <CornerArt service={service} look={look} lift={lift} isCutoutOnly={isCutoutOnly} />
+      <CornerArt service={service} look={look} lift={lift} />
 
       <View style={styles.head}>
         {/* Set as a price board does — "Wash &" over "Fold" — while a screen

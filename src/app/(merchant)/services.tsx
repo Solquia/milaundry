@@ -10,8 +10,10 @@ import { MerchantAddons } from '@/components/merchant-addons';
 import { MerchantRewards } from '@/components/merchant-rewards';
 import { PriceBoard } from '@/components/price-board';
 import { Segmented } from '@/components/segmented';
+import { SpotlightPhotosPanel } from '@/components/spotlight-photos-panel';
 import { ServiceForm, type ServiceFormOutcome } from '@/components/service-form';
 import {
+  ACCENTS,
   Button,
   Card,
   ErrorState,
@@ -30,11 +32,12 @@ import { getServices, seedStarterServices } from '@/lib/api';
 import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
 import { savedNotice, unpricedNotice } from '@/lib/domain/price-sections';
+import { resolveAccent } from '@/lib/domain/shop-branding';
 import { STARTER_SERVICES } from '@/lib/domain/service-catalog';
 import type { ServiceRow as ServiceRecord } from '@/lib/types';
 import { useActiveShop } from '@/lib/use-active-shop';
 
-type PricesMode = 'services' | 'addons' | 'stock' | 'costs' | 'rewards';
+type PricesMode = 'services' | 'photos' | 'addons' | 'stock' | 'costs' | 'rewards';
 
 /**
  * Services or add-ons: the two price lists an owner keeps. Pinned above the
@@ -43,6 +46,7 @@ type PricesMode = 'services' | 'addons' | 'stock' | 'costs' | 'rewards';
  */
 const MODE_OPTIONS: { key: PricesMode; label: string }[] = [
   { key: 'services', label: 'Services' },
+  { key: 'photos', label: 'Photos' },
   { key: 'addons', label: 'Add-ons' },
   { key: 'stock', label: 'Stock' },
   { key: 'costs', label: 'Costs' },
@@ -177,6 +181,7 @@ export default function MerchantServices() {
   const isRewards = isOwner && mode === 'rewards';
   const isStock = isOwner && mode === 'stock';
   const isCosts = isOwner && mode === 'costs';
+  const isPhotos = isOwner && mode === 'photos';
   const header = (
     <View style={styles.headerRow}>
       {isOwner ? (
@@ -186,9 +191,20 @@ export default function MerchantServices() {
       ) : (
         <Text style={styles.headerTitle}>Services</Text>
       )}
-      {isAddons || isRewards || isStock || isCosts ? null : <AddButton onPress={() => openForm({ kind: 'add' })} />}
+      {isAddons || isRewards || isStock || isCosts || isPhotos ? null : (
+        <AddButton onPress={() => openForm({ kind: 'add' })} />
+      )}
     </View>
   );
+
+  // Every service's picture in one list: the New Order tiles and the customer page wear these.
+  if (isPhotos) {
+    return (
+      <Screen key="photos" header={header}>
+        <SpotlightPhotosPanel shopId={shop.id} accent={ACCENTS[resolveAccent(shop, ACCENTS.length)]} />
+      </Screen>
+    );
+  }
 
   if (isRewards) {
     return (

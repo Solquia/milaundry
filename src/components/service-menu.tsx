@@ -136,7 +136,6 @@ export function ServiceMenu({
                   categoryLabel={entry.label}
                   look={looks.get(entry.service.id)}
                   bookTone={bookTone}
-                  isCutoutOnly
                   quantity={quantities[entry.service.id] ?? 0}
                   onAdd={() => onTap(entry.service)}
                   onRemove={() => onLess(entry.service)}
