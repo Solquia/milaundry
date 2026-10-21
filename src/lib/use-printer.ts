@@ -18,16 +18,19 @@ import { useEffect, useSyncExternalStore } from 'react';
 
 import type { OrderWithDetails } from './api';
 import {
-  DEFAULT_PAPER,
+  DEFAULT_RECEIPT_SETTINGS,
   rankScanResults,
+  textSizeLabel,
   type PrinterPaper,
   type PrinterState,
+  type ReceiptSettings,
+  type ReceiptTextSize,
   type SavedPrinter,
   type ScannedDevice,
 } from './domain/printer';
 import {
-  PAPER_COLUMNS,
   buildReceipt,
+  receiptColumns,
   receiptToEscPos,
   type PaperColumns,
   type ReceiptLine,
@@ -35,20 +38,32 @@ import {
 } from './domain/receipt';
 import { buildTags } from './domain/tag';
 import * as transport from './printer/ble-transport';
-import { forgetSavedPrinter, loadSavedPrinter, saveSavedPrinter } from './printer-store';
+import { isBrowserPrintSupported, printInBrowser } from './printer/browser-print';
+import {
+  forgetSavedPrinter,
+  loadReceiptSettings,
+  loadSavedPrinter,
+  saveReceiptSettings,
+  saveSavedPrinter,
+} from './printer-store';
 
 const SCAN_WINDOW_MS = 12_000;
 
 interface Snapshot {
   isSupported: boolean;
+  /** The website: no Bluetooth, but the browser's print window. */
+  isBrowser: boolean;
   saved: SavedPrinter | null;
+  settings: ReceiptSettings;
   state: PrinterState;
   devices: ScannedDevice[];
 }
 
 let snapshot: Snapshot = {
   isSupported: false,
+  isBrowser: false,
   saved: null,
+  settings: DEFAULT_RECEIPT_SETTINGS,
   state: { kind: 'unsupported' },
   devices: [],
 };
@@ -74,9 +89,12 @@ const getSnapshot = () => snapshot;
 function ensureLoaded(): Promise<void> {
   if (loaded) return loaded;
   const isSupported = transport.isSupported();
-  publish({ isSupported, state: isSupported ? { kind: 'idle', saved: null } : { kind: 'unsupported' } });
-  loaded = loadSavedPrinter().then((saved) => {
-    publish({ saved, state: isSupported ? { kind: 'idle', saved } : { kind: 'unsupported' } });
+  const isBrowser = !isSupported && isBrowserPrintSupported();
+  publish({ isSupported, isBrowser });
+  publish({ state: idle() });
+  loaded = Promise.all([loadSavedPrinter(), loadReceiptSettings()]).then(([saved, settings]) => {
+    publish({ saved, settings });
+    publish({ state: idle() });
   });
   return loaded;
 }
@@ -86,6 +104,8 @@ function messageOf(error: unknown): string {
 }
 
 function idle(): PrinterState {
+  if (snapshot.isBrowser) return { kind: 'browser' };
+  if (!snapshot.isSupported) return { kind: 'unsupported' };
   return { kind: 'idle', saved: snapshot.saved };
 }
 
@@ -124,40 +144,60 @@ async function remember(printer: SavedPrinter): Promise<void> {
   publish({ saved: printer, state: { kind: 'idle', saved: printer } });
 }
 
+/** The paired printer's paper wins; without one, the browser's choice. */
+function paperNow(): PrinterPaper {
+  return snapshot.saved?.paper ?? snapshot.settings.paper;
+}
+
 async function pair(device: ScannedDevice, paper?: PrinterPaper): Promise<void> {
   stopScan();
   await remember({
     id: device.id,
     name: device.name ?? 'Printer',
-    paper: paper ?? snapshot.saved?.paper ?? DEFAULT_PAPER,
+    paper: paper ?? paperNow(),
   });
 }
 
+async function rememberSettings(next: ReceiptSettings): Promise<void> {
+  publish({ settings: next });
+  await saveReceiptSettings(next);
+}
+
 async function setPaper(paper: PrinterPaper): Promise<void> {
-  if (!snapshot.saved) return;
-  await remember({ ...snapshot.saved, paper });
+  await rememberSettings({ ...snapshot.settings, paper });
+  if (snapshot.saved) await remember({ ...snapshot.saved, paper });
+}
+
+async function setTextSize(textSize: ReceiptTextSize): Promise<void> {
+  await rememberSettings({ ...snapshot.settings, textSize });
 }
 
 async function forget(): Promise<void> {
   stopScan();
   await forgetSavedPrinter();
-  publish({ saved: null, state: { kind: 'idle', saved: null } });
+  publish({ saved: null });
+  publish({ state: idle() });
 }
 
-function columnsNow() {
-  return PAPER_COLUMNS[snapshot.saved?.paper ?? DEFAULT_PAPER];
+function columnsNow(): PaperColumns {
+  return receiptColumns(paperNow(), snapshot.settings.textSize, snapshot.isBrowser ? 'browser' : 'thermal');
 }
 
-async function send(lines: ReceiptLine[]): Promise<boolean> {
-  const { saved } = snapshot;
-  if (!saved) {
-    publish({ state: { kind: 'error', message: 'No printer is paired. Connect one in Settings.' } });
-    return false;
-  }
+async function deliver(lines: ReceiptLine[], title: string): Promise<void> {
   const columns = columnsNow();
+  if (snapshot.isBrowser) {
+    await printInBrowser(lines, { paper: paperNow(), columns, title });
+    return;
+  }
+  const { saved } = snapshot;
+  if (!saved) throw new Error('No printer is paired. Connect one in Settings.');
+  await transport.printBytes(saved.id, receiptToEscPos(lines, columns, snapshot.settings.textSize));
+}
+
+async function send(lines: ReceiptLine[], title = 'Receipt'): Promise<boolean> {
   publish({ state: { kind: 'printing' } });
   try {
-    await transport.printBytes(saved.id, receiptToEscPos(lines, columns));
+    await deliver(lines, title);
     publish({ state: idle() });
     return true;
   } catch (error) {
@@ -176,15 +216,21 @@ function printTags(order: OrderWithDetails, shop: ReceiptShop, count: number): P
 }
 
 function testPrint(shop: ReceiptShop): Promise<boolean> {
-  const paper = snapshot.saved?.paper ?? DEFAULT_PAPER;
-  return send([
-    { kind: 'text', text: shop.name, align: 'center', bold: true, big: true },
-    { kind: 'text', text: 'Printer connected', align: 'center' },
-    { kind: 'rule' },
-    { kind: 'text', text: `Paper: ${paper}, ${columnsNow()} columns` },
-    { kind: 'feed', lines: 3 },
-    { kind: 'cut' },
-  ]);
+  const { textSize } = snapshot.settings;
+  return send(
+    [
+      { kind: 'text', text: shop.name, align: 'center', bold: true, big: true },
+      { kind: 'text', text: snapshot.isBrowser ? 'Browser printing' : 'Printer connected', align: 'center' },
+      { kind: 'rule' },
+      { kind: 'text', text: `Paper: ${paperNow()}, ${columnsNow()} columns` },
+      { kind: 'text', text: `Text size: ${textSizeLabel(textSize)}` },
+      { kind: 'text', text: 'Docket 0000', bold: true, big: true },
+      { kind: 'text', text: '1234567890'.repeat(8).slice(0, columnsNow()) },
+      { kind: 'feed', lines: 3 },
+      { kind: 'cut' },
+    ],
+    'Test slip'
+  );
 }
 
 /** Any ready-made slip — the Z-report — at the paired paper width. */
@@ -206,10 +252,15 @@ export function usePrinter() {
 
   return {
     ...current,
+    /** A slip can go out now: a paired Bluetooth printer, or the browser's print window. */
+    canPrint: current.isBrowser || (current.isSupported && current.saved !== null),
+    /** The paper the next slip prints on, paired printer or not. */
+    paper: current.saved?.paper ?? current.settings.paper,
     scan,
     stopScan,
     pair,
     setPaper,
+    setTextSize,
     forget,
     printReceipt,
     printTags,

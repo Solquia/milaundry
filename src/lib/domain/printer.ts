@@ -12,6 +12,52 @@ export type PrinterPaper = '58mm' | '80mm';
 
 export const DEFAULT_PAPER: PrinterPaper = '58mm';
 
+/** How big the words on the receipt print, chosen per device in Settings. */
+export type ReceiptTextSize = 'small' | 'normal' | 'large';
+
+export const DEFAULT_TEXT_SIZE: ReceiptTextSize = 'normal';
+
+export const TEXT_SIZES: readonly { size: ReceiptTextSize; label: string }[] = [
+  { size: 'small', label: 'Small' },
+  { size: 'normal', label: 'Normal' },
+  { size: 'large', label: 'Large' },
+];
+
+/**
+ * What this device prints on, whether or not a Bluetooth printer is paired:
+ * the browser prints without one, and still needs a paper width and a size.
+ */
+export interface ReceiptSettings {
+  paper: PrinterPaper;
+  textSize: ReceiptTextSize;
+}
+
+export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = { paper: DEFAULT_PAPER, textSize: DEFAULT_TEXT_SIZE };
+
+function isTextSize(value: unknown): value is ReceiptTextSize {
+  return value === 'small' || value === 'normal' || value === 'large';
+}
+
+/** Never throws, like `parseSavedPrinter`: an unreadable record is the defaults. */
+export function parseReceiptSettings(raw: string | null | undefined): ReceiptSettings {
+  if (!raw) return DEFAULT_RECEIPT_SETTINGS;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_RECEIPT_SETTINGS;
+    const record = parsed as Record<string, unknown>;
+    return {
+      paper: isPaper(record.paper) ? record.paper : DEFAULT_PAPER,
+      textSize: isTextSize(record.textSize) ? record.textSize : DEFAULT_TEXT_SIZE,
+    };
+  } catch {
+    return DEFAULT_RECEIPT_SETTINGS;
+  }
+}
+
+export function textSizeLabel(size: ReceiptTextSize): string {
+  return TEXT_SIZES.find((entry) => entry.size === size)?.label ?? 'Normal';
+}
+
 export interface SavedPrinter {
   /** The BLE peripheral id: a MAC on Android, a per-phone uuid on iOS. */
   id: string;
@@ -34,6 +80,7 @@ export interface WritableCharacteristic {
 
 export type PrinterState =
   | { kind: 'unsupported' }
+  | { kind: 'browser' }
   | { kind: 'idle'; saved: SavedPrinter | null }
   | { kind: 'scanning' }
   | { kind: 'connecting' }
@@ -138,6 +185,11 @@ export function printerCopy(state: PrinterState): PrinterCopy {
       return {
         title: 'Printing needs a development build',
         caption: 'Bluetooth printers are not available in Expo Go or on the web.',
+      };
+    case 'browser':
+      return {
+        title: 'Print from this browser',
+        caption: "Receipts open in the computer's print window, for any printer it can reach.",
       };
     case 'idle':
       return state.saved

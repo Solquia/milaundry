@@ -60,7 +60,7 @@ export function CloseDaySheet({
   const counted = parseCount(countedText);
   const close = float !== null && counted !== null ? closeDay(summary, { float, counted }) : null;
   const cashSales = summary.methods.find((method) => method.key === 'cash')?.amount ?? 0;
-  const canPrint = printer.isSupported && printer.saved !== null;
+  const canPrint = printer.canPrint;
 
   const finish = async (how: 'print' | 'share' | 'save') => {
     if (float === null) {

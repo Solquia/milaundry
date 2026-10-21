@@ -9,7 +9,7 @@
  * counted.
  */
 import { formatMoney, roundCentavos } from './money';
-import { PAPER_COLUMNS, centered, moneyPlain, twoColumn, type ReceiptLine } from './receipt';
+import { centered, moneyPlain, twoColumn, type PaperColumns, type ReceiptLine } from './receipt';
 import { clockTime } from './sales-period';
 import type { PaymentMethod } from './walk-in-order';
 
@@ -68,7 +68,7 @@ export function zReportLines(
   summary: DaySummary,
   close: DrawerClose,
   shop: { name: string },
-  columns: (typeof PAPER_COLUMNS)[keyof typeof PAPER_COLUMNS],
+  columns: PaperColumns,
   at: Date
 ): ReceiptLine[] {
   const row = (left: string, right: string): ReceiptLine => ({ kind: 'text', text: twoColumn(left, right, columns) });

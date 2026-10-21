@@ -11,7 +11,13 @@ import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { looksLikePrinter, printerCopy, type PrinterPaper, type ScannedDevice } from '@/lib/domain/printer';
+import {
+  TEXT_SIZES,
+  looksLikePrinter,
+  printerCopy,
+  type PrinterPaper,
+  type ScannedDevice,
+} from '@/lib/domain/printer';
 import type { Shop } from '@/lib/types';
 import { usePrinter } from '@/lib/use-printer';
 
@@ -44,6 +50,49 @@ function DeviceRow({ device, onPress }: { device: ScannedDevice; onPress: () => 
   );
 }
 
+function Chip({ label, isOn, onPress }: { label: string; isOn: boolean; onPress: () => void }) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: isOn }}
+      onPress={onPress}
+      style={[styles.paper, isOn && styles.paperOn]}
+    >
+      <Text style={[styles.paperText, isOn && styles.paperTextOn]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+/** Paper width and text size: the two things a slip is laid out by. */
+function ReceiptChoices() {
+  const printer = usePrinter();
+  return (
+    <>
+      <View style={styles.papers}>
+        {PAPERS.map((paper) => (
+          <Chip
+            key={paper}
+            label={`${paper} paper`}
+            isOn={printer.paper === paper}
+            onPress={() => printer.setPaper(paper)}
+          />
+        ))}
+      </View>
+      <Text style={styles.caption}>Receipt text size</Text>
+      <View style={styles.papers}>
+        {TEXT_SIZES.map(({ size, label }) => (
+          <Chip
+            key={size}
+            label={label}
+            isOn={printer.settings.textSize === size}
+            onPress={() => printer.setTextSize(size)}
+          />
+        ))}
+      </View>
+    </>
+  );
+}
+
 export function PrinterCard({ shop }: { shop: Shop }) {
   const [isOpen, setOpen] = useState(false);
   const printer = usePrinter();
@@ -68,25 +117,18 @@ export function PrinterCard({ shop }: { shop: Shop }) {
         <Text style={styles.toggle}>{isOpen ? 'Hide' : 'Show'}</Text>
       </Pressable>
 
+      {isOpen && printer.isBrowser ? (
+        <View style={styles.body}>
+          <ReceiptChoices />
+          <Button title="Print a test slip" onPress={() => printer.testPrint(shop)} disabled={isBusy} />
+        </View>
+      ) : null}
+
       {isOpen && printer.isSupported ? (
         <View style={styles.body}>
           {printer.saved ? (
             <>
-              <View style={styles.papers}>
-                {PAPERS.map((paper) => (
-                  <Pressable
-                    key={paper}
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: printer.saved?.paper === paper }}
-                    onPress={() => printer.setPaper(paper)}
-                    style={[styles.paper, printer.saved?.paper === paper && styles.paperOn]}
-                  >
-                    <Text style={[styles.paperText, printer.saved?.paper === paper && styles.paperTextOn]}>
-                      {paper} paper
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <ReceiptChoices />
               <Button title="Print a test slip" onPress={() => printer.testPrint(shop)} disabled={isBusy} />
               <Button title="Forget this printer" variant="outline" onPress={printer.forget} disabled={isBusy} />
             </>

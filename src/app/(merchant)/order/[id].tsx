@@ -292,13 +292,13 @@ export default function MerchantOrderDetail() {
       <Card>
         <Text style={styles.cardHeading}>Receipt</Text>
         <Subtle>
-          Prints the docket on the thermal printer, with the QR for this order at the bottom so
+          Prints the docket on your receipt printer, with the QR for this order at the bottom so
           the customer can scan it and follow the order on their phone.
         </Subtle>
         <Button
           title={printer.state.kind === 'printing' ? 'Printing…' : 'Print receipt'}
           variant="outline"
-          disabled={printer.state.kind === 'printing' || !printer.saved}
+          disabled={printer.state.kind === 'printing' || !printer.canPrint}
           onPress={() =>
             printer.printReceipt(order, {
               name: activeShop?.name ?? order.shop?.name ?? 'MiLaundry',
@@ -308,7 +308,7 @@ export default function MerchantOrderDetail() {
           }
         />
         {printer.state.kind === 'error' ? <ErrorText>{printerCopy(printer.state).caption}</ErrorText> : null}
-        {!printer.saved && printer.state.kind !== 'error' ? (
+        {!printer.canPrint && printer.state.kind !== 'error' ? (
           <Subtle>{printerCopy(printer.state).caption}</Subtle>
         ) : null}
       </Card>
@@ -321,7 +321,7 @@ export default function MerchantOrderDetail() {
         </Subtle>
         <TagPrintRow
           isPrinting={printer.state.kind === 'printing'}
-          disabled={!printer.saved}
+          disabled={!printer.canPrint}
           onPrint={(count) =>
             printer.printTags(order, { name: activeShop?.name ?? order.shop?.name ?? 'MiLaundry' }, count)
           }

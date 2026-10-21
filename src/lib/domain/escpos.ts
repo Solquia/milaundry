@@ -41,6 +41,20 @@ export function doubleSize(on: boolean): number[] {
   return [GS, 0x21, on ? 0x11 : 0x00];
 }
 
+/** GS ! 0x01 — double height only, so the line keeps its width and its columns. */
+export function tallSize(on: boolean): number[] {
+  return [GS, 0x21, on ? 0x01 : 0x00];
+}
+
+/**
+ * ESC M — font A (12x24) or the narrower font B (9x17). Font B fits 42
+ * columns on 58mm paper and 64 on 80mm; a printer without it ignores the
+ * command and keeps font A.
+ */
+export function smallFont(on: boolean): number[] {
+  return [ESC, 0x4d, on ? 1 : 0];
+}
+
 function byte(n: number): number {
   return Math.max(0, Math.min(255, Math.round(n)));
 }

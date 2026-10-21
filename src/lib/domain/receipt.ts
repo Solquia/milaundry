@@ -20,13 +20,34 @@ import { actualBill } from './actual-bill';
 import { docketNumber, stampLabel } from './docket';
 import * as esc from './escpos';
 import { roundCentavos } from './money';
+import type { PrinterPaper, ReceiptTextSize } from './printer';
 import { formatQuantity, lineQuantity } from './price-label';
 import { appliedReward } from './rewards';
 import { buildOrderQr } from './qr';
 
-export type PaperColumns = 32 | 48;
+export type PaperColumns = 24 | 32 | 36 | 42 | 48 | 64;
 
-export const PAPER_COLUMNS = { '58mm': 32, '80mm': 48 } as const satisfies Record<string, PaperColumns>;
+export const PAPER_COLUMNS = { '58mm': 32, '80mm': 48 } as const satisfies Record<PrinterPaper, PaperColumns>;
+
+/** Font B packs more characters on a line. */
+const SMALL_COLUMNS = { '58mm': 42, '80mm': 64 } as const satisfies Record<PrinterPaper, PaperColumns>;
+
+/** A browser has no double-height mode, so its large text is wider letters, fewer to a line. */
+const BROWSER_LARGE_COLUMNS = { '58mm': 24, '80mm': 36 } as const satisfies Record<PrinterPaper, PaperColumns>;
+
+/**
+ * Characters per line for a paper and a text size. A thermal printer's large
+ * text is only taller, so it keeps font A's count; the browser's is not.
+ */
+export function receiptColumns(
+  paper: PrinterPaper,
+  size: ReceiptTextSize,
+  medium: 'thermal' | 'browser' = 'thermal'
+): PaperColumns {
+  if (size === 'small') return SMALL_COLUMNS[paper];
+  if (size === 'large' && medium === 'browser') return BROWSER_LARGE_COLUMNS[paper];
+  return PAPER_COLUMNS[paper];
+}
 
 export type ReceiptLine =
   | { kind: 'text'; text: string; align?: esc.Alignment; bold?: boolean; big?: boolean }
@@ -158,8 +179,23 @@ function qrModuleSize(columns: number): number {
   return columns >= 48 ? 8 : 6;
 }
 
-export function receiptToEscPos(lines: readonly ReceiptLine[], columns: PaperColumns): number[] {
+/**
+ * The size the plain lines print at. Small is a font switch made once at the
+ * top; large is double height, which a big line's double size replaces and
+ * which has to be put back after it.
+ */
+function bodySize(size: ReceiptTextSize): number[] {
+  return size === 'large' ? esc.tallSize(true) : esc.doubleSize(false);
+}
+
+export function receiptToEscPos(
+  lines: readonly ReceiptLine[],
+  columns: PaperColumns,
+  size: ReceiptTextSize = 'normal'
+): number[] {
   const out: number[] = [...esc.initialize()];
+  if (size === 'small') out.push(...esc.smallFont(true));
+  if (size === 'large') out.push(...bodySize(size));
   for (const line of lines) {
     switch (line.kind) {
       case 'text': {
@@ -168,7 +204,7 @@ export function receiptToEscPos(lines: readonly ReceiptLine[], columns: PaperCol
         if (line.bold) out.push(...esc.bold(true));
         if (line.big) out.push(...esc.doubleSize(true));
         out.push(...esc.textLine(line.text));
-        if (line.big) out.push(...esc.doubleSize(false));
+        if (line.big) out.push(...bodySize(size));
         if (line.bold) out.push(...esc.bold(false));
         if (where !== 'left') out.push(...esc.align('left'));
         break;

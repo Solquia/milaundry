@@ -522,15 +522,15 @@ export default function Pos() {
               {/* The receipt shows whether or not a printer is paired. With
                   none it opens Settings to pair one; the tab stays mounted,
                   so this slip is still here to print on the way back. */}
-              {printer.isSupported ? (
+              {printer.isSupported || printer.isBrowser ? (
                 <View style={styles.buttons}>
                   <BrandButton
                     title={receiptButtonLabel({
-                      hasPrinter: Boolean(printer.saved),
+                      hasPrinter: printer.canPrint,
                       isPrinting: printer.state.kind === 'printing',
                     })}
                     onPress={() =>
-                      printer.saved
+                      printer.canPrint
                         ? printLastOrder(lastOrder.id)
                         : router.push('/(merchant)/settings')
                     }
@@ -539,7 +539,7 @@ export default function Pos() {
                     ink={theme.brandInk}
                     flex={2}
                   />
-                  {printer.saved ? (
+                  {printer.canPrint ? (
                     <BrandButton
                       title="Tag"
                       onPress={() => printLastOrder(lastOrder.id, 'tag')}
