@@ -20,12 +20,15 @@ import {
   PeriodTabs,
 } from "@/components/sales-glance";
 import { SalesSkeleton } from "@/components/sales-skeleton";
+import { ShopLedgerCard } from "@/components/shop-ledger-card";
 import {
   ErrorState,
   Screen,
   space,
 } from "@/components/ui-kit";
 import { getShopOrders } from "@/lib/api";
+import { getPeriodOrderCosts } from "@/lib/cost-api";
+import { shopLedger } from "@/lib/domain/shop-ledger";
 import { splitCollect } from "@/lib/domain/collect-queue";
 import type { DaySummary } from "@/lib/domain/day-close";
 import { profitOf, toDateKey } from "@/lib/domain/expense-metrics";
@@ -92,6 +95,28 @@ export default function MerchantSales() {
     [all, frame, kind, today],
   );
   const split = useMemo(() => splitCollect(all, now), [all, now]);
+  // The orders the ledger costs: refetch when one is added or changes total.
+  const ledgerKey = useMemo(
+    () =>
+      all
+        .filter((order) => {
+          const time = new Date(order.created_at).getTime();
+          return time >= frame.start && time < frame.end;
+        })
+        .map((order) => `${order.id}:${order.final_total ?? order.estimated_total}`)
+        .join(","),
+    [all, frame.start, frame.end],
+  );
+  const costs = useQuery({
+    queryKey: ["period-order-costs", shop?.id, frame.start, frame.end, ledgerKey],
+    queryFn: () => getPeriodOrderCosts(shop!.id, frame.start, frame.end),
+    enabled: Boolean(shop) && canOpenMerchantRoute(shopRole, "analytics"),
+    placeholderData: (previous) => previous,
+  });
+  const ledger = useMemo(
+    () => shopLedger(all, costs.data, frame),
+    [all, costs.data, frame],
+  );
   const goalIdeas = useMemo(
     () => suggestGoals(dailyTotals(all, now, GOAL_HISTORY_DAYS)),
     [all, now],
@@ -177,6 +202,15 @@ export default function MerchantSales() {
           onOpenUnpaid={() =>
             router.push("/(merchant)/orders?view=collect" as never)
           }
+        />
+
+        <ShopLedgerCard
+          ledger={ledger}
+          unit={frame.unit}
+          hasCosts={Boolean(costs.data)}
+          onOpenOrder={(orderId) => router.push(`/(merchant)/order/${orderId}`)}
+          onOpenAll={() => router.push("/(merchant)/orders?view=all" as never)}
+          onSetUpCosts={() => router.push("/(merchant)/services" as never)}
         />
 
         {isToday ? (

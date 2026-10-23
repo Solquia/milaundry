@@ -5,6 +5,7 @@
  */
 import type {
   OrderLineCost,
+  PeriodOrderCost,
   ServiceCostRow,
   ServiceSupply,
   Supply,
@@ -116,5 +117,34 @@ export async function getOrderCosts(orderId: string): Promise<OrderLineCost[]> {
   return ((data ?? []) as { item_id: string; cost: Numeric }[]).map((row) => ({
     item_id: row.item_id,
     cost: toNumber(row.cost),
+  }));
+}
+
+/** Every order taken in a window: its supplies and products cost, and who took it (0054). */
+export async function getPeriodOrderCosts(
+  shopId: string,
+  from: number,
+  to: number
+): Promise<PeriodOrderCost[]> {
+  const { data, error } = await supabase.rpc('get_period_order_costs', {
+    p_shop_id: shopId,
+    p_from: new Date(from).toISOString(),
+    p_to: new Date(to).toISOString(),
+  });
+  check(error);
+  return (
+    (data ?? []) as {
+      order_id: string;
+      cost: Numeric;
+      lines: number;
+      costed_lines: number;
+      taken_by: string | null;
+    }[]
+  ).map((row) => ({
+    orderId: row.order_id,
+    cost: toNumber(row.cost),
+    lines: row.lines,
+    costedLines: row.costed_lines,
+    takenBy: row.taken_by,
   }));
 }

@@ -49,6 +49,18 @@ export interface OrderLineCost {
   cost: number | null;
 }
 
+
+/** One order's costs as `get_period_order_costs` reports them (0054). */
+export interface PeriodOrderCost {
+  orderId: string;
+  /** Supplies and products over its costed lines; null when none are costed. */
+  cost: number | null;
+  lines: number;
+  costedLines: number;
+  /** Who at the counter took a walk-in; null for an online order. */
+  takenBy: string | null;
+}
+
 /** The most one entry may say. The database agrees. */
 export const SUPPLY_LIMIT = 1_000_000;
 export const AMOUNT_LIMIT = 100_000;
