@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getServices, getShopAddons } from '@/lib/api';
+import { getAddonCosts, getAddonSales, getServices, getShopAddons } from '@/lib/api';
 import {
   addSupply,
   deleteSupply,
@@ -20,9 +20,9 @@ import {
   updateSupply,
 } from '@/lib/cost-api';
 import { confirmAction } from '@/lib/confirm';
-import { RECENT_DAYS } from '@/lib/domain/addon-inventory';
+import { RECENT_DAYS, stockLines, type StockLine } from '@/lib/domain/addon-inventory';
 import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
-import type { ShopAddon } from '@/lib/domain/shop-addons';
+import { stockLeftLabel, supplyFromStock } from '@/lib/domain/supply-stock';
 import {
   SUPPLY_UNITS,
   SUPPLY_UNIT_LABEL,
@@ -41,7 +41,7 @@ import {
 
 import { glassChip, glassPane } from './glass';
 import { Segmented } from './segmented';
-import { Button, ErrorText, Field, Loading, RADII, Subtle, colors, fontFor, space, type } from './ui-kit';
+import { Button, ErrorText, Field, Loading, RADII, Subtle, TAG_TONES, colors, fontFor, space, type } from './ui-kit';
 
 const UNIT_OPTIONS = SUPPLY_UNITS.map((unit) => ({ key: unit, label: SUPPLY_UNIT_LABEL[unit] }));
 
@@ -57,24 +57,77 @@ function Tile({ label, value }: { label: string; value: string }) {
 }
 
 /** Free add-ons first: they are the ones that hand a free supply out. */
-function linkableAddons(addons: readonly ShopAddon[]): ShopAddon[] {
-  return addons
-    .filter((addon) => addon.is_active)
-    .sort((a, b) => Number(a.price > 0) - Number(b.price > 0) || a.name.localeCompare(b.name));
+function linkableStock(stock: readonly StockLine[]): StockLine[] {
+  return stock
+    .filter((line) => line.addon.is_active)
+    .sort(
+      (a, b) =>
+        Number(a.addon.price > 0) - Number(b.addon.price > 0) || a.addon.name.localeCompare(b.addon.name)
+    );
+}
+
+/**
+ * The first step of a new supply: take it from what is already on the shelf.
+ * Picking fills the name and cost and links the two, so each wash that uses
+ * it comes off that item's count and the supply shows how much is left.
+ */
+function StockPicker({
+  stock,
+  value,
+  onPick,
+}: {
+  stock: readonly StockLine[];
+  value: string | null;
+  onPick: (line: StockLine | null) => void;
+}) {
+  const options = linkableStock(stock);
+  if (options.length === 0) return null;
+  return (
+    <View style={styles.editor}>
+      <Text style={styles.meta}>Pick from your stock</Text>
+      <View style={styles.chips} accessibilityRole="radiogroup">
+        {options.map((line) => {
+          const isOn = line.addon.id === value;
+          return (
+            <Pressable
+              key={line.addon.id}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isOn }}
+              accessibilityLabel={`${line.addon.name}, ${stockLeftLabel(line)}`}
+              onPress={() => onPick(isOn ? null : line)}
+              style={[styles.chip, isOn && styles.chipOn]}
+            >
+              <Text style={[styles.chipText, isOn && styles.chipTextOn]}>
+                {`${line.addon.name} · ${stockLeftLabel(line)}`}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.meta}>
+        {value === null
+          ? 'Or type a new one below if it is not on your shelf.'
+          : 'Linked: each wash that uses it takes one off this stock. Add how much one pack holds.'}
+      </Text>
+    </View>
+  );
 }
 
 function AddonLinkPicker({
-  addons,
+  stock,
   value,
   onChange,
 }: {
-  addons: readonly ShopAddon[];
+  stock: readonly StockLine[];
   value: string | null;
   onChange: (addonId: string | null) => void;
 }) {
   const options = [
     { id: null, label: 'Every load' },
-    ...linkableAddons(addons).map((addon) => ({ id: addon.id, label: `When picked: ${addon.name}` })),
+    ...linkableStock(stock).map((line) => ({
+      id: line.addon.id,
+      label: `When picked: ${line.addon.name} · ${stockLeftLabel(line)}`,
+    })),
   ];
   return (
     <View style={styles.editor}>
@@ -107,12 +160,12 @@ function AddonLinkPicker({
 function SupplyForm({
   shopId,
   supply,
-  addons,
+  stock,
   onDone,
 }: {
   shopId: string;
   supply?: Supply;
-  addons: readonly ShopAddon[];
+  stock: readonly StockLine[];
   onDone: () => void;
 }) {
   const [name, setName] = useState(supply?.name ?? '');
@@ -132,8 +185,20 @@ function SupplyForm({
     onError: (err: Error) => setError(err.message),
   });
 
+  const pickFromStock = (line: StockLine | null) => {
+    if (line === null) {
+      setAddonId(null);
+      return;
+    }
+    const prefill = supplyFromStock(line);
+    setName(prefill.name);
+    setAddonId(prefill.addonId);
+    if (prefill.packCost !== null) setPackCost(prefill.packCost);
+  };
+
   return (
     <View style={styles.editor}>
+      {supply ? null : <StockPicker stock={stock} value={addonId} onPick={pickFromStock} />}
       <Field label="Name" value={name} onChangeText={setName} placeholder="Zonrox bleach" />
       <Text style={styles.meta}>Measured in</Text>
       <Segmented options={UNIT_OPTIONS} value={unit} onChange={setUnit} />
@@ -151,7 +216,7 @@ function SupplyForm({
         keyboardType="decimal-pad"
         placeholder="₱0.00"
       />
-      <AddonLinkPicker addons={addons} value={addonId} onChange={setAddonId} />
+      <AddonLinkPicker stock={stock} value={addonId} onChange={setAddonId} />
       <ErrorText>{error}</ErrorText>
       <Button
         title={save.isPending ? 'Saving…' : supply ? 'Save supply' : 'Add supply'}
@@ -165,18 +230,29 @@ function SupplyForm({
   );
 }
 
+/** Under a supply: what it is linked to on the shelf, and how much is left. */
+function SupplyStockLine({ line }: { line: StockLine | undefined }) {
+  if (!line) return <Text style={styles.meta}>Every load · not linked to stock</Text>;
+  const isShort = line.status === 'out' || line.status === 'low';
+  return (
+    <Text style={[styles.meta, isShort && styles.short]}>
+      {`Linked to ${line.addon.name} · ${stockLeftLabel(line)}${line.left === null ? '' : ' in stock'}`}
+    </Text>
+  );
+}
+
 function SuppliesPane({
   shopId,
   supplies,
-  addons,
+  stock,
   onChanged,
 }: {
   shopId: string;
   supplies: Supply[];
-  addons: readonly ShopAddon[];
+  stock: readonly StockLine[];
   onChanged: () => void;
 }) {
-  const addonName = new Map(addons.map((addon) => [addon.id, addon.name]));
+  const stockById = new Map(stock.map((line) => [line.addon.id, line]));
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [error, setError] = useState('');
   const remove = useMutation({
@@ -215,11 +291,7 @@ function SuppliesPane({
               <Text style={styles.meta}>
                 {`${supply.pack_size} ${SUPPLY_UNIT_LABEL[supply.unit]} for ${formatMoney(supply.pack_cost)} · ${formatUnitCost(supply)}`}
               </Text>
-              <Text style={styles.meta}>
-                {supply.addon_id && addonName.has(supply.addon_id)
-                  ? `Only when the customer picks ${addonName.get(supply.addon_id)}`
-                  : 'Every load'}
-              </Text>
+              <SupplyStockLine line={supply.addon_id ? stockById.get(supply.addon_id) : undefined} />
             </View>
             <Pressable
               accessibilityRole="button"
@@ -238,12 +310,12 @@ function SuppliesPane({
               <Text style={[styles.chipText, { color: colors.danger }]}>Remove</Text>
             </Pressable>
           </View>
-          {editingId === supply.id ? <SupplyForm shopId={shopId} supply={supply} addons={addons} onDone={done} /> : null}
+          {editingId === supply.id ? <SupplyForm shopId={shopId} supply={supply} stock={stock} onDone={done} /> : null}
         </View>
       ))}
       <ErrorText>{error}</ErrorText>
       {editingId === 'new' ? (
-        <SupplyForm shopId={shopId} addons={addons} onDone={done} />
+        <SupplyForm shopId={shopId} stock={stock} onDone={done} />
       ) : (
         <Button title="+ Add supply" variant="outline" onPress={() => setEditingId('new')} />
       )}
@@ -393,6 +465,17 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
     queryKey: ['service-costs', shopId, RECENT_DAYS],
     queryFn: () => getServiceCosts(shopId, RECENT_DAYS),
   });
+  // The shelf's counts, so a supply can be picked from stock and show what is
+  // left. Same keys as the add-on inventory: one cache, kept fresh by the
+  // shell's sync whenever an order takes a pack off.
+  const addonSales = useQuery({
+    queryKey: ['addon-sales', shopId, RECENT_DAYS],
+    queryFn: () => getAddonSales(shopId, RECENT_DAYS),
+  });
+  const addonCosts = useQuery({
+    queryKey: ['addon-costs', shopId, RECENT_DAYS],
+    queryFn: () => getAddonCosts(shopId, RECENT_DAYS),
+  });
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['supplies', shopId] });
@@ -413,6 +496,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
 
   const lines = serviceProfitLines(services.data, costs.data);
   const summary = serviceProfitSummary(lines);
+  const stock = stockLines(addons.data, addonSales.data ?? [], addonCosts.data ?? []);
 
   return (
     <View style={styles.sheet}>
@@ -433,7 +517,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
         ) : null}
       </View>
 
-      <SuppliesPane shopId={shopId} supplies={supplies.data} addons={addons.data} onChanged={refresh} />
+      <SuppliesPane shopId={shopId} supplies={supplies.data} stock={stock} onChanged={refresh} />
 
       <View style={styles.list}>
         {lines.map((line) => (
@@ -474,6 +558,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0, gap: 2 },
   name: { ...type.body, ...fontFor(700), color: colors.text },
   meta: { ...type.caption, color: colors.subtle },
+  short: { color: TAG_TONES.owed.ink, fontWeight: '600' },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   chip: {
     ...glassChip,
