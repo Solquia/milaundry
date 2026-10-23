@@ -13,7 +13,7 @@ import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
 import { keptHeadline, paceLine, type PaceTone } from '@/lib/domain/sales-display';
 import type { PeriodKind } from '@/lib/domain/sales-period';
 
-import { glassChip, glassPane, vibrantPane } from './glass';
+import { glassChip, glassPane } from './glass';
 import { GlyphTile } from './stage-glyph';
 import { RADII, TAG_TONES, colors, elevation, space, type } from './ui-kit';
 
@@ -92,7 +92,7 @@ export function KeptHero({
   const paceText = `Money in ${pace.text.charAt(0).toLowerCase()}${pace.text.slice(1)}`;
 
   return (
-    <View style={[styles.hero, vibrantPane(isLoss ? colors.moneyOut : colors.moneyIn)]}>
+    <View style={[styles.hero, glassPane]}>
       <Text style={styles.heroLabel}>{keptHeadline(kind, profit)}</Text>
       <Text
         style={[styles.heroFigure, isLoss && { color: colors.moneyOut }]}
@@ -136,7 +136,7 @@ function Tile({
       onPress={onPress}
       accessibilityRole="button"
       accessibilityLabel={`${label}: ${value}. ${link}`}
-      style={({ pressed }) => [styles.tile, vibrantPane(tone), pressed && { opacity: 0.75 }]}
+      style={({ pressed }) => [styles.tile, glassPane, pressed && { opacity: 0.75 }]}
     >
       <Text style={[styles.tileLabel, isWarm && { color: ink }]} numberOfLines={1}>
         {label}
@@ -283,7 +283,8 @@ const styles = StyleSheet.create({
   },
   liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.moneyIn },
   liveText: { fontSize: 12, fontWeight: '700', color: colors.moneyIn },
-  // Tinted per render: green for what was kept, the spending colour for a loss.
+  // The same white frost as every other card on the screen; the figure's own
+  // colour says gain or loss, so the box behind it no longer has to.
   hero: {
     gap: space.snug,
     padding: space.section,
