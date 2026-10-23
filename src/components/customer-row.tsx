@@ -49,8 +49,8 @@ export function CustomerRow({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${customer.name}. ${line}. Lifetime value ${formatMoney(
-        customer.lifetimeValue
+      accessibilityLabel={`${customer.name}. ${line}. Paid ${formatMoney(
+        customer.paidValue
       )}${isOwing ? `, owes ${formatMoney(customer.owed)}` : ''}. ${
         STANDING_LABELS[customer.standing]
       }.`}
@@ -72,7 +72,9 @@ export function CustomerRow({
         </Text>
       </View>
       <View style={styles.figures}>
-        <Text style={styles.value}>{formatMoneyCompact(customer.lifetimeValue)}</Text>
+        {/* What they actually paid; anything unpaid sits apart in the pill,
+            so the figure is never money the shop has not yet received. */}
+        <Text style={styles.value}>{formatMoneyCompact(customer.paidValue)}</Text>
         {isOwing ? (
           <View style={styles.owedPill}>
             <Text style={styles.owedText}>Owes {formatMoneyCompact(customer.owed)}</Text>

@@ -9,6 +9,7 @@ import { ChipRow } from '@/components/chip-row';
 import { ClearOrdersSheet } from '@/components/clear-orders-sheet';
 import { CustomerPulse } from '@/components/customer-pulse';
 import { CustomerRow } from '@/components/customer-row';
+import { DayCashStrip } from '@/components/day-cash-strip';
 import { SearchField } from '@/components/search-field';
 import { GLASS_EDGE, GLASS_FILL_DENSE } from '@/components/glass';
 import { ShopQrButton } from '@/components/shop-qr-button';
@@ -164,6 +165,11 @@ export default function MerchantCustomers() {
         }}
         ListHeaderComponent={
           <View style={styles.header}>
+            <DayCashStrip
+              orders={orders ?? []}
+              now={now}
+              onOpenOwing={() => setSegment('owing')}
+            />
             <CustomerPulse summary={book.summary} onSegment={setSegment} />
             <View style={styles.findRow}>
               <View style={styles.fill}>

@@ -120,7 +120,7 @@ export default function MerchantCustomerDetail() {
       </View>
 
       <StatGrid>
-        <StatTile label="Lifetime value" value={formatMoney(customer.lifetimeValue)} tone="in" />
+        <StatTile label="Paid so far" value={formatMoney(customer.paidValue)} tone="in" />
         <StatTile label="Orders" value={String(customer.orderCount)} />
         <StatTile label="Average order" value={formatMoney(customer.averageOrder)} />
         <StatTile
