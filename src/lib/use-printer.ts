@@ -19,10 +19,14 @@ import { useEffect, useSyncExternalStore } from 'react';
 import type { OrderWithDetails } from './api';
 import {
   DEFAULT_RECEIPT_SETTINGS,
+  HEADER_NAME_MAX,
+  headerNameFor,
+  headerSizeLabel,
   rankScanResults,
   textSizeLabel,
   type PrinterPaper,
   type PrinterState,
+  type ReceiptHeaderSize,
   type ReceiptSettings,
   type ReceiptTextSize,
   type SavedPrinter,
@@ -30,6 +34,7 @@ import {
 } from './domain/printer';
 import {
   buildReceipt,
+  headerLine,
   receiptColumns,
   receiptToEscPos,
   type PaperColumns,
@@ -172,6 +177,20 @@ async function setTextSize(textSize: ReceiptTextSize): Promise<void> {
   await rememberSettings({ ...snapshot.settings, textSize });
 }
 
+/** Saved as typed, so a half-finished name is not trimmed under the merchant's cursor. */
+async function setHeaderName(headerName: string): Promise<void> {
+  await rememberSettings({ ...snapshot.settings, headerName: headerName.slice(0, HEADER_NAME_MAX) });
+}
+
+async function setHeaderSize(headerSize: ReceiptHeaderSize): Promise<void> {
+  await rememberSettings({ ...snapshot.settings, headerSize });
+}
+
+/** The shop as the slip names it: the custom header name wins when set. */
+function shopForPrint<T extends ReceiptShop>(shop: T): T {
+  return { ...shop, name: headerNameFor(snapshot.settings, shop.name) };
+}
+
 async function forget(): Promise<void> {
   stopScan();
   await forgetSavedPrinter();
@@ -207,23 +226,25 @@ async function send(lines: ReceiptLine[], title = 'Receipt'): Promise<boolean> {
 }
 
 function printReceipt(order: OrderWithDetails, shop: ReceiptShop): Promise<boolean> {
-  return send(buildReceipt(order, shop, { columns: columnsNow() }));
+  const { headerSize } = snapshot.settings;
+  return send(buildReceipt(order, shopForPrint(shop), { columns: columnsNow(), headerSize }));
 }
 
 /** The bag tags: name, phone and a shop-only QR, one per bag. */
 function printTags(order: OrderWithDetails, shop: ReceiptShop, count: number): Promise<boolean> {
-  return send(buildTags(order, shop, { columns: columnsNow(), count }));
+  return send(buildTags(order, shopForPrint(shop), { columns: columnsNow(), count }));
 }
 
 function testPrint(shop: ReceiptShop): Promise<boolean> {
-  const { textSize } = snapshot.settings;
+  const { textSize, headerSize } = snapshot.settings;
   return send(
     [
-      { kind: 'text', text: shop.name, align: 'center', bold: true, big: true },
+      headerLine(shopForPrint(shop).name, headerSize),
       { kind: 'text', text: snapshot.isBrowser ? 'Browser printing' : 'Printer connected', align: 'center' },
       { kind: 'rule' },
       { kind: 'text', text: `Paper: ${paperNow()}, ${columnsNow()} columns` },
       { kind: 'text', text: `Text size: ${textSizeLabel(textSize)}` },
+      { kind: 'text', text: `Header size: ${headerSizeLabel(headerSize)}` },
       { kind: 'text', text: 'Docket 0000', bold: true, big: true },
       { kind: 'text', text: '1234567890'.repeat(8).slice(0, columnsNow()) },
       { kind: 'feed', lines: 3 },
@@ -261,6 +282,8 @@ export function usePrinter() {
     pair,
     setPaper,
     setTextSize,
+    setHeaderName,
+    setHeaderSize,
     forget,
     printReceipt,
     printTags,

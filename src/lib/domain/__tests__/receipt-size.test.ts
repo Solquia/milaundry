@@ -1,6 +1,14 @@
 import { ESC, GS } from '../escpos';
-import { DEFAULT_RECEIPT_SETTINGS, parseReceiptSettings, printerCopy, textSizeLabel } from '../printer';
-import { receiptColumns, receiptToEscPos, type ReceiptLine } from '../receipt';
+import {
+  DEFAULT_RECEIPT_SETTINGS,
+  HEADER_NAME_MAX,
+  cleanHeaderName,
+  headerNameFor,
+  parseReceiptSettings,
+  printerCopy,
+  textSizeLabel,
+} from '../printer';
+import { headerLine, receiptColumns, receiptToEscPos, type ReceiptLine } from '../receipt';
 import { escapeHtml, fontSizeMm, receiptToHtml } from '../receipt-html';
 
 // The receipt text size is a per-device choice: small packs more on a line,
@@ -68,13 +76,53 @@ describe('parseReceiptSettings', () => {
   });
 
   it('keeps valid fields and replaces invalid ones', () => {
-    expect(parseReceiptSettings('{"paper":"80mm","textSize":"large"}')).toEqual({ paper: '80mm', textSize: 'large' });
+    expect(parseReceiptSettings('{"paper":"80mm","textSize":"large"}')).toEqual({
+      ...DEFAULT_RECEIPT_SETTINGS,
+      paper: '80mm',
+      textSize: 'large',
+    });
     expect(parseReceiptSettings('{"paper":"A4","textSize":"huge"}')).toEqual(DEFAULT_RECEIPT_SETTINGS);
+  });
+
+  it('reads the header name and size, cleaning the name', () => {
+    expect(parseReceiptSettings('{"headerName":"  Suds\\n  Main  ","headerSize":"medium"}')).toEqual({
+      ...DEFAULT_RECEIPT_SETTINGS,
+      headerName: 'Suds Main',
+      headerSize: 'medium',
+    });
+    expect(parseReceiptSettings('{"headerName":42,"headerSize":"huge"}')).toEqual(DEFAULT_RECEIPT_SETTINGS);
+    expect(cleanHeaderName('x'.repeat(HEADER_NAME_MAX + 10))).toHaveLength(HEADER_NAME_MAX);
   });
 
   it('labels each size', () => {
     expect(textSizeLabel('small')).toBe('Small');
     expect(textSizeLabel('large')).toBe('Large');
+  });
+});
+
+describe('receipt header', () => {
+  it('prints the custom name when set and the shop name otherwise', () => {
+    expect(headerNameFor({ headerName: 'Suds Express' }, 'Suds')).toBe('Suds Express');
+    expect(headerNameFor({ headerName: '   ' }, 'Suds')).toBe('Suds');
+  });
+
+  it('sizes the name line large, medium or small', () => {
+    expect(headerLine('Suds', 'large')).toEqual({ kind: 'text', text: 'Suds', align: 'center', bold: true, big: true });
+    expect(headerLine('Suds', 'medium')).toEqual({ kind: 'text', text: 'Suds', align: 'center', bold: true, tall: true });
+    expect(headerLine('Suds', 'small')).toEqual({ kind: 'text', text: 'Suds', align: 'center', bold: true });
+    expect(headerLine('Suds')).toEqual(headerLine('Suds', 'large'));
+  });
+
+  it('prints a medium header double height and restores the body size after it', () => {
+    const bytes = receiptToEscPos([headerLine('Shop', 'medium'), { kind: 'text', text: 'Body' }], 32);
+    const name = indexOfSequence(bytes, [83, 104, 111, 112, 0x0a]);
+    expect(bytes.slice(name - 3, name)).toEqual([GS, 0x21, 0x01]);
+    expect(bytes.slice(name + 5, name + 8)).toEqual([GS, 0x21, 0x00]);
+  });
+
+  it('gives a medium header its own class in the browser', () => {
+    const html = receiptToHtml([headerLine('Shop', 'medium')], { paper: '58mm', columns: 32, title: 'R', qrSvgs: {} });
+    expect(html).toContain('class="t center b tall"');
   });
 });
 

@@ -12,6 +12,8 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import {
+  HEADER_NAME_MAX,
+  HEADER_SIZES,
   TEXT_SIZES,
   looksLikePrinter,
   printerCopy,
@@ -23,7 +25,7 @@ import { usePrinter } from '@/lib/use-printer';
 
 import { glassChip, glassPane } from './glass';
 import { GlyphTile } from './stage-glyph';
-import { Button, colors, space, type } from './ui-kit';
+import { Button, Field, colors, space, type } from './ui-kit';
 
 const PAPERS: PrinterPaper[] = ['58mm', '80mm'];
 
@@ -63,11 +65,41 @@ function Chip({ label, isOn, onPress }: { label: string; isOn: boolean; onPress:
   );
 }
 
-/** Paper width and text size: the two things a slip is laid out by. */
-function ReceiptChoices() {
+/** The name at the top of the slip and how big it prints. */
+function HeaderChoices({ shopName }: { shopName: string }) {
   const printer = usePrinter();
   return (
     <>
+      <Field
+        label="Name on the receipt header"
+        value={printer.settings.headerName}
+        onChangeText={(value) => void printer.setHeaderName(value)}
+        placeholder={shopName}
+        maxLength={HEADER_NAME_MAX}
+        autoCapitalize="words"
+      />
+      <Text style={styles.caption}>Leave it empty to print {shopName}.</Text>
+      <Text style={styles.caption}>Header size</Text>
+      <View style={styles.papers}>
+        {HEADER_SIZES.map(({ size, label }) => (
+          <Chip
+            key={size}
+            label={label}
+            isOn={printer.settings.headerSize === size}
+            onPress={() => printer.setHeaderSize(size)}
+          />
+        ))}
+      </View>
+    </>
+  );
+}
+
+/** Paper width, text size and the header: what a slip is laid out by. */
+function ReceiptChoices({ shopName }: { shopName: string }) {
+  const printer = usePrinter();
+  return (
+    <>
+      <HeaderChoices shopName={shopName} />
       <View style={styles.papers}>
         {PAPERS.map((paper) => (
           <Chip
@@ -119,7 +151,7 @@ export function PrinterCard({ shop }: { shop: Shop }) {
 
       {isOpen && printer.isBrowser ? (
         <View style={styles.body}>
-          <ReceiptChoices />
+          <ReceiptChoices shopName={shop.name} />
           <Button title="Print a test slip" onPress={() => printer.testPrint(shop)} disabled={isBusy} />
         </View>
       ) : null}
@@ -128,7 +160,7 @@ export function PrinterCard({ shop }: { shop: Shop }) {
         <View style={styles.body}>
           {printer.saved ? (
             <>
-              <ReceiptChoices />
+              <ReceiptChoices shopName={shop.name} />
               <Button title="Print a test slip" onPress={() => printer.testPrint(shop)} disabled={isBusy} />
               <Button title="Forget this printer" variant="outline" onPress={printer.forget} disabled={isBusy} />
             </>

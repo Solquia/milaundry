@@ -43,7 +43,8 @@ export function fontSizeMm(paper: PrinterPaper, columns: number): number {
 function lineHtml(line: ReceiptLine, qrSvgs: ReceiptHtmlOptions['qrSvgs'], isLast: boolean): string {
   switch (line.kind) {
     case 'text': {
-      const classes = ['t', line.align ?? 'left', line.bold ? 'b' : '', line.big ? 'big' : ''].filter(Boolean);
+      const size = line.big ? 'big' : line.tall ? 'tall' : '';
+      const classes = ['t', line.align ?? 'left', line.bold ? 'b' : '', size].filter(Boolean);
       return `<div class="${classes.join(' ')}">${escapeHtml(line.text)}</div>`;
     }
     case 'rule':
@@ -80,6 +81,7 @@ body { width: ${paper}; padding: 3mm ${sideMm}mm; }
 .right { text-align: right; }
 .b { font-weight: 700; }
 .big { font-size: 2em; line-height: 1.15; }
+.tall { font-size: 1.5em; line-height: 1.2; }
 .rule { border-top: 1px dashed #000; margin: 0.6em 0; }
 .qr { display: flex; justify-content: center; margin: 0.4em 0; }
 .qr svg { width: 60%; height: auto; }

@@ -20,7 +20,7 @@ import { actualBill } from './actual-bill';
 import { docketNumber, stampLabel } from './docket';
 import * as esc from './escpos';
 import { roundCentavos } from './money';
-import type { PrinterPaper, ReceiptTextSize } from './printer';
+import type { PrinterPaper, ReceiptHeaderSize, ReceiptTextSize } from './printer';
 import { formatQuantity, lineQuantity } from './price-label';
 import { appliedReward } from './rewards';
 import { buildOrderQr } from './qr';
@@ -49,8 +49,9 @@ export function receiptColumns(
   return PAPER_COLUMNS[paper];
 }
 
+/** `big` is double width and height; `tall` is double height only. */
 export type ReceiptLine =
-  | { kind: 'text'; text: string; align?: esc.Alignment; bold?: boolean; big?: boolean }
+  | { kind: 'text'; text: string; align?: esc.Alignment; bold?: boolean; big?: boolean; tall?: boolean }
   | { kind: 'rule' }
   | { kind: 'feed'; lines: number }
   | { kind: 'qr'; value: string }
@@ -64,6 +65,7 @@ export interface ReceiptShop {
 
 export interface ReceiptOptions {
   columns: PaperColumns;
+  headerSize?: ReceiptHeaderSize;
 }
 
 /** Pesos as "P1,234.50": the peso glyph is not in any thermal code page we can count on. */
@@ -105,8 +107,14 @@ const text = (
   style: Omit<Extract<ReceiptLine, { kind: 'text' }>, 'kind' | 'text'> = {}
 ): ReceiptLine => ({ kind: 'text', text: value, ...style });
 
-function header(shop: ReceiptShop): ReceiptLine[] {
-  const lines: ReceiptLine[] = [text(shop.name, { align: 'center', bold: true, big: true })];
+/** The shop name's line at the size chosen in Settings. */
+export function headerLine(name: string, size: ReceiptHeaderSize = 'large'): ReceiptLine {
+  const sized = size === 'large' ? { big: true } : size === 'medium' ? { tall: true } : {};
+  return text(name, { align: 'center', bold: true, ...sized });
+}
+
+function header(shop: ReceiptShop, size?: ReceiptHeaderSize): ReceiptLine[] {
+  const lines: ReceiptLine[] = [headerLine(shop.name, size)];
   if (shop.address) lines.push(text(shop.address, { align: 'center' }));
   if (shop.phone) lines.push(text(shop.phone, { align: 'center' }));
   return lines;
@@ -151,10 +159,10 @@ export function buildReceipt(
   shop: ReceiptShop,
   options: ReceiptOptions
 ): ReceiptLine[] {
-  const { columns } = options;
+  const { columns, headerSize } = options;
   const when = whenLabel(order.created_at);
   return [
-    ...header(shop),
+    ...header(shop, headerSize),
     { kind: 'rule' },
     text(`Docket ${docketNumber(order.id)}`, { bold: true, big: true }),
     ...(when ? [text(when)] : []),
@@ -202,9 +210,11 @@ export function receiptToEscPos(
         const where = line.align ?? 'left';
         if (where !== 'left') out.push(...esc.align(where));
         if (line.bold) out.push(...esc.bold(true));
+        const isSized = Boolean(line.big || line.tall);
         if (line.big) out.push(...esc.doubleSize(true));
+        else if (line.tall) out.push(...esc.tallSize(true));
         out.push(...esc.textLine(line.text));
-        if (line.big) out.push(...bodySize(size));
+        if (isSized) out.push(...bodySize(size));
         if (line.bold) out.push(...esc.bold(false));
         if (where !== 'left') out.push(...esc.align('left'));
         break;

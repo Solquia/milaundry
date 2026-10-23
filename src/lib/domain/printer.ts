@@ -24,18 +24,60 @@ export const TEXT_SIZES: readonly { size: ReceiptTextSize; label: string }[] = [
 ];
 
 /**
+ * How big the shop name prints at the top of the slip. Large is the double
+ * size it always had; medium is double height only, so a long name keeps
+ * its width; small is the body text, bold.
+ */
+export type ReceiptHeaderSize = 'small' | 'medium' | 'large';
+
+export const DEFAULT_HEADER_SIZE: ReceiptHeaderSize = 'large';
+
+export const HEADER_SIZES: readonly { size: ReceiptHeaderSize; label: string }[] = [
+  { size: 'small', label: 'Small' },
+  { size: 'medium', label: 'Medium' },
+  { size: 'large', label: 'Large' },
+];
+
+/** Long enough for a shop and branch name, short enough for two lines on 58mm. */
+export const HEADER_NAME_MAX = 40;
+
+/**
  * What this device prints on, whether or not a Bluetooth printer is paired:
  * the browser prints without one, and still needs a paper width and a size.
+ * `headerName` replaces the shop's name at the top of the slip; empty means
+ * the shop's own name.
  */
 export interface ReceiptSettings {
   paper: PrinterPaper;
   textSize: ReceiptTextSize;
+  headerName: string;
+  headerSize: ReceiptHeaderSize;
 }
 
-export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = { paper: DEFAULT_PAPER, textSize: DEFAULT_TEXT_SIZE };
+export const DEFAULT_RECEIPT_SETTINGS: ReceiptSettings = {
+  paper: DEFAULT_PAPER,
+  textSize: DEFAULT_TEXT_SIZE,
+  headerName: '',
+  headerSize: DEFAULT_HEADER_SIZE,
+};
 
 function isTextSize(value: unknown): value is ReceiptTextSize {
   return value === 'small' || value === 'normal' || value === 'large';
+}
+
+function isHeaderSize(value: unknown): value is ReceiptHeaderSize {
+  return value === 'small' || value === 'medium' || value === 'large';
+}
+
+/** One line, no surrounding space, at most `HEADER_NAME_MAX` characters. */
+export function cleanHeaderName(value: unknown): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim().slice(0, HEADER_NAME_MAX);
+}
+
+/** The name the slip opens with: the custom one when set, else the shop's. */
+export function headerNameFor(settings: Pick<ReceiptSettings, 'headerName'>, shopName: string): string {
+  return cleanHeaderName(settings.headerName) || shopName;
 }
 
 /** Never throws, like `parseSavedPrinter`: an unreadable record is the defaults. */
@@ -48,6 +90,8 @@ export function parseReceiptSettings(raw: string | null | undefined): ReceiptSet
     return {
       paper: isPaper(record.paper) ? record.paper : DEFAULT_PAPER,
       textSize: isTextSize(record.textSize) ? record.textSize : DEFAULT_TEXT_SIZE,
+      headerName: cleanHeaderName(record.headerName),
+      headerSize: isHeaderSize(record.headerSize) ? record.headerSize : DEFAULT_HEADER_SIZE,
     };
   } catch {
     return DEFAULT_RECEIPT_SETTINGS;
@@ -56,6 +100,10 @@ export function parseReceiptSettings(raw: string | null | undefined): ReceiptSet
 
 export function textSizeLabel(size: ReceiptTextSize): string {
   return TEXT_SIZES.find((entry) => entry.size === size)?.label ?? 'Normal';
+}
+
+export function headerSizeLabel(size: ReceiptHeaderSize): string {
+  return HEADER_SIZES.find((entry) => entry.size === size)?.label ?? 'Large';
 }
 
 export interface SavedPrinter {
