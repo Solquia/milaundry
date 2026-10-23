@@ -1,10 +1,10 @@
 /**
- * "In the shop": the owner's line-by-line view of a period, for when they are
- * not standing at the counter. Four figures on top (sold, paid, still unpaid,
- * supplies used), then every order — when, who for, who took it, paid or not,
- * what it used and what it left. Owner-only, like the costs it reads.
+ * "In the shop": the owner's view of a period, for when they are not standing
+ * at the counter. Four figures (sold, paid, still unpaid, supplies used); on
+ * full analytics, a button opens every order — when, who for, who took it,
+ * paid or not, what it used and what it left. Owner-only, like its costs.
  */
-import React from 'react';
+import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { formatMoney } from '@/lib/domain/money';
@@ -85,8 +85,14 @@ export function ShopLedgerCard({
   onOpenOrder,
   onOpenAll,
   onSetUpCosts,
+  canListOrders = false,
 }: {
   ledger: ShopLedger;
+  /**
+   * Full analytics offers the order-by-order list behind a button; Sales
+   * keeps to the figures, and people live on the Customers tab.
+   */
+  canListOrders?: boolean;
   unit: BucketUnit;
   /** False while costs load or if they failed; the money still shows. */
   hasCosts: boolean;
@@ -94,6 +100,7 @@ export function ShopLedgerCard({
   onOpenAll: () => void;
   onSetUpCosts: () => void;
 }) {
+  const [isListing, setIsListing] = useState(false);
   const { rows, totals } = ledger;
   const hidden = rows.length - SHOWN_ROWS;
 
@@ -125,16 +132,26 @@ export function ShopLedgerCard({
         </Pressable>
       ) : null}
 
-      {rows.length === 0 ? (
-        <Text style={styles.empty}>No orders taken yet.</Text>
-      ) : (
+      {canListOrders && rows.length > 0 ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ expanded: isListing }}
+          onPress={() => setIsListing(!isListing)}
+          hitSlop={6}
+        >
+          <Text style={styles.link}>
+            {isListing ? 'Hide orders' : `Show the ${plural(rows.length, 'order')} and who took them`} ›
+          </Text>
+        </Pressable>
+      ) : null}
+      {canListOrders && isListing ? (
         <View style={styles.list}>
           {rows.slice(0, SHOWN_ROWS).map((row) => (
             <Row key={row.id} row={row} unit={unit} onOpen={() => onOpenOrder(row.id)} />
           ))}
         </View>
-      )}
-      {hidden > 0 ? (
+      ) : null}
+      {canListOrders && isListing && hidden > 0 ? (
         <Pressable accessibilityRole="button" onPress={onOpenAll} hitSlop={6}>
           <Text style={styles.link}>See {plural(hidden, 'more order')} in Orders ›</Text>
         </Pressable>

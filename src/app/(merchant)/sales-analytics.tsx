@@ -40,7 +40,13 @@ import {
   stepPeriod,
   type SalesPeriod,
 } from "@/lib/domain/sales-period";
+import { ExpenseBreakdown } from "@/components/expense-breakdown";
+import { ShopLedgerCard } from "@/components/shop-ledger-card";
+import { ShopStockCard } from "@/components/shop-stock-card";
+import { formatMoney } from "@/lib/domain/money";
 import { useActiveShop } from "@/lib/use-active-shop";
+import { useShopExpenses } from "@/lib/use-shop-expenses";
+import { useShopPicture } from "@/lib/use-shop-picture";
 import { useHaptic } from "@/lib/use-app-settings";
 import { useNow } from "@/lib/use-now";
 import { useDayClose, useSalesGoal } from "@/lib/use-sales-screen";
@@ -104,6 +110,10 @@ export default function MerchantSalesAnalytics() {
 
   const goal = useSalesGoal(shop?.id, today.metrics.sales.total, now);
   const dayClose = useDayClose(shop?.id, now);
+  const isOwner =
+    Boolean(shop) && canOpenMerchantRoute(shopRole, "sales-analytics");
+  const picture = useShopPicture(shop?.id, isOwner, all, frame);
+  const expenses = useShopExpenses(shop?.id, frame);
 
   if (isShopLoading || (isLoading && !orders)) return <SalesSkeleton />;
   if (!canOpenMerchantRoute(shopRole, "sales-analytics")) {
@@ -163,6 +173,40 @@ export default function MerchantSalesAnalytics() {
           onEditGoal={() => setSheet("goal")}
           onOpenPayments={() => setSheet("payments")}
         />
+
+        <SectionHeading title="In the shop" caption={`Orders taken · ${frame.caption}`} />
+        <ShopLedgerCard
+          ledger={picture.ledger}
+          unit={frame.unit}
+          hasCosts={picture.hasCosts}
+          canListOrders
+          onOpenOrder={openOrder}
+          onOpenAll={() => router.push("/(merchant)/orders?view=all" as never)}
+          onSetUpCosts={() => router.push("/(merchant)/services" as never)}
+        />
+
+        <SectionHeading title="Stock & supplies" caption={frame.caption} />
+        <ShopStockCard
+          stock={picture.stock}
+          isLoading={picture.isStockLoading}
+          onManage={() => router.push("/(merchant)/services" as never)}
+        />
+
+        <SectionHeading
+          title="Where the money went"
+          caption={`Expenses ${formatMoney(expenses.summary.total)} · supplies used ${formatMoney(picture.stock.suppliesCost)}`}
+          actionLabel="Expenses"
+          onAction={() =>
+            router.push(
+              `/(merchant)/expenses?kind=${period.kind}&offset=${period.offset}` as never,
+            )
+          }
+        />
+        {expenses.summary.byCategory.length > 0 ? (
+          <ExpenseBreakdown shares={expenses.summary.byCategory} />
+        ) : (
+          <Text style={styles.quiet}>No expenses logged for {frame.caption}.</Text>
+        )}
 
         <SectionHeading title="To collect" caption="Unpaid orders, any date" />
         <CollectLanes
@@ -285,6 +329,7 @@ export default function MerchantSalesAnalytics() {
 }
 
 const styles = StyleSheet.create({
+  quiet: { ...type.caption, color: colors.subtle },
   shell: { flex: 1, backgroundColor: GLASS_GROUND },
   back: { flexDirection: "row", alignItems: "center", gap: 2, alignSelf: "flex-start" },
   backText: { ...type.label, color: colors.actionInk },

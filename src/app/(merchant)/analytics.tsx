@@ -26,17 +26,10 @@ import {
   Screen,
   space,
 } from "@/components/ui-kit";
-import { ShopStockCard } from "@/components/shop-stock-card";
-import {
-  getAddonCosts,
-  getAddonSales,
-  getShopAddons,
-  getShopOrders,
-} from "@/lib/api";
-import { getPeriodOrderCosts, getPeriodSupplyUse } from "@/lib/cost-api";
-import { RECENT_DAYS } from "@/lib/domain/addon-inventory";
-import { shopLedger } from "@/lib/domain/shop-ledger";
-import { shopStock } from "@/lib/domain/shop-stock";
+import { NextStepsCard } from "@/components/next-steps-card";
+import { getShopOrders } from "@/lib/api";
+import { ownerActions, type ActionTarget } from "@/lib/domain/owner-actions";
+import { useShopPicture } from "@/lib/use-shop-picture";
 import { splitCollect } from "@/lib/domain/collect-queue";
 import type { DaySummary } from "@/lib/domain/day-close";
 import { profitOf, toDateKey } from "@/lib/domain/expense-metrics";
@@ -103,64 +96,8 @@ export default function MerchantSales() {
     [all, frame, kind, today],
   );
   const split = useMemo(() => splitCollect(all, now), [all, now]);
-  // The orders the ledger costs: refetch when one is added or changes total.
-  const ledgerKey = useMemo(
-    () =>
-      all
-        .filter((order) => {
-          const time = new Date(order.created_at).getTime();
-          return time >= frame.start && time < frame.end;
-        })
-        .map((order) => `${order.id}:${order.final_total ?? order.estimated_total}`)
-        .join(","),
-    [all, frame.start, frame.end],
-  );
-  const costs = useQuery({
-    queryKey: ["period-order-costs", shop?.id, frame.start, frame.end, ledgerKey],
-    queryFn: () => getPeriodOrderCosts(shop!.id, frame.start, frame.end),
-    enabled: Boolean(shop) && canOpenMerchantRoute(shopRole, "analytics"),
-    placeholderData: (previous) => previous,
-  });
-  const ledger = useMemo(
-    () => shopLedger(all, costs.data, frame),
-    [all, costs.data, frame],
-  );
-  // Same keys as the Prices screen's shelf, so both read one cache and the
-  // shell's sync refreshes them together when an order changes.
   const isOwner = Boolean(shop) && canOpenMerchantRoute(shopRole, "analytics");
-  const addons = useQuery({
-    queryKey: ["shop-addons", shop?.id],
-    queryFn: () => getShopAddons(shop!.id),
-    enabled: isOwner,
-  });
-  const addonSales = useQuery({
-    queryKey: ["addon-sales", shop?.id, RECENT_DAYS],
-    queryFn: () => getAddonSales(shop!.id, RECENT_DAYS),
-    enabled: isOwner,
-  });
-  const addonCosts = useQuery({
-    queryKey: ["addon-costs", shop?.id, RECENT_DAYS],
-    queryFn: () => getAddonCosts(shop!.id, RECENT_DAYS),
-    enabled: isOwner,
-  });
-  const supplyUse = useQuery({
-    queryKey: ["period-supply-use", shop?.id, frame.start, frame.end],
-    queryFn: () => getPeriodSupplyUse(shop!.id, frame.start, frame.end),
-    enabled: isOwner,
-    placeholderData: (previous) => previous,
-  });
-  const stock = useMemo(
-    () =>
-      shopStock({
-        orders: all,
-        addons: addons.data ?? [],
-        sales: addonSales.data ?? [],
-        costs: addonCosts.data ?? [],
-        supplyUse: supplyUse.data ?? [],
-        frame,
-      }),
-    [all, addons.data, addonSales.data, addonCosts.data, supplyUse.data, frame],
-  );
+  const { ledger, stock, hasCosts } = useShopPicture(shop?.id, isOwner, all, frame);
   const goalIdeas = useMemo(
     () => suggestGoals(dailyTotals(all, now, GOAL_HISTORY_DAYS)),
     [all, now],
@@ -203,6 +140,39 @@ export default function MerchantSales() {
   const spent = expenses.summary.total;
   const { profit } = profitOf(moneyIn, spent);
   const periodQuery = `kind=${period.kind}&offset=${period.offset}`;
+  const topExpense = [...expenses.summary.byCategory].sort(
+    (a, b) => b.amount - a.amount,
+  )[0];
+  const actions = ownerActions({
+    sold: ledger.totals.sold,
+    moneyIn,
+    supplies: ledger.totals.supplies,
+    taken: ledger.totals.taken,
+    collectable: { amount: unpaidTotal, count: unpaidCount },
+    restock: stock.restock.map((line) => ({
+      name: line.addon.name,
+      left: line.left,
+    })),
+    topSupply: stock.supplies[0] ?? null,
+    expenses: {
+      total: spent,
+      top: topExpense
+        ? { label: topExpense.label, amount: topExpense.amount }
+        : null,
+    },
+    salesDelta: sales.metrics.sales.delta,
+    compareLabel: frame.compareLabel,
+    missingCosts: ledger.totals.uncosted + stock.addonsWithoutCost,
+  });
+  const openTarget = (target: ActionTarget) => {
+    const routes: Record<ActionTarget, string> = {
+      collect: "/(merchant)/orders?view=collect",
+      prices: "/(merchant)/services",
+      expenses: `/(merchant)/expenses?${periodQuery}`,
+      analytics: `/(merchant)/sales-analytics?${periodQuery}`,
+    };
+    router.push(routes[target] as never);
+  };
 
   return (
     <View style={styles.shell}>
@@ -248,19 +218,15 @@ export default function MerchantSales() {
           }
         />
 
+        <NextStepsCard actions={actions} onOpen={openTarget} />
+
         <ShopLedgerCard
           ledger={ledger}
           unit={frame.unit}
-          hasCosts={Boolean(costs.data)}
+          hasCosts={hasCosts}
           onOpenOrder={(orderId) => router.push(`/(merchant)/order/${orderId}`)}
           onOpenAll={() => router.push("/(merchant)/orders?view=all" as never)}
           onSetUpCosts={() => router.push("/(merchant)/services" as never)}
-        />
-
-        <ShopStockCard
-          stock={stock}
-          isLoading={addons.isLoading || supplyUse.isLoading}
-          onManage={() => router.push("/(merchant)/services" as never)}
         />
 
         {isToday ? (
