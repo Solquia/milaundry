@@ -67,6 +67,17 @@ export interface PeriodOrderCost {
   takenBy: string | null;
 }
 
+
+/** What the window's orders used of one free supply, as `get_period_supply_use` reports it (0055). */
+export interface SupplyUse {
+  supplyId: string;
+  name: string;
+  unit: SupplyUnit;
+  packSize: number;
+  amount: number;
+  cost: number;
+}
+
 /** The most one entry may say. The database agrees. */
 export const SUPPLY_LIMIT = 1_000_000;
 export const AMOUNT_LIMIT = 100_000;

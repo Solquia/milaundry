@@ -10,6 +10,8 @@ import type {
   ServiceSupply,
   Supply,
   SupplyDraft,
+  SupplyUnit,
+  SupplyUse,
 } from './domain/service-costs';
 import { supabase } from './supabase';
 
@@ -146,5 +148,32 @@ export async function getPeriodOrderCosts(
     lines: row.lines,
     costedLines: row.costed_lines,
     takenBy: row.taken_by,
+  }));
+}
+
+/** How much of each free supply the window's orders used, and what it cost (0055). */
+export async function getPeriodSupplyUse(shopId: string, from: number, to: number): Promise<SupplyUse[]> {
+  const { data, error } = await supabase.rpc('get_period_supply_use', {
+    p_shop_id: shopId,
+    p_from: new Date(from).toISOString(),
+    p_to: new Date(to).toISOString(),
+  });
+  check(error);
+  return (
+    (data ?? []) as {
+      supply_id: string;
+      name: string;
+      unit: SupplyUnit;
+      pack_size: Numeric;
+      amount: Numeric;
+      cost: Numeric;
+    }[]
+  ).map((row) => ({
+    supplyId: row.supply_id,
+    name: row.name,
+    unit: row.unit,
+    packSize: Number(row.pack_size),
+    amount: Number(row.amount),
+    cost: Number(row.cost),
   }));
 }

@@ -26,9 +26,17 @@ import {
   Screen,
   space,
 } from "@/components/ui-kit";
-import { getShopOrders } from "@/lib/api";
-import { getPeriodOrderCosts } from "@/lib/cost-api";
+import { ShopStockCard } from "@/components/shop-stock-card";
+import {
+  getAddonCosts,
+  getAddonSales,
+  getShopAddons,
+  getShopOrders,
+} from "@/lib/api";
+import { getPeriodOrderCosts, getPeriodSupplyUse } from "@/lib/cost-api";
+import { RECENT_DAYS } from "@/lib/domain/addon-inventory";
 import { shopLedger } from "@/lib/domain/shop-ledger";
+import { shopStock } from "@/lib/domain/shop-stock";
 import { splitCollect } from "@/lib/domain/collect-queue";
 import type { DaySummary } from "@/lib/domain/day-close";
 import { profitOf, toDateKey } from "@/lib/domain/expense-metrics";
@@ -116,6 +124,42 @@ export default function MerchantSales() {
   const ledger = useMemo(
     () => shopLedger(all, costs.data, frame),
     [all, costs.data, frame],
+  );
+  // Same keys as the Prices screen's shelf, so both read one cache and the
+  // shell's sync refreshes them together when an order changes.
+  const isOwner = Boolean(shop) && canOpenMerchantRoute(shopRole, "analytics");
+  const addons = useQuery({
+    queryKey: ["shop-addons", shop?.id],
+    queryFn: () => getShopAddons(shop!.id),
+    enabled: isOwner,
+  });
+  const addonSales = useQuery({
+    queryKey: ["addon-sales", shop?.id, RECENT_DAYS],
+    queryFn: () => getAddonSales(shop!.id, RECENT_DAYS),
+    enabled: isOwner,
+  });
+  const addonCosts = useQuery({
+    queryKey: ["addon-costs", shop?.id, RECENT_DAYS],
+    queryFn: () => getAddonCosts(shop!.id, RECENT_DAYS),
+    enabled: isOwner,
+  });
+  const supplyUse = useQuery({
+    queryKey: ["period-supply-use", shop?.id, frame.start, frame.end],
+    queryFn: () => getPeriodSupplyUse(shop!.id, frame.start, frame.end),
+    enabled: isOwner,
+    placeholderData: (previous) => previous,
+  });
+  const stock = useMemo(
+    () =>
+      shopStock({
+        orders: all,
+        addons: addons.data ?? [],
+        sales: addonSales.data ?? [],
+        costs: addonCosts.data ?? [],
+        supplyUse: supplyUse.data ?? [],
+        frame,
+      }),
+    [all, addons.data, addonSales.data, addonCosts.data, supplyUse.data, frame],
   );
   const goalIdeas = useMemo(
     () => suggestGoals(dailyTotals(all, now, GOAL_HISTORY_DAYS)),
@@ -211,6 +255,12 @@ export default function MerchantSales() {
           onOpenOrder={(orderId) => router.push(`/(merchant)/order/${orderId}`)}
           onOpenAll={() => router.push("/(merchant)/orders?view=all" as never)}
           onSetUpCosts={() => router.push("/(merchant)/services" as never)}
+        />
+
+        <ShopStockCard
+          stock={stock}
+          isLoading={addons.isLoading || supplyUse.isLoading}
+          onManage={() => router.push("/(merchant)/services" as never)}
         />
 
         {isToday ? (

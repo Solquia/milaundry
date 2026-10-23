@@ -25,6 +25,7 @@ import {
   viewAsBannerText,
 } from '@/lib/domain/view-as-shop';
 import { useShopDoorbell, useShopDoorbellWatch } from '@/lib/use-shop-doorbell';
+import { useShopSync } from '@/lib/use-shop-sync';
 import { useViewAsShop } from '@/lib/view-as-shop-context';
 
 // Built once per tab set: a fresh function identity here would remount the
@@ -42,6 +43,7 @@ function makeTabBar(tabs: readonly TabConfig[], isDesk: boolean, shopName: strin
 
 function ShopDoorbellHost() {
   useShopDoorbellWatch();
+  useShopSync();
   const doorbell = useShopDoorbell();
   if (!doorbell.banner) return null;
   return (
