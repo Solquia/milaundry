@@ -25,6 +25,12 @@ export interface Supply {
   unit: SupplyUnit;
   pack_size: number;
   pack_cost: number;
+  /**
+   * The add-on that hands this supply out (0053), or null when every load
+   * gets it. Linked, it is used only on orders where the customer picked that
+   * add-on, which also takes one off the add-on's stock.
+   */
+  addon_id: string | null;
 }
 
 /** How much of one supply one unit of a service uses. */
@@ -211,6 +217,7 @@ export interface SupplyDraft {
   unit: SupplyUnit;
   pack_size: number;
   pack_cost: number;
+  addon_id: string | null;
 }
 
 /** A supply as typed: a name, the bottle's size, and what the bottle cost. */
@@ -219,6 +226,7 @@ export function parseSupplyDraft(input: {
   unit: SupplyUnit;
   packSize: string;
   packCost: string;
+  addonId: string | null;
 }): Parsed<SupplyDraft> {
   const name = input.name.trim();
   if (name === '') return { ok: false, error: 'Name the supply, like Zonrox bleach.' };
@@ -228,7 +236,7 @@ export function parseSupplyDraft(input: {
   if (size.value <= 0) return { ok: false, error: 'The bottle size must be more than 0.' };
   const cost = parseNumber(input.packCost, SUPPLY_LIMIT, 'price');
   if (!cost.ok) return cost;
-  return { ok: true, value: { name, unit: input.unit, pack_size: size.value, pack_cost: cost.value } };
+  return { ok: true, value: { name, unit: input.unit, pack_size: size.value, pack_cost: cost.value, addon_id: input.addonId } };
 }
 
 /** How much of a supply one unit uses. Blank or 0 means it uses none. */

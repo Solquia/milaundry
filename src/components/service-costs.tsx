@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getServices } from '@/lib/api';
+import { getServices, getShopAddons } from '@/lib/api';
 import {
   addSupply,
   deleteSupply,
@@ -22,6 +22,7 @@ import {
 import { confirmAction } from '@/lib/confirm';
 import { RECENT_DAYS } from '@/lib/domain/addon-inventory';
 import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
+import type { ShopAddon } from '@/lib/domain/shop-addons';
 import {
   SUPPLY_UNITS,
   SUPPLY_UNIT_LABEL,
@@ -55,24 +56,75 @@ function Tile({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Free add-ons first: they are the ones that hand a free supply out. */
+function linkableAddons(addons: readonly ShopAddon[]): ShopAddon[] {
+  return addons
+    .filter((addon) => addon.is_active)
+    .sort((a, b) => Number(a.price > 0) - Number(b.price > 0) || a.name.localeCompare(b.name));
+}
+
+function AddonLinkPicker({
+  addons,
+  value,
+  onChange,
+}: {
+  addons: readonly ShopAddon[];
+  value: string | null;
+  onChange: (addonId: string | null) => void;
+}) {
+  const options = [
+    { id: null, label: 'Every load' },
+    ...linkableAddons(addons).map((addon) => ({ id: addon.id, label: `When picked: ${addon.name}` })),
+  ];
+  return (
+    <View style={styles.editor}>
+      <Text style={styles.meta}>Goes out</Text>
+      <View style={styles.chips} accessibilityRole="radiogroup">
+        {options.map((option) => {
+          const isOn = option.id === value;
+          return (
+            <Pressable
+              key={option.id ?? 'every'}
+              accessibilityRole="radio"
+              accessibilityState={{ checked: isOn }}
+              onPress={() => onChange(option.id)}
+              style={[styles.chip, isOn && styles.chipOn]}
+            >
+              <Text style={[styles.chipText, isOn && styles.chipTextOn]}>{option.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+      <Text style={styles.meta}>
+        {value === null
+          ? 'Every wash uses it, unless the customer bought their own detergent or fabcon.'
+          : 'Only washes where the customer tapped this add-on use it. Each tap takes one off its stock.'}
+      </Text>
+    </View>
+  );
+}
+
 function SupplyForm({
   shopId,
   supply,
+  addons,
   onDone,
 }: {
   shopId: string;
   supply?: Supply;
+  addons: readonly ShopAddon[];
   onDone: () => void;
 }) {
   const [name, setName] = useState(supply?.name ?? '');
   const [unit, setUnit] = useState<SupplyUnit>(supply?.unit ?? 'ml');
   const [packSize, setPackSize] = useState(supply ? String(supply.pack_size) : '');
   const [packCost, setPackCost] = useState(supply ? String(supply.pack_cost) : '');
+  const [addonId, setAddonId] = useState<string | null>(supply?.addon_id ?? null);
   const [error, setError] = useState('');
 
   const save = useMutation({
     mutationFn: async () => {
-      const parsed = parseSupplyDraft({ name, unit, packSize, packCost });
+      const parsed = parseSupplyDraft({ name, unit, packSize, packCost, addonId });
       if (!parsed.ok) throw new Error(parsed.error);
       await (supply ? updateSupply(supply.id, parsed.value) : addSupply(shopId, parsed.value));
     },
@@ -99,6 +151,7 @@ function SupplyForm({
         keyboardType="decimal-pad"
         placeholder="₱0.00"
       />
+      <AddonLinkPicker addons={addons} value={addonId} onChange={setAddonId} />
       <ErrorText>{error}</ErrorText>
       <Button
         title={save.isPending ? 'Saving…' : supply ? 'Save supply' : 'Add supply'}
@@ -112,7 +165,18 @@ function SupplyForm({
   );
 }
 
-function SuppliesPane({ shopId, supplies, onChanged }: { shopId: string; supplies: Supply[]; onChanged: () => void }) {
+function SuppliesPane({
+  shopId,
+  supplies,
+  addons,
+  onChanged,
+}: {
+  shopId: string;
+  supplies: Supply[];
+  addons: readonly ShopAddon[];
+  onChanged: () => void;
+}) {
+  const addonName = new Map(addons.map((addon) => [addon.id, addon.name]));
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [error, setError] = useState('');
   const remove = useMutation({
@@ -151,6 +215,11 @@ function SuppliesPane({ shopId, supplies, onChanged }: { shopId: string; supplie
               <Text style={styles.meta}>
                 {`${supply.pack_size} ${SUPPLY_UNIT_LABEL[supply.unit]} for ${formatMoney(supply.pack_cost)} · ${formatUnitCost(supply)}`}
               </Text>
+              <Text style={styles.meta}>
+                {supply.addon_id && addonName.has(supply.addon_id)
+                  ? `Only when the customer picks ${addonName.get(supply.addon_id)}`
+                  : 'Every load'}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -169,12 +238,12 @@ function SuppliesPane({ shopId, supplies, onChanged }: { shopId: string; supplie
               <Text style={[styles.chipText, { color: colors.danger }]}>Remove</Text>
             </Pressable>
           </View>
-          {editingId === supply.id ? <SupplyForm shopId={shopId} supply={supply} onDone={done} /> : null}
+          {editingId === supply.id ? <SupplyForm shopId={shopId} supply={supply} addons={addons} onDone={done} /> : null}
         </View>
       ))}
       <ErrorText>{error}</ErrorText>
       {editingId === 'new' ? (
-        <SupplyForm shopId={shopId} onDone={done} />
+        <SupplyForm shopId={shopId} addons={addons} onDone={done} />
       ) : (
         <Button title="+ Add supply" variant="outline" onPress={() => setEditingId('new')} />
       )}
@@ -318,6 +387,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
   const queryClient = useQueryClient();
   const services = useQuery({ queryKey: ['services', shopId], queryFn: () => getServices(shopId) });
   const supplies = useQuery({ queryKey: ['supplies', shopId], queryFn: () => getSupplies(shopId) });
+  const addons = useQuery({ queryKey: ['shop-addons', shopId], queryFn: () => getShopAddons(shopId) });
   const recipe = useQuery({ queryKey: ['service-supplies', shopId], queryFn: () => getServiceSupplies(shopId) });
   const costs = useQuery({
     queryKey: ['service-costs', shopId, RECENT_DAYS],
@@ -330,7 +400,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
     void queryClient.invalidateQueries({ queryKey: ['service-costs', shopId] });
   };
 
-  const error = services.error ?? supplies.error ?? recipe.error ?? costs.error;
+  const error = services.error ?? supplies.error ?? addons.error ?? recipe.error ?? costs.error;
   if (error) {
     return (
       <View style={styles.pane}>
@@ -339,7 +409,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
       </View>
     );
   }
-  if (!services.data || !supplies.data || !recipe.data || !costs.data) return <Loading />;
+  if (!services.data || !supplies.data || !addons.data || !recipe.data || !costs.data) return <Loading />;
 
   const lines = serviceProfitLines(services.data, costs.data);
   const summary = serviceProfitSummary(lines);
@@ -363,7 +433,7 @@ export function ServiceCosts({ shopId }: { shopId: string }) {
         ) : null}
       </View>
 
-      <SuppliesPane shopId={shopId} supplies={supplies.data} onChanged={refresh} />
+      <SuppliesPane shopId={shopId} supplies={supplies.data} addons={addons.data} onChanged={refresh} />
 
       <View style={styles.list}>
         {lines.map((line) => (
@@ -404,6 +474,7 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 0, gap: 2 },
   name: { ...type.body, ...fontFor(700), color: colors.text },
   meta: { ...type.caption, color: colors.subtle },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.tight },
   chip: {
     ...glassChip,
     minHeight: 36,

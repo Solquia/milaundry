@@ -30,8 +30,8 @@ function service(overrides: Partial<ServiceRow>): ServiceRow {
   } as ServiceRow;
 }
 
-const bleach: Supply = { id: 'b', shop_id: 'shop-1', name: 'Zonrox', unit: 'ml', pack_size: 1000, pack_cost: 120 };
-const fabcon: Supply = { id: 'f', shop_id: 'shop-1', name: 'Downy', unit: 'ml', pack_size: 500, pack_cost: 100 };
+const bleach: Supply = { id: 'b', shop_id: 'shop-1', name: 'Zonrox', unit: 'ml', pack_size: 1000, pack_cost: 120, addon_id: null };
+const fabcon: Supply = { id: 'f', shop_id: 'shop-1', name: 'Downy', unit: 'ml', pack_size: 500, pack_cost: 100, addon_id: null };
 
 describe('costPerUnit', () => {
   test('a bottle of 1000 ml for ₱120 is ₱0.12 a ml', () => {
@@ -122,16 +122,19 @@ describe('orderProfit', () => {
 
 describe('parseSupplyDraft', () => {
   test('reads a bottle', () => {
-    expect(parseSupplyDraft({ name: ' Zonrox ', unit: 'ml', packSize: '1,000', packCost: '₱120' })).toEqual({
+    expect(parseSupplyDraft({ name: ' Zonrox ', unit: 'ml', packSize: '1,000', packCost: '₱120', addonId: null })).toEqual({
       ok: true,
-      value: { name: 'Zonrox', unit: 'ml', pack_size: 1000, pack_cost: 120 },
+      value: { name: 'Zonrox', unit: 'ml', pack_size: 1000, pack_cost: 120, addon_id: null },
     });
   });
 
   test('refuses a blank name, an empty bottle and a word for a price', () => {
-    expect(parseSupplyDraft({ name: '', unit: 'ml', packSize: '1', packCost: '1' }).ok).toBe(false);
-    expect(parseSupplyDraft({ name: 'A', unit: 'ml', packSize: '0', packCost: '1' }).ok).toBe(false);
-    expect(parseSupplyDraft({ name: 'A', unit: 'ml', packSize: '1', packCost: 'free' }).ok).toBe(false);
+    expect(parseSupplyDraft({ name: '', unit: 'ml', packSize: '1', packCost: '1', addonId: null }).ok).toBe(false);
+    expect(
+      parseSupplyDraft({ name: 'SF Detergent', unit: 'ml', packSize: '1000', packCost: '150', addonId: 'sf-free' })
+    ).toMatchObject({ ok: true, value: { addon_id: 'sf-free' } });
+    expect(parseSupplyDraft({ name: 'A', unit: 'ml', packSize: '0', packCost: '1', addonId: null }).ok).toBe(false);
+    expect(parseSupplyDraft({ name: 'A', unit: 'ml', packSize: '1', packCost: 'free', addonId: null }).ok).toBe(false);
   });
 });
 

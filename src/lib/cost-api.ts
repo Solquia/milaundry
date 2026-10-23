@@ -24,7 +24,7 @@ function check(error: { message: string } | null): void {
 export async function getSupplies(shopId: string): Promise<Supply[]> {
   const { data, error } = await supabase
     .from('shop_supplies')
-    .select('id, shop_id, name, unit, pack_size, pack_cost')
+    .select('id, shop_id, name, unit, pack_size, pack_cost, addon_id')
     .eq('shop_id', shopId)
     .order('name');
   check(error);
