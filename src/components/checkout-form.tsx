@@ -10,6 +10,7 @@ import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { parseAmount } from '@/lib/domain/cash-payment';
 import { paymentMethodIcon } from '@/lib/domain/pos-ticket';
 import { PAYMENT_LABELS, paymentSummaryLine } from '@/lib/domain/payment-summary';
 import {
@@ -90,6 +91,9 @@ export function CheckoutForm({
 }) {
   const isDelivery = value.fulfillment === 'delivery';
   const moneyTone = value.isPaid ? TAG_TONES.settled : TAG_TONES.owed;
+  // 'part': some money now, the rest at pickup; the owed figure works itself out.
+  const paidState = value.isPaid ? 'paid' : value.partPaid !== undefined ? 'part' : 'later';
+  const paidNow = paidState === 'part' ? (parseAmount(value.partPaid ?? '') ?? 0) : 0;
 
   return (
     <View style={styles.form}>
@@ -177,16 +181,35 @@ export function CheckoutForm({
           label="Has the money changed hands?"
           options={[
             { key: 'paid', label: 'Paid now', icon: 'checkmark-circle-outline' },
+            { key: 'part', label: 'Paid part', icon: 'pie-chart-outline' },
             {
               key: 'later',
               label: isDelivery ? 'Pay on delivery' : 'Pay at pickup',
               icon: 'time-outline',
             },
           ]}
-          value={value.isPaid ? 'paid' : 'later'}
-          onChange={(next) => onChange({ isPaid: next === 'paid' })}
+          value={paidState}
+          onChange={(next) =>
+            onChange({
+              isPaid: next === 'paid',
+              partPaid: next === 'part' ? (value.partPaid ?? '') : undefined,
+            })
+          }
           tone={tone}
         />
+        {paidState === 'part' ? (
+          <>
+            <Field
+              label="How much did they pay now?"
+              value={value.partPaid ?? ''}
+              onChangeText={(partPaid) => onChange({ partPaid })}
+              keyboardType="decimal-pad"
+              placeholder="100"
+              accessibilityLabel="Amount paid now"
+            />
+            <ErrorText>{errors.partPaid}</ErrorText>
+          </>
+        ) : null}
 
         {/* The same two tones the order tags wear, so "paid" and "owed" mean
             here exactly what they mean on the orders list. */}
@@ -202,6 +225,7 @@ export function CheckoutForm({
               isPaid: value.isPaid,
               fulfillment: value.fulfillment,
               total: total ?? 0,
+              paidNow,
             })}
           </Text>
         </View>

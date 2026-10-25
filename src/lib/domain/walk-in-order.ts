@@ -1,3 +1,4 @@
+import { parseAmount } from './cash-payment';
 import { normalizePhone } from './phone';
 
 export const PAYMENT_METHODS = [
@@ -29,6 +30,11 @@ export interface WalkInInput {
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
   isPaid: boolean;
+  /**
+   * Typed amount when the customer pays only part now; undefined when they pay
+   * all now or all later. Ignored once isPaid is set.
+   */
+  partPaid?: string;
 }
 
 export interface WalkInDetails {
@@ -40,17 +46,20 @@ export interface WalkInDetails {
   deliveryAddress: string;
   paymentMethod: PaymentMethod;
   isPaid: boolean;
+  /** Paid now, short of the bill; null when not a part payment. */
+  partPaid: number | null;
 }
 
 export type WalkInErrors = Partial<
-  Record<'customerName' | 'customerPhone' | 'deliveryAddress' | 'paymentMethod', string>
+  Record<'customerName' | 'customerPhone' | 'deliveryAddress' | 'paymentMethod' | 'partPaid', string>
 >;
 
 export type WalkInResult =
   | { ok: true; value: WalkInDetails }
   | { ok: false; errors: WalkInErrors };
 
-export function validateWalkIn(input: WalkInInput): WalkInResult {
+/** `total` is the bill on screen, so a part payment can be checked against it. */
+export function validateWalkIn(input: WalkInInput, total: number | null = null): WalkInResult {
   const errors: WalkInErrors = {};
 
   const customerName = input.customerName.trim();
@@ -79,6 +88,14 @@ export function validateWalkIn(input: WalkInInput): WalkInResult {
     errors.paymentMethod = 'Choose a payment method.';
   }
 
+  const isPart = !input.isPaid && input.partPaid !== undefined;
+  const partPaid = isPart ? parseAmount(input.partPaid ?? '') : null;
+  if (isPart && (partPaid === null || partPaid <= 0)) {
+    errors.partPaid = 'Enter how much they paid now.';
+  } else if (isPart && partPaid !== null && total !== null && partPaid >= total) {
+    errors.partPaid = 'That is the whole bill. Choose Paid now instead.';
+  }
+
   if (Object.keys(errors).length > 0) {
     return { ok: false, errors };
   }
@@ -92,6 +109,7 @@ export function validateWalkIn(input: WalkInInput): WalkInResult {
       deliveryAddress,
       paymentMethod: input.paymentMethod,
       isPaid: input.isPaid,
+      partPaid: isPart ? partPaid : null,
     },
   };
 }

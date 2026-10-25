@@ -82,6 +82,7 @@ import {
   getShopAddonGroups,
   getShopAddons,
   giveFreeLaundry,
+  recordPartPayment,
   placeOrder,
   type PlaceOrderOptions,
 } from '@/lib/api';
@@ -93,6 +94,7 @@ import { orderContact } from '@/lib/domain/order-contact';
 import { MAX_COUNTED_QUANTITY, adjustQuantity, quantityCeiling } from '@/lib/domain/order-quantity';
 import { placedScene } from '@/lib/domain/order-scene';
 import { paymentSummaryLine } from '@/lib/domain/payment-summary';
+import { paidInParts } from '@/lib/domain/part-payments';
 import {
   loadsFor,
   tapTile,
@@ -314,7 +316,7 @@ export default function Pos() {
   };
 
   const mutation = useMutation({
-    mutationFn: async (options: PlaceOrderOptions) => {
+    mutationFn: async ({ partPaid, ...options }: PlaceOrderOptions & { partPaid?: number | null }) => {
       // A free ticket is saved unpaid, then the whole bill comes off it: the
       // server will not take money off an order already marked paid.
       const order = await placeOrder(
@@ -322,6 +324,16 @@ export default function Pos() {
         selectedItems.map((item) => ({ service_id: item.serviceId, quantity: item.quantity })),
         { ...options, isPaid: isFree ? false : options.isPaid, addons: addonPayload(pickedAddons) }
       );
+      if (!isFree && partPaid) {
+        // Saved unpaid, then the money taken now goes on as a part payment so
+        // it counts in today's sales and only the rest stays owed.
+        try {
+          return await recordPartPayment(order.id, partPaid, order.payment_method);
+        } catch {
+          setFreeError('Saved, but the part payment did not go on. Open this order and record it there.');
+          return order;
+        }
+      }
       if (!isFree) return order;
       try {
         return await giveFreeLaundry(order.id);
@@ -418,7 +430,7 @@ export default function Pos() {
   const handleSave = () => {
     setSaveError('');
     setFieldErrors({});
-    const result = validateWalkIn(intake);
+    const result = validateWalkIn(intake, estimate.total);
     if (!result.ok) {
       haptic('warning');
       setFieldErrors(result.errors);
@@ -432,6 +444,7 @@ export default function Pos() {
       customerPhone: result.value.customerPhone,
       paymentMethod: result.value.paymentMethod,
       isPaid: result.value.isPaid,
+      partPaid: result.value.partPaid,
     });
   };
 
@@ -504,6 +517,7 @@ export default function Pos() {
                     isPaid: lastOrder.payment_status === 'paid',
                     fulfillment: lastOrder.fulfillment,
                     total: lastOrder.final_total ?? lastOrder.estimated_total,
+                    paidNow: paidInParts(lastOrder),
                   })}
                 />
                 {/* The ticket's own claim code. Held up at the counter it puts

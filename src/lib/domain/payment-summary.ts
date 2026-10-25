@@ -1,4 +1,4 @@
-import { formatMoney } from './money';
+import { formatMoney, roundCentavos } from './money';
 import type { Fulfillment, PaymentMethod } from './walk-in-order';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -28,6 +28,8 @@ export interface PaymentSummaryInput {
   isPaid: boolean;
   fulfillment: Fulfillment;
   total: number;
+  /** Paid now when only part of the bill was paid; the rest is still owed. */
+  paidNow?: number;
 }
 
 /** One-line payment recap shown next to the order total, e.g. `Paid ₱175.00 · Cash`. */
@@ -36,9 +38,14 @@ export function paymentSummaryLine({
   isPaid,
   fulfillment,
   total,
+  paidNow = 0,
 }: PaymentSummaryInput): string {
   const amount = formatMoney(total);
   const method = PAYMENT_LABELS[paymentMethod];
   if (isPaid) return `Paid ${amount} · ${method}`;
+  if (paidNow > 0 && paidNow < total) {
+    const owed = formatMoney(roundCentavos(total - paidNow));
+    return `Paid ${formatMoney(paidNow)} now · ${owed} still owed on ${collectionPoint(fulfillment)} · ${method}`;
+  }
   return `Collect ${amount} on ${collectionPoint(fulfillment)} · ${method}`;
 }
