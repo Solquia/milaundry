@@ -9,6 +9,11 @@
  *
  * There is deliberately no undo: the backend has no reverse-payment call, so
  * the confirmation beforehand is the safeguard rather than a promise after.
+ *
+ * A customer who hands over less than the bill is not turned away: the money
+ * is recorded as a part payment (it counts in today's takings) and the card
+ * then asks only for the balance. A typo in a part can be taken back until
+ * the order is settled.
  */
 import { useQuery } from '@tanstack/react-query';
 import { Image } from 'expo-image';
@@ -34,30 +39,52 @@ const OTHER_METHODS: readonly PaymentMethod[] = ['card', 'bank_transfer', 'other
 
 export function CollectPayment({
   total,
+  paidSoFar,
   method,
   onChangeMethod,
   onConfirm,
+  onRecordPart,
   isPending,
 }: {
+  /** What is left to collect: the bill less any part already paid. */
   total: number;
+  paidSoFar: number;
   method: PaymentMethod;
   onChangeMethod: (method: PaymentMethod) => void;
   onConfirm: (tendered?: number) => void;
+  onRecordPart: (amount: number) => void;
   isPending: boolean;
 }) {
   const [showAllMethods, setShowAllMethods] = useState(false);
   const [tenderInput, setTenderInput] = useState('');
+  const [isPartOpen, setIsPartOpen] = useState(false);
+  const [partInput, setPartInput] = useState('');
 
   const isCash = method === 'cash';
   const tendered = isCash ? parseAmount(tenderInput) : null;
   const cash = tendered === null ? null : changeFor(total, tendered);
   const visibleMethods = showAllMethods ? [...COMMON_METHODS, ...OTHER_METHODS] : COMMON_METHODS;
   const isShort = Boolean(cash && !cash.isEnough);
+  // Cash short of the bill is a part payment; other methods type it in.
+  const partAmount = isShort ? tendered : isPartOpen && !isCash ? parseAmount(partInput) : null;
+  const isPartValid = partAmount !== null && partAmount > 0 && partAmount < total;
+  const recordPart = () => {
+    if (partAmount === null || !isPartValid) return;
+    onRecordPart(partAmount);
+    setTenderInput('');
+    setPartInput('');
+    setIsPartOpen(false);
+  };
 
   return (
     <>
-      <Text style={styles.dueLabel}>To collect</Text>
+      <Text style={styles.dueLabel}>{paidSoFar > 0 ? 'Balance to collect' : 'To collect'}</Text>
       <Text style={styles.dueAmount}>{formatMoney(total)}</Text>
+      {paidSoFar > 0 ? (
+        <Subtle>
+          {formatMoney(paidSoFar)} already paid of the {formatMoney(paidSoFar + total)} bill.
+        </Subtle>
+      ) : null}
 
       <Text style={styles.fieldHeading}>How did the customer pay?</Text>
       <View style={styles.methodRow}>
@@ -124,19 +151,67 @@ export function CollectPayment({
                 ? // An instruction, not a label: the owner is about to count
                   // notes out of the drawer.
                   `Give ${formatMoney(cash.change)} change`
-                : `Short by ${formatMoney(cash.shortfall)}. That is not enough for this order.`}
+                : `Short by ${formatMoney(cash.shortfall)}. Record it as a part payment and collect the rest later.`}
             </Text>
           ) : (
-            <Subtle>Leave this blank if they paid the exact amount.</Subtle>
+            <Subtle>
+              Leave this blank if they paid the exact amount. If they paid only part, type what
+              they handed over.
+            </Subtle>
           )}
         </View>
       )}
 
-      <Button
-        title={isPending ? 'Recording…' : `Mark ${formatMoney(total)} as paid`}
-        onPress={() => onConfirm(isCash && cash?.isEnough ? (tendered ?? undefined) : undefined)}
-        disabled={isPending || isShort}
-      />
+      {isPartOpen && !isCash ? (
+        <View style={styles.cashBlock}>
+          <Field
+            label="How much did they pay now?"
+            value={partInput}
+            onChangeText={setPartInput}
+            keyboardType="decimal-pad"
+            placeholder="100"
+            accessibilityLabel="Part payment amount"
+          />
+          {partAmount !== null && !isPartValid ? (
+            <Text style={[styles.changeLine, styles.changeLineShort]}>
+              {partAmount >= total
+                ? `That covers the whole ${formatMoney(total)}. Use Mark as paid instead.`
+                : 'Type an amount above zero.'}
+            </Text>
+          ) : null}
+        </View>
+      ) : null}
+
+      {partAmount !== null && isPartValid ? (
+        <Button
+          title={
+            isPending
+              ? 'Recording…'
+              : `Record ${formatMoney(partAmount)} part payment · ${formatMoney(total - partAmount)} left`
+          }
+          onPress={recordPart}
+          disabled={isPending}
+        />
+      ) : null}
+      {isShort || (isPartOpen && !isCash) ? null : (
+        <Button
+          title={isPending ? 'Recording…' : `Mark ${formatMoney(total)} as paid`}
+          onPress={() => onConfirm(isCash && cash?.isEnough ? (tendered ?? undefined) : undefined)}
+          disabled={isPending}
+        />
+      )}
+      {isCash ? null : (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setIsPartOpen(!isPartOpen)}
+          hitSlop={8}
+          style={styles.disclosure}
+        >
+          <Text style={styles.disclosureText}>
+            {isPartOpen ? 'They paid the full amount' : 'They paid only part of it'}
+          </Text>
+        </Pressable>
+      )}
     </>
   );
 }

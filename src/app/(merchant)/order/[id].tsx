@@ -34,13 +34,21 @@ import {
   getOrderHistory,
   getShopCustomers,
   markOrderPaid,
+  recordPartPayment,
+  undoPartPayment,
   updateOrderStatus,
 } from '@/lib/api';
 import { changeFor } from '@/lib/domain/cash-payment';
-import { cancelOrderPrompt, markPaidPrompt } from '@/lib/domain/confirm-prompts';
+import {
+  cancelOrderPrompt,
+  markPaidPrompt,
+  partPaymentPrompt,
+  undoPartPrompt,
+} from '@/lib/domain/confirm-prompts';
 import { canManageShop } from '@/lib/domain/merchant-access';
 import { friendlyMerchantError } from '@/lib/domain/merchant-error';
-import { shortOrderId } from '@/lib/domain/order-card';
+import { formatOrderTime, shortOrderId } from '@/lib/domain/order-card';
+import { balanceOf, paidInParts, partsOf } from '@/lib/domain/part-payments';
 import { isHeldForPayment, settleStep } from '@/lib/domain/order-settlement';
 import { canWeigh } from '@/lib/domain/weigh-order';
 import { advanceActionLabel, nextStatuses, type OrderStatus } from '@/lib/domain/order-status';
@@ -133,6 +141,38 @@ export default function MerchantOrderDetail() {
     }
   };
 
+  const handleRecordPart = async (chosen: PaymentMethod, amount: number, balance: number) => {
+    if (!id) return;
+    setError('');
+    setIsPending(true);
+    try {
+      await recordPartPayment(id, amount, chosen);
+      setReceipt(
+        `${formatMoney(amount)} part payment · ${PAYMENT_LABELS[chosen]} · ${formatMoney(balance - amount)} left`
+      );
+      refresh();
+    } catch (err: unknown) {
+      setError(friendlyMerchantError('save-payment', err instanceof Error ? err.message : ''));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  const handleUndoPart = async () => {
+    if (!id) return;
+    setError('');
+    setIsPending(true);
+    try {
+      await undoPartPayment(id);
+      setReceipt('');
+      refresh();
+    } catch (err: unknown) {
+      setError(friendlyMerchantError('save-payment', err instanceof Error ? err.message : ''));
+    } finally {
+      setIsPending(false);
+    }
+  };
+
   if (isLoading) return <Loading />;
 
   if (loadError) {
@@ -160,6 +200,11 @@ export default function MerchantOrderDetail() {
   }
 
   const total = order.final_total ?? order.estimated_total;
+  // What is still owed: the bill less any part payment already taken.
+  const due = balanceOf(order);
+  const parts = partsOf(order);
+  const canUndoPart =
+    parts.length > 0 && order.payment_status !== 'paid' && order.status !== 'cancelled';
   const qrValue = buildOrderQr(order.id, order.claim_token);
   const forward = nextStatuses(order.status);
   // An online load stays out of the machines until the price is confirmed and
@@ -172,10 +217,22 @@ export default function MerchantOrderDetail() {
   const lead = settleLead(step, order);
 
   const confirmMarkPaid = (tendered?: number) => {
-    const prompt = markPaidPrompt(total, PAYMENT_LABELS[selectedMethod], tendered);
-    confirmAction(prompt, () => handleMarkPaid(selectedMethod, total, tendered), {
+    const prompt = markPaidPrompt(due, PAYMENT_LABELS[selectedMethod], tendered);
+    confirmAction(prompt, () => handleMarkPaid(selectedMethod, due, tendered), {
       isDestructive: false,
     });
+  };
+
+  const confirmPart = (amount: number) => {
+    const prompt = partPaymentPrompt(amount, due - amount, PAYMENT_LABELS[selectedMethod]);
+    confirmAction(prompt, () => handleRecordPart(selectedMethod, amount, due), {
+      isDestructive: false,
+    });
+  };
+
+  const confirmUndoPart = () => {
+    const last = parts[parts.length - 1];
+    confirmAction(undoPartPrompt(last.amount), handleUndoPart);
   };
 
   const confirmCancel = () => {
@@ -265,11 +322,36 @@ export default function MerchantOrderDetail() {
             <Text style={styles.cashChoiceText}>{cashChoice}</Text>
           </View>
         ) : null}
+        {parts.length > 0 ? (
+          <View style={styles.parts}>
+            {parts.map((part, index) => (
+              <Text key={`${part.at}-${index}`} style={styles.partLine}>
+                Part payment {formatMoney(part.amount)} · {PAYMENT_LABELS[part.method]} ·{' '}
+                {formatOrderTime(part.at, now)}
+              </Text>
+            ))}
+            {canUndoPart ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={confirmUndoPart}
+                disabled={isPending}
+                hitSlop={8}
+                style={styles.undoPart}
+              >
+                <Text style={styles.undoPartText}>Undo the last part payment</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
         {lead ? (
           <Subtle>{lead}</Subtle>
         ) : order.payment_status === 'paid' ? (
           <>
-            <Subtle>{PAYMENT_LABELS[order.payment_method]} · paid</Subtle>
+            <Subtle>
+              {parts.length > 0
+                ? `Fully paid · ${formatMoney(total)} in ${parts.length + 1} payments`
+                : `${PAYMENT_LABELS[order.payment_method]} · paid`}
+            </Subtle>
             {receipt ? (
               <Text style={styles.receipt} accessibilityLiveRegion="polite">
                 {receipt}
@@ -279,13 +361,22 @@ export default function MerchantOrderDetail() {
         ) : order.status === 'cancelled' ? (
           <Subtle>This order was cancelled. Nothing left to collect.</Subtle>
         ) : (
-          <CollectPayment
-            total={total}
-            method={selectedMethod}
-            onChangeMethod={setMethod}
-            onConfirm={confirmMarkPaid}
-            isPending={isPending}
-          />
+          <>
+            {receipt ? (
+              <Text style={styles.receipt} accessibilityLiveRegion="polite">
+                {receipt}
+              </Text>
+            ) : null}
+            <CollectPayment
+              total={due}
+              paidSoFar={paidInParts(order)}
+              method={selectedMethod}
+              onChangeMethod={setMethod}
+              onConfirm={confirmMarkPaid}
+              onRecordPart={confirmPart}
+              isPending={isPending}
+            />
+          </>
         )}
       </Card>
 
@@ -372,6 +463,10 @@ const styles = StyleSheet.create({
   cashChoiceText: { flex: 1, ...type.body, fontSize: 15, fontWeight: '600', color: colors.success },
   cardHeading: { ...type.section, color: colors.text },
   receipt: { ...type.label, color: colors.moneyIn },
+  parts: { gap: 2 },
+  partLine: { ...type.label, color: colors.moneyIn },
+  undoPart: { alignSelf: 'flex-start', paddingVertical: space.snug },
+  undoPartText: { ...type.label, color: colors.actionInk },
   qrFrame: { alignItems: 'center', padding: space.cosy },
   footer: { gap: space.snug },
   cancelLink: { alignSelf: 'center', paddingVertical: space.cosy, paddingHorizontal: space.room },

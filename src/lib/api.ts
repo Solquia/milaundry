@@ -584,6 +584,26 @@ export async function markOrderPaid(
   return unwrap(result) as OrderRow;
 }
 
+/** Money taken short of the full bill; the order stays unpaid for the balance. */
+export async function recordPartPayment(
+  orderId: string,
+  amount: number,
+  method: PaymentMethod
+): Promise<OrderRow> {
+  const result = await supabase.rpc('record_part_payment', {
+    p_order_id: orderId,
+    p_amount: amount,
+    p_method: method,
+  });
+  return unwrap(result) as OrderRow;
+}
+
+/** Takes back the latest part payment, for a mistyped amount. */
+export async function undoPartPayment(orderId: string): Promise<OrderRow> {
+  const result = await supabase.rpc('undo_part_payment', { p_order_id: orderId });
+  return unwrap(result) as OrderRow;
+}
+
 /** Customer picks how they'll pay once the shop confirms the actual price. */
 export async function choosePaymentMethod(
   orderId: string,

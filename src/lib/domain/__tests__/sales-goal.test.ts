@@ -28,6 +28,7 @@ describe('suggested goals', () => {
   const paid = (d: number, amount: number) => ({
     status: 'completed' as const,
     payment_status: 'paid' as const,
+    payment_method: 'cash' as const,
     paid_at: new Date(2026, 8, d, 12).toISOString(),
     estimated_total: amount,
     final_total: null,

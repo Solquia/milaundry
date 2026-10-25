@@ -10,6 +10,7 @@ import { formatMoney } from './money';
 import { orderContact, type ContactableOrder } from './order-contact';
 import type { OrderStatus } from './order-status';
 import type { PaymentStatus } from './order-tags';
+import { paidInParts, type PartPayment } from './part-payments';
 
 /** Ready or handed over this long without payment: time for a reminder. */
 export const OVERDUE_AFTER_DAYS = 3;
@@ -22,6 +23,7 @@ export interface CollectOrder extends ContactableOrder {
   payment_status: PaymentStatus;
   estimated_total: number;
   final_total: number | null;
+  part_payments?: readonly PartPayment[] | null;
   created_at: string;
   /** Touched on every status change: when it became ready, near enough. */
   updated_at: string;
@@ -42,7 +44,9 @@ export interface CollectSplit<T extends CollectOrder> {
   washing: CollectLane<T>;
 }
 
-const valueOf = (order: CollectOrder): number => order.final_total ?? order.estimated_total;
+/** What is left to collect: the bill less any part already paid. */
+const valueOf = (order: CollectOrder): number =>
+  Math.max(0, (order.final_total ?? order.estimated_total) - paidInParts(order));
 const touched = (order: CollectOrder): number => new Date(order.updated_at).getTime();
 const isChaseable = (order: CollectOrder): boolean => order.status === 'ready' || order.status === 'completed';
 
@@ -75,7 +79,7 @@ export function nudgeMessage(order: CollectOrder, shop: NudgeShop): string {
   const amount = formatMoney(valueOf(order));
   const body =
     order.status === 'ready'
-      ? `Your laundry at ${shop.name} is ready for pickup. The total is ${amount}.`
+      ? `Your laundry at ${shop.name} is ready for pickup. ${paidInParts(order) > 0 ? 'The balance' : 'The total'} is ${amount}.`
       : `Friendly reminder from ${shop.name}: ${amount} for your laundry is still unpaid.`;
   const number = shop.gcash_number?.trim();
   const payee = shop.gcash_name?.trim();

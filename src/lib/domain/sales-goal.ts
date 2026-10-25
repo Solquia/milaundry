@@ -4,6 +4,7 @@
  * the way they would type it, and the celebration happens once a day.
  */
 import { roundCentavos } from './money';
+import { moneyIn, type PayableOrder } from './part-payments';
 
 export interface GoalProgress {
   /** 0–1, for the bar. */
@@ -41,12 +42,8 @@ export function dayKey(date: Date): string {
 export function shouldCelebrate(isHit: boolean, lastCelebrated: string | null, today: string): boolean {
   return isHit && lastCelebrated !== today;
 }
-export interface PaidOrder {
+export interface PaidOrder extends PayableOrder {
   status: string;
-  payment_status: string;
-  paid_at: string | null;
-  estimated_total: number;
-  final_total: number | null;
 }
 
 /** Sales for each of the last `days` finished days, oldest first; today is left out. */
@@ -54,11 +51,14 @@ export function dailyTotals(orders: readonly PaidOrder[], now: Date, days: numbe
   const totals = Array.from({ length: days }, () => 0);
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   for (const order of orders) {
-    if (order.status === 'cancelled' || order.payment_status !== 'paid' || !order.paid_at) continue;
-    const paid = new Date(order.paid_at);
-    const day = new Date(paid.getFullYear(), paid.getMonth(), paid.getDate());
-    const back = Math.round((todayStart.getTime() - day.getTime()) / 86_400_000);
-    if (back >= 1 && back <= days) totals[days - back] += order.final_total ?? order.estimated_total;
+    if (order.status === 'cancelled') continue;
+    // Each payment on its own day, parts included.
+    for (const payment of moneyIn(order)) {
+      const paid = new Date(payment.at);
+      const day = new Date(paid.getFullYear(), paid.getMonth(), paid.getDate());
+      const back = Math.round((todayStart.getTime() - day.getTime()) / 86_400_000);
+      if (back >= 1 && back <= days) totals[days - back] += payment.amount;
+    }
   }
   return totals.map(roundCentavos);
 }

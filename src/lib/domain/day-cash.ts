@@ -7,34 +7,31 @@
  * into nothing hid it. So: **cash in** is money paid inside the day, whatever
  * day the order was taken; **to collect** is orders taken that day that are
  * still unpaid now. Once someone pays, their money moves to the day they paid.
+ * A part payment is money paid too: it counts on its own day, and only the
+ * balance is left to collect (see `part-payments`).
  */
 import { roundCentavos } from './money';
 import type { OrderStatus } from './order-status';
-import type { PaymentStatus } from './order-tags';
+import { balanceOf, moneyIn, type PayableOrder } from './part-payments';
 import type { PeriodFrame } from './sales-period';
 
-export interface DayCashOrder {
+export interface DayCashOrder extends PayableOrder {
   id: string;
   status: OrderStatus;
-  payment_status: PaymentStatus;
-  estimated_total: number;
-  final_total: number | null;
-  paid_at: string | null;
   created_at: string;
 }
 
 export interface DayCash {
   /** Paid inside the day, whenever the order was taken. */
   cashIn: number;
+  /** Payments taken inside the day, parts included. */
   paidCount: number;
-  /** Taken inside the day and still unpaid. */
+  /** Taken inside the day and still owed. */
   toCollect: number;
   unpaidCount: number;
 }
 
 type DayFrame = Pick<PeriodFrame, 'start' | 'cutoff'>;
-
-const valueOf = (order: DayCashOrder): number => order.final_total ?? order.estimated_total;
 
 const isInside = (iso: string | null, frame: DayFrame): boolean => {
   if (!iso) return false;
@@ -42,21 +39,16 @@ const isInside = (iso: string | null, frame: DayFrame): boolean => {
   return time >= frame.start && time < frame.cutoff;
 };
 
-const sum = (orders: readonly DayCashOrder[]): number =>
-  roundCentavos(orders.reduce((total, order) => total + valueOf(order), 0));
-
 export function dayCash(orders: readonly DayCashOrder[], frame: DayFrame): DayCash {
   const live = orders.filter((order) => order.status !== 'cancelled');
-  const paid = live.filter(
-    (order) => order.payment_status === 'paid' && isInside(order.paid_at, frame)
-  );
+  const payments = live.flatMap(moneyIn).filter((payment) => isInside(payment.at, frame));
   const unpaid = live.filter(
     (order) => order.payment_status !== 'paid' && isInside(order.created_at, frame)
   );
   return {
-    cashIn: sum(paid),
-    paidCount: paid.length,
-    toCollect: sum(unpaid),
+    cashIn: roundCentavos(payments.reduce((total, payment) => total + payment.amount, 0)),
+    paidCount: payments.length,
+    toCollect: roundCentavos(unpaid.reduce((total, order) => total + balanceOf(order), 0)),
     unpaidCount: unpaid.length,
   };
 }

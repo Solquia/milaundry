@@ -14,6 +14,7 @@ function order(overrides: Partial<LedgerOrder> = {}): LedgerOrder {
     id: `o${seq}`,
     status: 'completed',
     payment_status: 'paid',
+    payment_method: 'cash',
     order_type: 'walk_in',
     estimated_total: 150,
     final_total: null,

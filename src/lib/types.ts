@@ -1,6 +1,7 @@
 import type { PreferredMethod } from './domain/customer-book';
 import type { OrderStatus } from './domain/order-status';
 import type { OrderType, PaymentStatus } from './domain/order-tags';
+import type { PartPayment } from './domain/part-payments';
 import type { PricingUnit } from './domain/pricing';
 import type { OrderRewardKind, RewardBenefit } from './domain/rewards';
 import type { WeightPrice } from './domain/weight-prices';
@@ -139,6 +140,8 @@ export interface OrderRow {
   payment_method: PaymentMethod;
   payment_status: PaymentStatus;
   paid_at: string | null;
+  /** Money taken short of the full bill, oldest first (0056); paid_at settles the rest. */
+  part_payments?: PartPayment[];
   /** Rider pickup time chosen at booking; null for self drop-off. */
   pickup_at: string | null;
   /** Promised delivery-back time; null for self drop-off. */

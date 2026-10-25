@@ -14,6 +14,7 @@ function order(overrides: Partial<DayCashOrder> = {}): DayCashOrder {
     id: `o${seq}`,
     status: 'completed',
     payment_status: 'paid',
+    payment_method: 'cash',
     estimated_total: 100,
     final_total: null,
     paid_at: iso(28, 10),

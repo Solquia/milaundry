@@ -52,7 +52,7 @@ export function PaymentsSheet({
         payments.map((payment) => (
           <Pressable
             key={payment.id}
-            onPress={() => onOpenOrder(payment.id)}
+            onPress={() => onOpenOrder(payment.orderId)}
             accessibilityRole="button"
             accessibilityLabel={`${payment.name}, ${formatMoney(payment.amount)}, ${PAYMENT_LABELS[payment.method]}. Open the order.`}
             style={({ pressed }) => [styles.row, pressed && { opacity: 0.65 }]}
@@ -69,7 +69,7 @@ export function PaymentsSheet({
                 {payment.name}
               </Text>
               <Text style={styles.meta}>
-                {PAYMENT_LABELS[payment.method]} · {when(payment.paidAt, unit)}
+                {PAYMENT_LABELS[payment.method]}{payment.isPart ? ' · part payment' : ''} · {when(payment.paidAt, unit)}
               </Text>
             </View>
             <Text style={styles.amount}>+{formatMoney(payment.amount)}</Text>

@@ -15,6 +15,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { OrderWithDetails } from '@/lib/api';
 import { orderCardLabel } from '@/lib/domain/order-board';
 import { formatOrderTime, shortOrderId } from '@/lib/domain/order-card';
+import { balanceOf, paidInParts } from '@/lib/domain/part-payments';
 import { orderContact } from '@/lib/domain/order-contact';
 import { orderTags } from '@/lib/domain/order-tags';
 
@@ -33,6 +34,9 @@ export function OrderCard({
   const total = order.final_total ?? order.estimated_total;
   const isEstimate = (order.final_total ?? null) === null;
   const isOwed = order.payment_status !== 'paid' && order.status !== 'cancelled';
+  // Part paid: the red figure is what is left, not the whole bill.
+  const isPartPaid = isOwed && paidInParts(order) > 0;
+  const shown = isPartPaid ? balanceOf(order) : total;
   const contact = orderContact(order);
 
   return (
@@ -56,7 +60,7 @@ export function OrderCard({
             {contact.phone ? ` · ${contact.phone}` : ''}
           </Text>
         </View>
-        <Text style={[styles.total, isOwed && styles.totalOwed]}>{formatMoney(total)}</Text>
+        <Text style={[styles.total, isOwed && styles.totalOwed]}>{formatMoney(shown)}</Text>
       </View>
       <View style={styles.tags}>
         <StatusBadge status={order.status} />
@@ -64,6 +68,7 @@ export function OrderCard({
           <Tag key={tag} label={tag} />
         ))}
         {isEstimate && order.status !== 'cancelled' ? <Tag label="Estimate" /> : null}
+        {isPartPaid ? <Tag label={`Part paid ${formatMoney(paidInParts(order))}`} /> : null}
       </View>
     </Pressable>
   );

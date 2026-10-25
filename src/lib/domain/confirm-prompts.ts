@@ -71,6 +71,29 @@ export function markPaidPrompt(
   };
 }
 
+/** Money short of the bill: counts in today's takings, the balance stays owed. */
+export function partPaymentPrompt(
+  amount: number,
+  balance: number,
+  methodLabel: string
+): ConfirmPrompt {
+  return {
+    title: `Record ${formatMoney(amount)} part payment?`,
+    message: `Recorded as ${methodLabel}. It counts in today's sales, and ${formatMoney(balance)} stays to collect.`,
+    confirmLabel: 'Record part payment',
+    dismissLabel: 'Not yet',
+  };
+}
+
+export function undoPartPrompt(amount: number): ConfirmPrompt {
+  return {
+    title: `Undo the ${formatMoney(amount)} part payment?`,
+    message: 'Only for a mistake. It comes off the sales for the day it was taken.',
+    confirmLabel: 'Undo',
+    dismissLabel: 'Keep it',
+  };
+}
+
 export function signOutPrompt(): ConfirmPrompt {
   return {
     title: 'Sign out?',

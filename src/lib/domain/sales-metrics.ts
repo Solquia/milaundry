@@ -6,7 +6,9 @@
  * **Sales** is money *paid* in the period (an order taken last week and paid
  * this morning is this morning's sale). **Orders**, **kilos** and **basket**
  * are orders *taken* in the period. The old screen mixed the two without
- * saying so; here each metric carries its own clock.
+ * saying so; here each metric carries its own clock. A part payment is a sale
+ * on the day it was handed over, and the balance on the day it is settled
+ * (see `part-payments`).
  */
 import type { PaymentMethod } from './walk-in-order';
 import type { OrderStatus } from './order-status';
@@ -16,6 +18,7 @@ import { orderContact } from './order-contact';
 import { PAYMENT_LABELS } from './payment-summary';
 import type { PeriodBucket, PeriodFrame } from './sales-period';
 import { roundCentavos } from './money';
+import { moneyIn, type PartPayment } from './part-payments';
 
 export interface SalesItem {
   service_name: string;
@@ -33,6 +36,7 @@ export interface SalesOrder {
   estimated_total: number;
   final_total: number | null;
   paid_at: string | null;
+  part_payments?: readonly PartPayment[] | null;
   created_at: string;
   actual_weight_kg: number | null;
   customer_name: string;
@@ -59,7 +63,10 @@ export interface MetricSummary {
 }
 
 export interface SalesPayment {
+  /** Unique per payment: an order paid in parts has several. */
   id: string;
+  orderId: string;
+  isPart: boolean;
   amount: number;
   method: PaymentMethod;
   name: string;
@@ -142,9 +149,12 @@ function settle(key: MetricKey, tally: Tally): number {
   return roundCentavos(tally.sum);
 }
 
-function stampOf(order: SalesOrder, clock: Clock): number {
-  if (clock === 'taken') return timeOf(order.created_at);
-  return order.payment_status === 'paid' ? timeOf(order.paid_at) : NaN;
+/** When the order counts for a metric, and how much: one entry per payment for sales. */
+function entriesOf(key: MetricKey, order: SalesOrder): { time: number; amount: number }[] {
+  if (METRIC_CLOCK[key] === 'taken') {
+    return [{ time: timeOf(order.created_at), amount: contribution(key, order) }];
+  }
+  return moneyIn(order).map((payment) => ({ time: timeOf(payment.at), amount: payment.amount }));
 }
 
 function indexIn(buckets: readonly PeriodBucket[], time: number, side: 'own' | 'twin'): number {
@@ -156,16 +166,13 @@ function indexIn(buckets: readonly PeriodBucket[], time: number, side: 'own' | '
 }
 
 function measure(key: MetricKey, orders: readonly SalesOrder[], frame: PeriodFrame): MetricSummary {
-  const clock = METRIC_CLOCK[key];
   const own = blank();
   const twin = blank();
   const series = frame.buckets.map(blank);
   const compareSeries = frame.buckets.map(blank);
 
-  for (const order of orders) {
-    const time = stampOf(order, clock);
+  for (const { time, amount } of orders.flatMap((order) => entriesOf(key, order))) {
     if (Number.isNaN(time)) continue;
-    const amount = contribution(key, order);
     if (within(time, frame.start, frame.cutoff)) {
       own.sum += amount;
       own.count += 1;
@@ -201,14 +208,18 @@ function measure(key: MetricKey, orders: readonly SalesOrder[], frame: PeriodFra
 
 function paymentsIn(orders: readonly SalesOrder[], frame: PeriodFrame): SalesPayment[] {
   return orders
-    .filter((order) => within(stampOf(order, 'paid'), frame.start, frame.cutoff))
-    .map((order) => ({
-      id: order.id,
-      amount: roundCentavos(valueOf(order)),
-      method: order.payment_method,
-      name: orderContact(order).name,
-      paidAt: order.paid_at ?? '',
-    }))
+    .flatMap((order) =>
+      moneyIn(order).map((payment, index) => ({
+        id: payment.isPart ? `${order.id}#${index}` : order.id,
+        orderId: order.id,
+        isPart: payment.isPart,
+        amount: roundCentavos(payment.amount),
+        method: payment.method,
+        name: orderContact(order).name,
+        paidAt: payment.at,
+      }))
+    )
+    .filter((payment) => within(timeOf(payment.paidAt), frame.start, frame.cutoff))
     .sort((a, b) => timeOf(b.paidAt) - timeOf(a.paidAt));
 }
 
