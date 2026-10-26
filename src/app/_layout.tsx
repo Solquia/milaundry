@@ -13,6 +13,7 @@ import { Platform } from 'react-native';
 import * as SystemUI from 'expo-system-ui';
 
 import { Loading } from '@/components/ui-kit';
+import { UpdateBanner } from '@/components/update-banner';
 import { WebFrame } from '@/components/web-frame';
 import { AuthProvider } from '@/lib/auth';
 import { AppSettingsProvider } from '@/lib/use-app-settings';
@@ -69,6 +70,7 @@ export default function RootLayout() {
           <ViewAsShopProvider>
             <WebFrame>
               <Stack screenOptions={{ headerShown: false }} />
+              <UpdateBanner />
             </WebFrame>
           </ViewAsShopProvider>
         </AppSettingsProvider>
