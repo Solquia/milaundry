@@ -8,14 +8,14 @@
 
 export const APP_NAME = 'Milaundry';
 export const APK_FILE_NAME = 'Milaundry.apk';
-export const APK_VERSION = '1.0.5';
+export const APK_VERSION = '1.0.6';
 
 /**
  * The current release APK (production-apk profile). Expo hosts it; the page gives it the product's
  * own file name so a Downloads folder reads as the app, not as a hash.
  */
 export const APK_URL =
-  'https://expo.dev/artifacts/eas/0N8DL8wvmHsi5cgvrB9w2_Nh8566gfjE_YdeNlqT0eA.apk';
+  'https://expo.dev/artifacts/eas/0c8uvICLCIW7mdjipI69cjE0H781ZYVTfOjIByHc2Sg.apk';
 
 /** The live App Store listing (eas.json ascAppId). iPhones are sent here instead of the APK. */
 export const APP_STORE_URL = 'https://apps.apple.com/app/id6814431884';
