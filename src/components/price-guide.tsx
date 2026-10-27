@@ -18,6 +18,7 @@ import { Image, type ImageSource } from 'expo-image';
 import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { AddonPicture } from './addon-shelf';
 import { glassChip, glassPane, useIsGlass } from './glass';
 import { ServiceSteps, type StepTint } from './service-steps';
 import { CROWN, RADII, colors, elevation, fontFor, space, type } from './ui-kit';
@@ -80,11 +81,24 @@ function money(amount: number): string {
   return formatMoneyCompact(amount);
 }
 
-function ProductTile({ name, source, price }: { name: string; source: ImageSource | null; price?: string }) {
+function ProductTile({
+  name,
+  source,
+  price,
+  art,
+}: {
+  name: string;
+  source: ImageSource | null;
+  price?: string;
+  /** Drawn in place of a missing photo; the plain blank otherwise. */
+  art?: React.ReactNode;
+}) {
   return (
     <View style={styles.tile} accessible accessibilityLabel={price ? `${name}, ${price}` : name}>
       {source ? (
         <Image source={source} style={styles.tilePhoto} contentFit="cover" transition={150} />
+      ) : art ? (
+        <View style={[styles.tilePhoto, styles.tileBlank]}>{art}</View>
       ) : (
         <View style={[styles.tilePhoto, styles.tileBlank]}>
           <Ionicons name="water-outline" size={26} color={colors.subtle} />
@@ -407,29 +421,67 @@ function DryingCard<S extends GuideService>({
   );
 }
 
-function AddonsCard({ addons }: { addons: readonly ShopAddon[] }) {
+function AddonsCard({ addons, caption }: { addons: readonly ShopAddon[]; caption: string }) {
   const groups = groupAddons(addons);
   const isGlass = useIsGlass();
   if (groups.length === 0) return null;
   return (
     <View style={[styles.card, isGlass && styles.cardGlass]}>
-      <Text style={styles.caption}>Added to any package at booking, charged once.</Text>
+      <Text style={styles.caption}>{caption}</Text>
       {groups.map((group) => (
         <View key={group.kind} style={styles.strip}>
-          <Text style={styles.stripTitle}>{ADDON_KIND_SHORT[group.kind]}</Text>
+          {groups.length > 1 ? <Text style={styles.stripTitle}>{ADDON_KIND_SHORT[group.kind]}</Text> : null}
           <View style={styles.tiles}>
             {group.addons.map((addon) => (
               <ProductTile
                 key={addon.id}
                 name={addon.name}
                 source={addon.image_url ? { uri: addon.image_url } : null}
-                price={addon.price > 0 ? `+${money(addon.price)}` : 'Free'}
+                art={<AddonPicture addon={addon} />}
+                price={
+                  addon.price <= 0 ? 'Free' : addon.kind === 'product' ? money(addon.price) : `+${money(addon.price)}`
+                }
               />
             ))}
           </View>
         </View>
       ))}
     </View>
+  );
+}
+
+/**
+ * The shop's add-ons and the things it sells on its own, on its page before
+ * anyone books: a customer sees the soaps, fabcons and extras on offer (and
+ * their prices) without starting a booking, and products such as bouquets get
+ * their own Other items section instead of hiding among the add-ons (0057).
+ */
+export function ShopAddonsSection({ shopId }: { shopId: string | null | undefined }) {
+  // Shares the booking page's key, so a customer who goes on to book reads the cache.
+  const shelf = useQuery({
+    queryKey: ['shop-addon-shelf', shopId],
+    queryFn: () => getShopAddonShelf(shopId as string),
+    enabled: Boolean(shopId),
+    retry: false,
+  });
+  const all = shelf.data?.addons ?? [];
+  const addons = all.filter((addon) => addon.kind !== 'product');
+  const products = all.filter((addon) => addon.kind === 'product');
+  return (
+    <>
+      {addons.length > 0 ? (
+        <>
+          <SectionHead eyebrow="ADD-ONS" title="Extras" caption="Pick these while you book." />
+          <AddonsCard addons={addons} caption="Added to your laundry at booking, charged once." />
+        </>
+      ) : null}
+      {products.length > 0 ? (
+        <>
+          <SectionHead eyebrow="ALSO FROM THE SHOP" title="Other items" caption="Add them when you book, or ask at the counter." />
+          <AddonsCard addons={products} caption="Sold on their own, not part of the wash." />
+        </>
+      ) : null}
+    </>
   );
 }
 
@@ -454,13 +506,6 @@ export function ShopPriceGuide<S extends GuideService>({
   const guide = priceGuideFor(shopId);
   const [picked, setPicked] = useState(0);
   const [load, setLoad] = useState<VariantKind>('clothes');
-  // Shares the booking page's key, so a customer who goes on to book reads the cache.
-  const shelf = useQuery({
-    queryKey: ['shop-addon-shelf', shopId],
-    queryFn: () => getShopAddonShelf(shopId as string),
-    enabled: Boolean(guide && shopId),
-    retry: false,
-  });
 
   if (!guide) return null;
   const menu = guideMenu(services);
@@ -528,12 +573,7 @@ export function ShopPriceGuide<S extends GuideService>({
           <DryingCard rows={menu.drying} onBook={book} />
         </>
       ) : null}
-      {groupAddons(shelf.data?.addons ?? []).length > 0 ? (
-        <>
-          <SectionHead eyebrow="ADD-ONS" title="Extras" caption="Pick these while you book." />
-          <AddonsCard addons={shelf.data?.addons ?? []} />
-        </>
-      ) : null}
+      <ShopAddonsSection shopId={shopId} />
     </View>
   );
 }

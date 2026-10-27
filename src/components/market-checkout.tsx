@@ -52,6 +52,7 @@ const RAIL_TITLES: Record<AddonKind, string> = {
   detergent: 'Soap',
   fabcon: 'Fabcon',
   extra: 'Extras',
+  product: 'Other items',
 };
 
 export interface MarketBasketPageProps {

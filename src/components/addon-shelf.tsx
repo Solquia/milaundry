@@ -37,6 +37,7 @@ const SHAPE_FOR: Record<AddonKind, SoapShape> = {
   detergent: 'powder',
   fabcon: 'bottle',
   extra: 'bar',
+  product: 'bar',
 };
 
 /**

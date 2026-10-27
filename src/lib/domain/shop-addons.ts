@@ -14,13 +14,18 @@
  */
 import { formatMoney } from './money';
 
-export const ADDON_KINDS = ['detergent', 'fabcon', 'extra'] as const;
+/**
+ * 'product' is something the shop sells on its own, like a bouquet: the
+ * storefront lists it as Other items, not as part of the wash (0057).
+ */
+export const ADDON_KINDS = ['detergent', 'fabcon', 'extra', 'product'] as const;
 export type AddonKind = (typeof ADDON_KINDS)[number];
 
 export const ADDON_KIND_TITLES: Record<AddonKind, string> = {
   detergent: 'Sabon · Detergent',
   fabcon: 'Fabcon · Fabric conditioner',
   extra: 'Extras',
+  product: 'Other items',
 };
 
 /**
@@ -37,6 +42,7 @@ export const ADDON_KIND_SHORT: Record<AddonKind, string> = {
   detergent: 'Detergent',
   fabcon: 'Fabcon',
   extra: 'Extra',
+  product: 'Item',
 };
 
 export interface ShopAddon {
@@ -57,6 +63,8 @@ export interface ShopAddon {
   /** The owner's last count of the shelf; absent or null when not tracked (0049). */
   stock_count?: number | null;
   stock_counted_at?: string | null;
+  /** Set when the owner removed it (0057); archived add-ons are never on sale. */
+  archived_at?: string | null;
 }
 
 /**

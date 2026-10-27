@@ -18,7 +18,7 @@ import { glassChip, glassPane } from '@/components/glass';
 import { MarketBasketBar } from '@/components/market-basket-bar';
 import { SpotlightBasket } from '@/components/spotlight-basket';
 import { MarketCatalog, MarketHeader } from '@/components/market-storefront';
-import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
+import { ShopAddonsSection, ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
 import { CycleStrip } from '@/components/cycle-strip';
 import { useEntrance } from '@/components/entrance';
 import { ReviewShowcase } from '@/components/review-showcase';
@@ -465,6 +465,7 @@ export default function CustomerShopHome() {
         </SpotlightBody>
         {rewards}
         <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
+        {hasPriceGuide(id) ? null : <ShopAddonsSection shopId={id} />}
         {ratings}
         {storeInfo}
         <SpotlightBasket
@@ -530,6 +531,7 @@ export default function CustomerShopHome() {
           notice={basket.notice}
         />
         <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
+        {hasPriceGuide(id) ? null : <ShopAddonsSection shopId={id} />}
         {ratings}
         {storeInfo}
       </Screen>
@@ -621,12 +623,16 @@ export default function CustomerShopHome() {
       {hasPriceGuide(id) ? (
         <ShopPriceGuide shopId={id} services={services ?? []} onBook={handleBook} />
       ) : (
-        <ServiceShelf
-          entries={orderedServices}
-          isDisabled={!isRegistered}
-          onBook={handleBook}
-          delay={ENTRANCE.list.delay}
-        />
+        <>
+          <ServiceShelf
+            entries={orderedServices}
+            isDisabled={!isRegistered}
+            onBook={handleBook}
+            delay={ENTRANCE.list.delay}
+          />
+          {/* The add-ons and Other items on offer, before anyone books. */}
+          <ShopAddonsSection shopId={id} />
+        </>
       )}
 
       {/* Where the shop is, before what people said about it: a customer

@@ -16,6 +16,7 @@ import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import {
   getShopAddonGroups,
+  archiveShopAddon,
   getShopAddons,
   saveShopAddon,
   seedStarterAddons,
@@ -36,6 +37,8 @@ import {
   type AddonKind,
   type ShopAddon,
 } from '@/lib/domain/shop-addons';
+
+import { confirmAction } from '@/lib/confirm';
 
 import { AddonPicture } from './addon-shelf';
 import { glassChip, glassPane } from './glass';
@@ -123,6 +126,23 @@ function AddonRow({
     onError: (err: Error) => setError(err.message),
   });
 
+  const remove = useMutation({
+    mutationFn: () => archiveShopAddon(addon.id),
+    onSuccess: onSaved,
+    onError: (err: Error) => setError(err.message),
+  });
+
+  const confirmRemove = () =>
+    confirmAction(
+      {
+        title: `Remove ${addon.name}?`,
+        message: 'It leaves your list and your customers stop seeing it. Past orders keep it.',
+        confirmLabel: 'Remove',
+        dismissLabel: 'Keep it',
+      },
+      () => remove.mutate()
+    );
+
   const photo = useMutation({
     mutationFn: async () => {
       const uri = await pickPhoto();
@@ -193,6 +213,17 @@ function AddonRow({
           </View>
         </Pressable>
         <View style={styles.switchCol}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Remove ${addon.name}`}
+            onPress={confirmRemove}
+            disabled={remove.isPending}
+            hitSlop={8}
+            style={({ pressed }) => [styles.remove, pressed && { opacity: 0.6 }]}
+          >
+            <Ionicons name="trash-outline" size={14} color={colors.dangerInk} />
+            <Text style={styles.removeText}>{remove.isPending ? 'Removing…' : 'Remove'}</Text>
+          </Pressable>
           <Switch
             accessibilityLabel={`${addon.name} on sale`}
             value={addon.is_active}
@@ -459,7 +490,9 @@ const styles = StyleSheet.create({
   rowMeta: { ...type.caption, color: colors.subtle },
   rowPrice: { ...type.label, ...fontFor(800), color: colors.text },
   rowFree: { color: '#0B7A4B' },
-  switchCol: { alignItems: 'center', gap: 2 },
+  switchCol: { alignItems: 'center', alignSelf: 'flex-start', gap: 2 },
+  remove: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingBottom: space.snug },
+  removeText: { ...type.caption, fontSize: 12, fontWeight: '600', color: colors.dangerInk },
   switchText: { ...type.caption, fontSize: 11, color: colors.subtle },
   editor: { gap: space.snug },
   rowLimit: { ...type.caption, ...fontFor(600), color: colors.subtle },

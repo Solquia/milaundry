@@ -23,7 +23,7 @@ import { SpotlightBasket } from '@/components/spotlight-basket';
 import { SpotlightBody, SpotlightHeader, useSpotlight } from '@/components/spotlight-storefront';
 import { ACCENTS, Loading, colors, fontFor, space, type } from '@/components/ui-kit';
 import { OrderStatusBand } from '@/components/web/order-status-band';
-import { ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
+import { ShopAddonsSection, ShopPriceGuide, hasPriceGuide } from '@/components/price-guide';
 import { ShopRewardsCard } from '@/components/shop-rewards-card';
 import { PriceList } from '@/components/web/price-list';
 import { ReviewList } from '@/components/web/review-list';
@@ -185,6 +185,7 @@ function MarketBody({ storefront }: { storefront: Storefront }) {
           />
           <ShopRewardsCard shopId={shop.id} isRegistered={false} />
           <ShopPriceGuide shopId={shop.id} services={services} />
+          {hasPriceGuide(shop.id) ? null : <ShopAddonsSection shopId={shop.id} />}
           {tracked ? null : trackBand}
           {reputation && reviews.length > 0 ? (
             <>
@@ -316,6 +317,7 @@ function SpotlightPage({ storefront }: { storefront: Storefront }) {
           </SpotlightBody>
           <ShopRewardsCard shopId={shop.id} isRegistered={false} />
           <ShopPriceGuide shopId={shop.id} services={services} />
+          {hasPriceGuide(shop.id) ? null : <ShopAddonsSection shopId={shop.id} />}
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>Ratings</Text>
@@ -471,6 +473,8 @@ function ClassicBody({ storefront }: { storefront: Storefront }) {
               }
             />
           )}
+          {/* The guide carries its own; the plain list gets the same section. */}
+          {hasPriceGuide(shop.id) ? null : <ShopAddonsSection shopId={shop.id} />}
           {reputation && reviews.length > 0 ? (
             <>
               <Text style={styles.sectionTitle}>What customers say</Text>

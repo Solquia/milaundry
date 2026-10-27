@@ -1107,6 +1107,8 @@ export async function getShopAddons(shopId: string): Promise<ShopAddon[]> {
     .from('shop_addons')
     .select('*')
     .eq('shop_id', shopId)
+    // Removed add-ons keep their row for past orders' sake (0057), nowhere else.
+    .is('archived_at', null)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true });
   const rows = unwrap(result) as (Omit<ShopAddon, 'price'> & { price: number | string })[];
@@ -1129,6 +1131,15 @@ export async function updateShopAddon(
   >
 ): Promise<void> {
   const { error } = await supabase.from('shop_addons').update(patch).eq('id', addonId);
+  if (error) throw new Error(error.message);
+}
+
+/** Takes an add-on off the shelf for good; its past orders keep their lines (0057). */
+export async function archiveShopAddon(addonId: string): Promise<void> {
+  const { error } = await supabase
+    .from('shop_addons')
+    .update({ is_active: false, archived_at: new Date().toISOString() })
+    .eq('id', addonId);
   if (error) throw new Error(error.message);
 }
 
